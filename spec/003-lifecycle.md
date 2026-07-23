@@ -126,7 +126,9 @@ Transition
 
 A Lifecycle defines permitted evolution.
 
-A Transition performs or attempts a specific change.
+A Transition defines a permitted change.
+
+A Transition Attempt requests or executes that change.
 
 A Transition Record preserves what occurred.
 
@@ -134,7 +136,11 @@ A Transition Record preserves what occurred.
 
 # Lifecycle Definition
 
-A Lifecycle Definition is an identifiable normative contract defining the permitted states and transitions of one or more Lifecycle Subject Types.
+A Lifecycle Definition MUST define an entry Transition through which a Subject enters the lifecycle.
+
+A Lifecycle Definition Version is an immutable and identifiable state of a Lifecycle Definition.
+
+When a Lifecycle Definition is represented as an Artifact, its Definition Version MUST identify the corresponding Artifact Revision.
 
 Every Lifecycle Definition MUST have:
 
@@ -344,6 +350,12 @@ A State Assignment MUST NOT modify the normative content of an Artifact Revision
 When a state change also requires a change to Artifact content, the content change MUST produce a new Artifact Revision according to PEOS-002.
 
 A State Assignment MUST identify the specific Lifecycle Definition Revision under which it was established.
+
+A recorded State Assignment MUST be immutable.
+
+A new State Assignment supersedes the previous applicable State Assignment within the same lifecycle dimension.
+
+The previous State Assignment remains part of State History.
 
 ---
 
@@ -589,7 +601,8 @@ A Transition Effect is a persistent or observable consequence of successful Tran
 Effects MAY include:
 
 * creation of a new State Assignment;
-* invalidation of a previous State Assignment;
+* creation of a new State Assignment;
+* supersession of the previously applicable State Assignment;
 * creation of a Transition Record;
 * creation of Artifact Relations;
 * requirement of subsequent Validation;
