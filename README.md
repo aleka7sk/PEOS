@@ -2,7 +2,7 @@
 
 > **Build products, not prompts.**
 
-Product Engineering OS (PEOS) is an open framework for building software products with AI through a structured engineering process rather than ad-hoc prompting.
+Product Engineering OS (PEOS) is an open specification for building software products with AI through a structured engineering process rather than ad-hoc prompting.
 
 Instead of asking an AI model to immediately generate code, PEOS guides every project through a sequence of validated engineering stages—from understanding the problem to delivering production-ready software.
 

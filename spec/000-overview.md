@@ -82,13 +82,26 @@ Everything within PEOS ultimately serves the Product.
 
 ---
 
+## Engineering State
+
+Engineering State is the persistent and inspectable body of engineering knowledge associated with a Product at a given point in its evolution.
+
+Engineering State is represented through applicable Artifacts, Decisions, relationships, validation results, and their current normative status.
+
+Engineering State does not require a single physical representation and MUST NOT be inferred solely from source code or runtime behavior.
+
+---
+
 ## Artifact
 
-An Artifact is a persistent engineering output created during product development.
+An Artifact is an identifiable and persistent representation of engineering knowledge, intent, evidence, or product state.
 
-Examples include requirements, architectural designs, implementation plans, source code, test plans, deployment plans, and review documents.
+An Artifact may be created, imported, derived, or transformed during Product Engineering.
 
-Artifacts are first-class entities within PEOS.
+Artifacts are first-class PEOS entities and are independent of any particular file format, storage system, development tool, or runtime.
+
+The normative properties, identity, revision, representation, and relationship model of Artifacts are defined by PEOS-002.
+
 
 ---
 
@@ -102,9 +115,14 @@ Every significant implementation should be traceable to one or more engineering 
 
 ## Lifecycle
 
-A Lifecycle defines the sequence of engineering states through which a product evolves.
+A Lifecycle defines the valid states and state transitions through which a governed PEOS entity may evolve.
 
-Lifecycle stages define progression—not organizational structure.
+A lifecycle may apply to a Product, Artifact, Decision, Validation, or another entity explicitly governed by a normative PEOS specification.
+
+Lifecycle definitions establish permitted evolution, not organizational structure or a mandatory linear process.
+
+The formal lifecycle and transition model is defined by PEOS-003.
+
 
 ---
 
