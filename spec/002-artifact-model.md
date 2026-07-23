@@ -577,7 +577,6 @@ Every Relation Type definition MUST state:
 * its semantic meaning;
 * permitted source subjects;
 * permitted target subjects;
-* whether direction is significant;
 * whether its source-to-target direction carries normative meaning;
 * whether multiple relations are permitted;
 * whether cycles are permitted;
