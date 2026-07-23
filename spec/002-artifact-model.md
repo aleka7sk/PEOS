@@ -542,7 +542,6 @@ Every Artifact Relation MUST identify:
 * its source;
 * its target;
 * its Relation Type;
-* its direction;
 * its provenance;
 * its applicable scope when the scope is not self-evident.
 
@@ -579,6 +578,7 @@ Every Relation Type definition MUST state:
 * permitted source subjects;
 * permitted target subjects;
 * whether direction is significant;
+* whether its source-to-target direction carries normative meaning;
 * whether multiple relations are permitted;
 * whether cycles are permitted;
 * whether the relation applies to Artifacts, Revisions, or both;
@@ -662,9 +662,9 @@ An Artifact MUST have a first recorded Revision before its content participates 
 
 ---
 
-# Artifact Revision
+# Revision Operation
 
-Revision creates a new fixed state of an existing Artifact.
+A Revision Operation creates a new fixed state of an existing Artifact.
 
 A Revision operation MUST:
 

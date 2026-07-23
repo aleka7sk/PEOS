@@ -144,6 +144,16 @@ Runtimes implement the specification but do not define it.
 
 ---
 
+## Actor
+
+An Actor is an identifiable human, automated system, organization, or Runtime that performs or authorizes an engineering action.
+
+An Actor may create, transform, review, validate, approve, or otherwise affect Engineering State.
+
+Actor identity and authority are distinct. Identification of an Actor does not, by itself, establish that the Actor was authorized to perform an action.
+
+---
+
 ## Template
 
 A Template provides a standardized structure for creating artifacts.
