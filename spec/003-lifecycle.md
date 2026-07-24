@@ -82,6 +82,12 @@ The terms Product, Engineering State, Artifact, Artifact Revision, Decision, Val
 
 This document defines lifecycle and transition semantics.
 
+This specification does not define or establish Artifact Supersession relationships.
+
+Artifact Supersession relationship semantics are governed by PEOS-002 and any applicable specialized PEOS specification.
+
+This specification governs only Lifecycle transitions and Lifecycle consequences associated with Supersession.
+
 It does not redefine Artifact identity, Artifact Revision immutability, Decision structure, traceability completeness, Validation semantics, or Runtime behavior.
 
 ---
@@ -1043,6 +1049,18 @@ A Transition MAY also affect:
 * quality claims;
 * Runtime permissions.
 
+A Transition Effect MAY record or apply a Lifecycle consequence associated with an already established Supersession relationship.
+
+A Transition Effect SHALL NOT by itself establish:
+
+- the superseding subject;
+- the superseded subject;
+- the scope of replacement;
+- the provenance of the Supersession relationship;
+- the governance basis or authority establishing replacement.
+
+Those semantics SHALL remain represented by the applicable Supersession relationship governed by PEOS-002 and any specialized PEOS specification.
+
 A lifecycle State MUST NOT be interpreted as proof that all broader Product goals or business outcomes are correct.
 
 For example, an `accepted` Artifact may satisfy its acceptance contract while the Product itself remains incomplete or unsuccessful.
@@ -1120,6 +1138,12 @@ Lifecycle semantics do not depend on undocumented behavior of a specific Runtime
 ## Extension Invariant
 
 Extension lifecycles preserve the applicable requirements of this specification.
+
+## Supersession Separation Invariant
+
+A Lifecycle State, State Assignment, Transition, Transition Record, or Transition Effect SHALL NOT by itself establish Artifact Supersession.
+
+Where a Lifecycle consequence results from Supersession, the Lifecycle information and the Supersession relationship SHALL remain independently identifiable and inspectable.
 
 ---
 
@@ -1261,7 +1285,7 @@ This document depends on:
 This document provides lifecycle foundations for:
 
 * PEOS-004 — Decision Model;
-* PEOS-005 — Traceability;
+* PEOS-005 — Requirement Model;
 * PEOS-006 — Validation;
 * PEOS-007 — Quality Model;
 * PEOS-008 — Runtime Contract;

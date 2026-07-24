@@ -296,7 +296,9 @@ The Artifact Model does not require every Artifact to have a single linear revis
 
 Branching Revision histories are permitted.
 
-The semantic consequences of lifecycle transitions and supersession are defined by PEOS-003.
+The structural and engineering semantics of Artifact Supersession are defined by this specification.
+
+Any Lifecycle transition or Lifecycle consequence associated with Supersession is governed by PEOS-003 and by the applicable Lifecycle Definition.
 
 ---
 
@@ -570,7 +572,9 @@ Examples may include:
 
 These examples do not establish their complete normative semantics.
 
-The normative traceability meaning, mandatory usage, and coverage requirements of engineering Relation Types are defined by PEOS-005.
+The normative semantics and additional integrity constraints of specialized engineering Relation Types are defined by the applicable specialized PEOS specification or Product contract.
+
+Cross-artifact traceability paths, traceability coverage, completeness policies, and orphan detection remain the responsibility of a future Traceability Model.
 
 Every Relation Type definition MUST state:
 
@@ -618,7 +622,9 @@ The Artifact Graph MUST preserve enough identity to distinguish:
 
 The Artifact Graph SHOULD support inspection from both source and target directions.
 
-PEOS-005 defines normative traceability paths, completeness, coverage, and orphan detection.
+A future Traceability Model defines cross-artifact traceability paths, traceability coverage, completeness policies, and orphan detection.
+
+Specialized PEOS specifications MAY define domain-specific relationship obligations without becoming the general Traceability Model.
 
 ---
 
@@ -702,24 +708,57 @@ A transformed state of the same logical engineering subject is normally a new Re
 
 # Artifact Supersession
 
-Supersession indicates that one Artifact or Revision replaces another within a defined scope.
+Artifact Supersession is an Artifact Relation establishing that one identifiable Artifact subject replaces another identifiable Artifact subject within a defined scope.
 
-Supersession MUST be explicit.
+Every individual Supersession relationship SHALL be binary.
 
-Creation of a newer Revision MUST NOT automatically imply that every previous Revision is invalid or superseded.
+Every Supersession relationship SHALL identify:
 
-A supersession relation MUST identify:
+- exactly one superseding source subject;
+- exactly one superseded target subject;
+- the applicable scope;
+- its provenance;
+- the governance basis or authority under which replacement was established, where required by applicable governance;
+- the resulting Lifecycle consequence, if any.
 
-* the superseding subject;
-* the superseded subject;
-* the applicable scope;
-* the effective status or lifecycle consequence.
+The source-to-target direction SHALL be from superseding subject to superseded subject.
 
-Supersession MUST NOT erase the superseded subject from engineering history.
+A Supersession relationship MAY connect:
 
-Lifecycle rules for supersession are defined by PEOS-003.
+- one Artifact Revision to another Artifact Revision;
+- one Artifact to another Artifact;
+- another compatible participant combination explicitly permitted by a specialized normative PEOS specification.
 
-Traceability consequences are defined by PEOS-005.
+A relation connecting replacement of specific represented engineering states SHALL identify the applicable Artifact Revisions.
+
+A specialized PEOS specification SHALL define any permitted cross-level Supersession relationship between an Artifact and an Artifact Revision.
+
+One superseding subject MAY participate as the source of multiple Supersession relationships.
+
+One superseded subject MAY be the target of multiple Supersession relationships only where their applicable scopes remain explicitly distinguishable and non-contradictory.
+
+Supersession cycles SHALL NOT be permitted.
+
+An Artifact or Artifact Revision SHALL NOT directly or transitively supersede itself.
+
+Supersession SHALL be explicit.
+
+Creation of a newer Artifact Revision SHALL NOT automatically imply that an earlier Artifact Revision is superseded, invalid, withdrawn, or non-applicable.
+
+Supersession SHALL NOT:
+
+- erase the superseded subject;
+- merge the identities of the superseding and superseded subjects;
+- delete historical Artifact Revisions;
+- silently rewrite historical Engineering State.
+
+A Supersession relationship does not by itself require a Lifecycle transition.
+
+Where Supersession causes or requires a Lifecycle transition, State Assignment, status change, or other Lifecycle consequence, that consequence SHALL be governed by PEOS-003 and the applicable Lifecycle Definition.
+
+A Lifecycle State, State Assignment, Transition, status value, archival action, or newer Revision SHALL NOT by itself establish which subject supersedes another subject or the scope of replacement.
+
+Traceability consequences associated with Supersession remain governed by the applicable specialized PEOS specification, Product contract, or future Traceability Model.
 
 ---
 
@@ -898,6 +937,22 @@ Every Artifact Relation identifies its subjects and Relation Type.
 
 A relation derives its meaning from an identifiable Relation Type definition.
 
+## Supersession Identity Invariant
+
+Every Supersession relationship explicitly identifies one superseding source subject, one superseded target subject, and the scope of replacement.
+
+## Supersession Acyclicity Invariant
+
+Supersession cycles are prohibited.
+
+## Supersession and Lifecycle Separation Invariant
+
+Supersession remains distinct from Lifecycle State, State Assignment, Transition, and status.
+
+A Lifecycle construct SHALL NOT by itself establish Supersession.
+
+A Supersession relationship SHALL NOT be required to produce a Lifecycle consequence.
+
 ## History Preservation Invariant
 
 Revision, supersession, invalidation, migration, or removal does not silently rewrite historical Engineering State.
@@ -1042,7 +1097,7 @@ This document provides the Artifact foundation for:
 
 * PEOS-003 — Lifecycle;
 * PEOS-004 — Decision Model;
-* PEOS-005 — Traceability;
+* PEOS-005 — Requirement Model;
 * PEOS-006 — Validation;
 * PEOS-007 — Quality Model;
 * PEOS-008 — Runtime Contract;
