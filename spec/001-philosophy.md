@@ -506,7 +506,7 @@ This document provides the philosophical and invariant foundation for:
 * PEOS-002 — Artifact Model
 * PEOS-003 — Lifecycle
 * PEOS-004 — Decision Model
-* PEOS-005 — Traceability
+* PEOS-005 — Requirement Model
 * PEOS-006 — Validation
 * PEOS-007 — Quality Model
 * PEOS-008 — Runtime Contract
