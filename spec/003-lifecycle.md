@@ -184,6 +184,20 @@ A mutable reference to the latest Lifecycle Definition Version MUST NOT replace 
 
 ---
 
+# Lifecycle Definition Version
+
+A Lifecycle Definition Version SHALL have:
+
+- a stable identity;
+- an immutable normative content;
+- a parent Lifecycle Definition;
+- an ordering or version identifier;
+- applicability information when required.
+
+Two Lifecycle Definition Versions MUST NOT have different normative semantics while sharing the same identity.
+
+---
+
 # Lifecycle Subject
 
 A Lifecycle Subject is an identifiable entity whose normative state is governed by a Lifecycle Definition.
