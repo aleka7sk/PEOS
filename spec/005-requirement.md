@@ -90,17 +90,21 @@ This specification introduces no exception to the normative semantics establishe
    └── Requirement
 
 Requirement
-has
-Requirement Statement
-Requirement Subject
-Requirement Applicability
-Requirement Origin
-Requirement Authority
-Requirement Relationships
+    is
+        Artifact
+    participates in
+        Requirement Relationships
 
-Requirement content
-captured by
 Artifact Revision
+    whose Artifact is Requirement
+    contains
+        Requirement Statement
+        Requirement Subject
+        Requirement Applicability
+        Requirement Origin
+        Requirement Authority
+        Requirement Classification
+        Requirement Rationale
 
 Requirement Lifecycle
 governed by
@@ -115,7 +119,8 @@ Requirement Allocation
 assigns realization or responsibility scope
 
 Future Validation Model
-evaluates Requirement Revisions
+evaluates explicit Claims concerning
+Requirement Artifact Revisions
 
 Future Risk Model
 evaluates engineering risk associated with
@@ -173,13 +178,13 @@ A Requirement MAY exist in proposed, approved, rejected, withdrawn, superseded, 
 
 The existence of a Requirement does not imply that its required intent is currently applicable.
 
-Applicability depends upon:
+Normative applicability depends upon:
 
-- Lifecycle;
-- Requirement Authority;
-- Requirement Applicability;
-- applicable Product contract;
-- applicable organizational rules.
+- satisfied Requirement Applicability conditions;
+- a Lifecycle State that permits normative effect;
+- Requirement Authority where required by applicable governance.
+
+Applicable Product contracts and organizational rules MAY define the governance under which these conditions are interpreted and enforced.
 
 ## 7. Requirement Identity
 
@@ -224,6 +229,22 @@ All normative rules governing Artifacts apply equally to Requirements unless exp
 
 Requirement content SHALL be represented through Artifact Revisions.
 
+Every content element describing the engineering meaning of a Requirement SHALL belong to an Artifact Revision rather than directly to the Requirement identity.
+
+Requirement content includes, but is not limited to:
+
+- Requirement Statements;
+- Requirement Subjects;
+- Requirement Applicability;
+- Requirement Origins;
+- Requirement Authority;
+- Requirement Classifications;
+- Requirement Rationale.
+
+The Requirement identity SHALL NOT contain mutable current-value properties duplicating content owned by an Artifact Revision.
+
+References to a Requirement defining, possessing, or including such content SHALL be interpreted as references to the applicable Artifact Revision of that Requirement.
+
 Requirement Representations belong to Artifact Revisions rather than directly to the Requirement.
 
 Changes to Requirement content SHALL create a new Artifact Revision according to PEOS-002.
@@ -255,8 +276,6 @@ A Requirement Statement is not an engineering identity.
 A Requirement Statement SHALL belong to exactly one Artifact Revision.
 
 The existence of a Requirement identity does not by itself imply the existence of a complete or approved Requirement Statement.
-
-A Requirement SHALL NOT acquire normative applicability through an Artifact Revision that contains no Requirement Statement.
 
 A Requirement SHALL NOT own Requirement Statements directly.
 
@@ -298,9 +317,11 @@ Where multiple independent normative intents exist, they SHOULD be represented a
 
 ## 10. Requirement Subject
 
-Every Requirement SHALL define the engineering Subject to which the required intent applies.
+Every Artifact Revision whose Artifact is a Requirement SHALL define the engineering Subject to which the required intent represented by that Artifact Revision applies.
 
 The Subject identifies what is constrained, required, prohibited, or otherwise normatively governed.
+
+Requirement Subject is Requirement content owned by the Artifact Revision in which it is defined.
 
 The Subject MAY be:
 
@@ -342,9 +363,11 @@ Changing Allocation SHALL NOT change the Subject.
 
 ## 11. Requirement Applicability
 
-Every Requirement SHALL define the conditions under which its required engineering intent applies.
+Every Artifact Revision whose Artifact is a Requirement SHALL define the conditions under which the required engineering intent represented by that Artifact Revision applies.
 
 Applicability determines the engineering circumstances in which the Requirement is normatively effective.
+
+Requirement Applicability is Requirement content owned by the Artifact Revision in which it is defined.
 
 Applicability MAY be:
 
@@ -386,11 +409,13 @@ Applicability change SHALL NOT create a new Requirement identity unless engineer
 
 ## 12. Requirement Origin
 
-Every Requirement MAY define one or more Origins.
+Every Artifact Revision whose Artifact is a Requirement MAY define one or more Requirement Origins.
 
 Requirement Origin identifies the engineering source from which the Requirement was derived or motivated.
 
 Origin describes provenance.
+
+Requirement Origin is Requirement content owned by the Artifact Revision in which it is defined.
 
 Origin does not establish authority.
 
@@ -431,6 +456,8 @@ Changing Origin SHALL create a new Artifact Revision.
 
 Requirement Authority identifies the authority under which the Requirement becomes normatively binding.
 
+Requirement Authority is Requirement content owned by the Artifact Revision in which it is defined.
+
 Authority establishes normative legitimacy.
 
 Authority does not establish origin.
@@ -441,7 +468,7 @@ Authority does not establish ownership.
 
 Authority SHALL be explicitly identifiable whenever normative effect depends upon organizational governance.
 
-Multiple Authorities MAY jointly establish the same Requirement.
+Multiple Authorities MAY jointly provide the normative authority represented by the same Requirement Artifact Revision.
 
 ### 13.1 Authority vs Origin
 
@@ -465,7 +492,9 @@ Authority change SHALL NOT create a new Requirement identity.
 
 ## 14. Requirement Classification
 
-A Requirement MAY possess one or more Classifications.
+An Artifact Revision whose Artifact is a Requirement MAY contain one or more Requirement Classifications.
+
+Requirement Classification is Requirement content owned by the Artifact Revision in which it is defined.
 
 Classification provides organizational structure.
 
@@ -493,7 +522,9 @@ This specification does not standardize classification taxonomies.
 
 ## 15. Requirement Rationale
 
-A Requirement MAY include documented engineering rationale.
+An Artifact Revision whose Artifact is a Requirement MAY include documented engineering rationale.
+
+Requirement Rationale is Requirement content owned by the Artifact Revision in which it is defined.
 
 Rationale explains why the Requirement exists.
 
@@ -982,33 +1013,41 @@ Any relationship between the two SHALL remain explicitly represented.
 
 Validation is outside the scope of this specification.
 
-This specification defines only the structural relationship.
+This specification defines only the structural boundary between Requirement content and future Validation concepts.
 
-Validation SHALL evaluate Requirement conformance according to future PEOS Validation specifications.
+The future Validation Model SHALL evaluate explicit engineering claims concerning identified Requirement Artifact Revisions.
 
-Requirements SHALL remain independent of validation outcomes.
+Such claims MAY include Satisfaction Claims and Conformance Claims.
+
+A Validation activity, result, claim, or evidence item SHALL NOT become part of Requirement content solely because it concerns a Requirement.
+
+Requirements and their Artifact Revisions SHALL remain independent of Validation outcomes.
 
 ### 30.1 Validation Independence
 
-Validation SHALL NOT determine Requirement identity.
+Validation SHALL NOT determine:
 
-Validation SHALL NOT determine Requirement applicability.
+- Requirement identity;
+- Requirement content;
+- Requirement Applicability;
+- Requirement Authority;
+- Requirement existence.
 
-Validation SHALL NOT determine Requirement authority.
+Validation evaluates explicit engineering claims concerning identified Requirement Artifact Revisions.
 
-Validation SHALL NOT determine Requirement existence.
-
-Validation evaluates engineering claims.
-
-Validation does not define engineering intent.
+Validation does not define required engineering intent.
 
 ### 30.2 Satisfaction
 
 Requirement satisfaction is not defined by this specification.
 
-Satisfaction SHALL be evaluated by the Validation Model.
+A future Validation Model SHALL define Satisfaction Claims and the evaluation of those Claims.
 
-Requirements SHALL NOT possess mutable satisfaction state.
+A Satisfaction Claim SHALL identify the Requirement Artifact Revision whose required engineering intent is being evaluated.
+
+A Requirement SHALL NOT possess mutable satisfaction state.
+
+An Artifact Revision SHALL NOT possess mutable satisfaction state.
 
 This specification intentionally defines no property equivalent to:
 
@@ -1016,7 +1055,13 @@ This specification intentionally defines no property equivalent to:
 Requirement.satisfied = true
 ```
 
-Satisfaction SHALL be represented through explicit validation concepts rather than mutable Requirement attributes.
+or:
+
+```
+ArtifactRevision.satisfied = true
+```
+
+Satisfaction SHALL be represented through explicit Validation concepts rather than mutable Requirement or Artifact Revision attributes.
 
 ## 31. Requirement and Risk
 
@@ -1148,9 +1193,11 @@ Allocation SHALL NOT imply:
 
 **Validation**
 
-Validation SHALL evaluate Requirements.
+Validation SHALL evaluate explicit Claims concerning identified Requirement Artifact Revisions.
 
-Validation SHALL NOT define Requirements.
+Validation SHALL NOT define Requirement identity or Requirement content.
+
+Satisfaction and Conformance SHALL NOT be represented as mutable Requirement or Artifact Revision state.
 
 **Decision**
 
