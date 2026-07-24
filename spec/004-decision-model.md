@@ -360,7 +360,7 @@ A selected Alternative is an Alternative adopted by the Decision Outcome.
 
 Selection of an Alternative MUST NOT be interpreted beyond the Decision Applicability.
 
-A selected Alternative MAY establish one or more Engineering Commitments.
+Adoption of an Alternative by an established Decision Outcome MAY establish one or more Engineering Commitments.
 
 Selection alone does not prove that the selected Alternative has been implemented, validated, or satisfied.
 
