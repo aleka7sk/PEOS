@@ -244,7 +244,7 @@ It does not define a separate engineering entity.
 
 ## 9. Requirement Statement
 
-Every Requirement SHALL be expressed by one or more Requirement Statements.
+Every Artifact Revision whose Artifact is a Requirement SHALL contain at least one Requirement Statement.
 
 A Requirement Statement is the human-readable expression of the engineering intent represented by a Requirement.
 
@@ -253,6 +253,10 @@ A Requirement Statement is descriptive content.
 A Requirement Statement is not an engineering identity.
 
 A Requirement Statement SHALL belong to exactly one Artifact Revision.
+
+The existence of a Requirement identity does not by itself imply the existence of a complete or approved Requirement Statement.
+
+A Requirement SHALL NOT acquire normative applicability through an Artifact Revision that contains no Requirement Statement.
 
 A Requirement SHALL NOT own Requirement Statements directly.
 
@@ -360,7 +364,7 @@ Applicability SHALL remain independent of allocation.
 
 ### 11.1 Applicable Requirement
 
-A Requirement becomes applicable only when its Applicability conditions are satisfied and its Lifecycle and Authority permit normative effect.
+A Requirement becomes applicable only when its Applicability conditions are satisfied, its Lifecycle permits normative effect, and any Authority required by applicable governance has been established.
 
 Applicability SHALL NOT be inferred solely from the existence of the Requirement.
 
@@ -389,6 +393,12 @@ Requirement Origin identifies the engineering source from which the Requirement 
 Origin describes provenance.
 
 Origin does not establish authority.
+
+Origin does not itself constitute a Decision, Decision Outcome, Engineering Commitment, or normative approval.
+
+A reference to a Decision as an Origin records provenance only.
+
+Where a Decision Outcome establishes a Requirement, the Decision relationship and the Requirement Origin SHALL remain semantically distinguishable.
 
 Possible Origins include:
 
@@ -499,7 +509,7 @@ Such change SHALL create a new Artifact Revision.
 
 Every Requirement Statement SHOULD exhibit characteristics supporting objective engineering interpretation.
 
-Desirable characteristics include:
+Examples of desirable characteristics include:
 
 - clarity;
 - consistency;
@@ -508,6 +518,8 @@ Desirable characteristics include:
 - objective interpretability;
 - traceability;
 - verifiability by future Validation models.
+
+This specification does not define a complete Requirement quality taxonomy or a mandatory Requirement quality assessment method.
 
 Failure to satisfy one or more quality characteristics does not invalidate the existence of the Requirement.
 
@@ -533,17 +545,19 @@ Relationships SHALL remain independent of:
 
 Relationship semantics SHALL be determined by their defined relationship type.
 
-### 17.1 Relationship Identity
+### 17.1 Relationship Representation
 
-A Requirement relationship is an identifiable engineering relationship.
+This specification defines the engineering semantics of relationships involving Requirements.
 
-A relationship SHALL possess its own identity.
+This specification does not define relationships as a separate category of engineering entity.
 
-A relationship SHALL remain independent of the identities of the connected entities.
+The identity, revision, lifecycle, historical preservation, authority, and representation semantics of relationships are outside the scope of this specification.
 
-Changing relationship metadata SHALL NOT change either connected Requirement.
+A conforming implementation SHALL preserve sufficient information to distinguish explicitly represented relationships and their engineering meaning.
 
-Deleting a relationship SHALL NOT modify either connected Requirement.
+Changing or removing a relationship SHALL NOT by itself modify the identity or content of either related Requirement.
+
+A future PEOS specification MAY define a common model for engineering relationships.
 
 ### 17.2 Relationship Direction
 
@@ -742,19 +756,28 @@ Requirement change SHALL preserve historical inspectability.
 
 ### 25.1 Material Change
 
-A material change modifies the engineering content of a Requirement.
+A material change is any change that modifies the engineering meaning represented by a Requirement Artifact Revision.
 
-Material changes include, but are not limited to:
+Material changes include, but are not limited to, changes to:
 
 - Requirement Statement;
 - Subject;
 - Applicability;
 - Authority;
 - Origin;
-- Rationale;
-- normative engineering intent.
+- normative constraints;
+- required behavior;
+- required qualities;
+- thresholds;
+- limits;
+- conditions;
+- units of measure;
+- normative strength;
+- engineering rationale where that rationale affects interpretation of required intent.
 
 Every material change SHALL create a new Artifact Revision.
+
+A change SHALL be classified according to its effect on engineering meaning rather than according to the field, representation, or storage location in which the change occurs.
 
 ### 25.2 Non-Material Change
 
@@ -812,11 +835,13 @@ The Proposed state SHALL NOT imply normative applicability.
 
 Normative applicability depends upon all of the following:
 
-- Lifecycle;
-- Applicability;
-- Authority.
+- satisfied Requirement Applicability conditions;
+- a Lifecycle State that permits normative effect;
+- Requirement Authority where required by applicable governance.
 
 No individual factor is sufficient by itself.
+
+The absence of a separately represented Requirement Authority SHALL NOT prevent normative applicability where applicable governance does not require such Authority.
 
 A Requirement SHALL NOT become applicable solely because it exists.
 
@@ -848,9 +873,11 @@ Supersession SHALL preserve complete engineering traceability.
 
 ## 27. Waiver
 
-A Requirement MAY be waived under defined engineering authority.
+A Requirement MAY be waived only through applicable engineering governance.
 
-A waiver suspends or modifies normative applicability.
+A waiver SHALL be authorized by an established Decision Outcome or by another governance mechanism explicitly permitted by an applicable PEOS Product contract.
+
+A waiver suspends or limits normative applicability within its defined scope.
 
 A waiver SHALL NOT delete the Requirement.
 
@@ -860,11 +887,15 @@ A waiver SHALL NOT rewrite Requirement content.
 
 Waivers SHALL remain explicitly represented.
 
+A waiver SHALL identify the governance action through which it was established.
+
 ### 27.1 Waiver Authority
 
 Every waiver SHALL identify the authority under which it is established.
 
-A waiver established without applicable authority SHALL NOT possess normative effect.
+Where a waiver is established by a Decision Outcome, the Decision and applicable Outcome SHALL remain explicitly traceable.
+
+A waiver established without authority required by applicable governance SHALL NOT possess normative effect.
 
 ### 27.2 Waiver Scope
 
@@ -1060,7 +1091,7 @@ A conforming implementation SHALL, at minimum:
 - distinguish Applicability from Lifecycle;
 - preserve historical revisions;
 - preserve historical lifecycle transitions;
-- support explicit engineering relationships.
+- preserve explicitly represented Requirement relationships and their engineering meaning.
 
 ## 35. Invariants
 
@@ -1131,6 +1162,12 @@ Neither entity SHALL replace the other.
 
 Engineering Commitments SHALL remain independent of Requirements.
 
+**Waiver**
+
+A waiver SHALL NOT delete, rewrite, or replace the Requirement to which it applies.
+
+A waiver SHALL possess normative effect only through applicable engineering governance and only within its defined scope.
+
 **Historical Preservation**
 
 Historical engineering information SHALL remain inspectable.
@@ -1187,9 +1224,23 @@ Allowing validation results to modify Requirement semantics.
 
 Allowing runtime behavior to determine Requirement identity or normative meaning.
 
+### 36.11 Ungoverned Waiver
+
+Representing a waiver as an informal flag or mutable Requirement attribute without explicit scope, authority, and applicable engineering governance.
+
+Example:
+
+```
+Requirement {
+waived = true
+}
+```
+
 ## 37. Summary
 
 This specification defines Requirements as identifiable engineering Artifacts expressing required engineering intent.
+
+This specification defines only the structural semantics of Requirements and their interaction with other PEOS concepts.
 
 Requirement identity is preserved independently of revisions, lifecycle states, representations, allocation, implementation, validation, and runtime behavior.
 
