@@ -6,7 +6,7 @@ The PEOS Requirement Model defines how required engineering intent is represente
 
 This specification distinguishes a Requirement from its statement, revisions, lifecycle state, allocation, implementation, validation, satisfaction, decisions, engineering commitments, and runtime representations.
 
-The model defines Requirements as identifiable engineering Artifacts whose required intent may become normatively applicable according to Lifecycle, authority, and Applicability.
+The model defines the identity, revisioned content, relationships, governance interactions, and normative applicability of Requirements as defined in Section 6.
 
 This specification establishes structural semantics only.
 
@@ -108,7 +108,7 @@ Artifact Revision
 
 Requirement Lifecycle
 governed by
-Lifecycle State Assignment
+State Assignment
 
 Decision Outcome
 MAY establish, approve, interpret, waive,
@@ -127,7 +127,7 @@ evaluates engineering risk associated with
 Requirements and their satisfaction
 ```
 
-A Requirement is an identifiable engineering Artifact expressing required engineering intent for a defined Subject and Applicability.
+A Requirement is an identifiable engineering Artifact whose Artifact Revisions may express required engineering intent for one or more defined Subjects within a defined Applicability.
 
 A Requirement remains distinct from:
 
@@ -317,49 +317,47 @@ Where multiple independent normative intents exist, they SHOULD be represented a
 
 ## 10. Requirement Subject
 
-Every Artifact Revision whose Artifact is a Requirement SHALL define the engineering Subject to which the required intent represented by that Artifact Revision applies.
+Every Artifact Revision whose Artifact is a Requirement SHALL identify one or more engineering Subjects to which the required engineering intent represented by that Artifact Revision applies.
 
-The Subject identifies what is constrained, required, prohibited, or otherwise normatively governed.
+A Subject identifies the engineering matter, system, component, service, behavior, interface, process, information item, organization, actor, environment, or other engineering concern governed by the represented required intent.
 
-Requirement Subject is Requirement content owned by the Artifact Revision in which it is defined.
+Where multiple Subjects are identified, each Subject SHALL remain distinguishable.
 
-The Subject MAY be:
+The identification of multiple Subjects SHALL NOT by itself create multiple Requirements.
 
-- an Artifact;
-- a Product;
-- a Component;
-- a Service;
-- an Interface;
-- a Process;
-- a Capability;
-- a Configuration Item;
-- another engineering concept defined by PEOS.
+The represented required engineering intent SHALL make clear whether it applies:
 
-The Subject SHALL be identifiable.
+- independently to each identified Subject;
+- collectively to the identified Subjects;
+- or according to another explicitly represented relationship among those Subjects.
 
-The Subject SHALL NOT be inferred solely from informal wording where explicit identification is reasonably possible.
+Subject semantics SHALL NOT be inferred solely from textual ordering.
 
-### 10.1 Subject Independence
+### 10.1 Subject and Requirement Identity
 
-Requirement identity SHALL remain independent of its Subject.
+Requirement identity SHALL remain independent of the Subjects identified by any individual Requirement Artifact Revision.
 
-Changing the Subject constitutes a content change.
+Changing, adding, removing, or otherwise modifying an identified Subject constitutes a Requirement content change and therefore requires a new Artifact Revision.
 
-Changing the Subject SHALL create a new Artifact Revision.
+Such a content change SHALL NOT by itself create a new Requirement identity.
 
-Changing the Subject SHALL NOT create a new Requirement unless engineering identity changes.
+A new Requirement identity is required only where applicable identity governance determines that the engineering requirement itself is no longer the same Requirement.
 
-### 10.2 Subject vs Allocation Target
+### 10.2 Subject and Allocation Target
 
-Requirement Subject and Allocation Target are distinct concepts.
+A Requirement Subject SHALL remain distinct from an Allocation Target.
 
-The Subject defines what the Requirement governs.
+A Subject identifies what the required engineering intent concerns.
 
-Allocation defines responsibility or realization assignment.
+An Allocation Target identifies an engineering element assigned responsibility for realizing, addressing, or otherwise carrying that required intent.
 
-Allocation SHALL NOT redefine the Subject.
+A Requirement MAY concern one or more Subjects without being allocated.
 
-Changing Allocation SHALL NOT change the Subject.
+A Requirement MAY be allocated to one or more Allocation Targets that differ from its identified Subjects.
+
+Subject identification SHALL NOT imply Allocation.
+
+Allocation SHALL NOT modify Requirement Subject content.
 
 ## 11. Requirement Applicability
 
@@ -548,7 +546,7 @@ Examples of desirable characteristics include:
 - singularity of intent;
 - objective interpretability;
 - traceability;
-- verifiability by future Validation models.
+- verifiability by the future Validation Model.
 
 This specification does not define a complete Requirement quality taxonomy or a mandatory Requirement quality assessment method.
 
@@ -568,14 +566,14 @@ Relationships SHALL NOT be inferred solely from textual similarity.
 
 The existence of a Requirement relationship SHALL remain independent of:
 
-- Lifecycle State Assignment;
+- State Assignment;
 - Representation;
 - Validation;
 - Allocation.
 
 A Requirement relationship SHALL NOT become part of Requirement content solely because the relationship concerns that Requirement.
 
-A relationship MAY identify a Requirement Artifact identity, an identified Requirement Artifact Revision, or both, according to the semantics of its relationship type.
+A relationship MAY identify a Requirement identity, an identified Requirement Artifact Revision, or both, according to the semantics of its relationship type.
 
 Relationship semantics SHALL be determined by their defined relationship type.
 
@@ -607,17 +605,45 @@ Relationship semantics SHALL define the meaning of both source and target.
 
 Every explicitly represented Requirement relationship SHALL make clear whether each participant identifies:
 
-- a Requirement Artifact identity;
+- a Requirement identity;
 - a specific Requirement Artifact Revision;
 - or both.
 
 Where relationship meaning depends upon represented engineering intent, the relationship SHALL identify the applicable Requirement Artifact Revision.
 
-Where relationship meaning applies to the Requirement identity independently of any individual content revision, identifying the Requirement Artifact identity is sufficient.
+Where relationship meaning applies to the Requirement identity independently of any individual content revision, identifying the Requirement identity is sufficient.
 
 A relationship SHALL NOT leave participant level ambiguous.
 
 Identification of a Requirement Artifact Revision SHALL NOT create a separate Requirement Revision entity.
+
+### 17.4 Artifact Relation Conformance
+
+Every explicitly represented Requirement relationship defined by this specification is an Artifact Relation governed by PEOS-002.
+
+In addition to the relationship-type-specific information defined in Sections 18 through 23, every Requirement relationship SHALL identify:
+
+- its Relation Type;
+- its provenance;
+- its applicable scope where that scope is not self-evident from the identified participants and relationship semantics.
+
+Relationship provenance SHALL identify the origin of the represented relationship fact.
+
+Relationship provenance SHALL NOT be inferred solely from the provenance, authorship, authority, or origin of a participating Requirement or Requirement Artifact Revision.
+
+Every Requirement Relation Type definition SHALL make explicit:
+
+- permitted source participant types;
+- permitted target participant types;
+- direction;
+- multiplicity;
+- whether cycles are permitted;
+- whether participants are identified at Requirement identity level, Requirement Artifact Revision level, or both;
+- applicable integrity constraints.
+
+A relationship SHALL conform both to PEOS-002 and to the additional semantics of its Requirement Relation Type.
+
+Where this specification imposes a stronger constraint than the general Artifact Relation model, the stronger Requirement-specific constraint applies.
 
 ## 18. Derivation
 
@@ -649,7 +675,25 @@ Derivation SHALL NOT imply:
 - Allocation;
 - Satisfaction.
 
-### 18.1 Multiple Derivation
+### 18.1 Derivation Relation Type
+
+For Derivation:
+
+- the source participant SHALL be an identified source Requirement Artifact Revision;
+- the target participant SHALL be the derived Requirement Artifact Revision;
+- direction SHALL be from source to derived;
+- one derived Requirement Artifact Revision MAY have one or more source Requirement Artifact Revisions;
+- one source Requirement Artifact Revision MAY participate in the derivation of multiple derived Requirement Artifact Revisions;
+- Derivation cycles SHALL NOT be permitted;
+- both source and target SHALL be identified at Requirement Artifact Revision level.
+
+A Requirement Artifact Revision SHALL NOT be directly or transitively derived from itself.
+
+Every source and target Requirement SHALL remain independently identifiable.
+
+Derivation provenance SHALL identify the origin of the represented derivation relationship.
+
+### 18.2 Multiple Derivation
 
 A Requirement Artifact Revision MAY be derived from multiple source Requirement Artifact Revisions.
 
@@ -688,6 +732,24 @@ Refinement SHALL NOT imply:
 - Allocation;
 - Satisfaction.
 
+### 19.1 Refinement Relation Type
+
+For Refinement:
+
+- the source participant SHALL be the refined Requirement Artifact Revision;
+- the target participant SHALL be the refining Requirement Artifact Revision;
+- direction SHALL be from refined to refining;
+- one refining Requirement Artifact Revision MAY refine one or more Requirement Artifact Revisions;
+- one refined Requirement Artifact Revision MAY be refined by multiple Requirement Artifact Revisions;
+- Refinement cycles SHALL NOT be permitted;
+- both source and target SHALL be identified at Requirement Artifact Revision level.
+
+A Requirement Artifact Revision SHALL NOT directly or transitively refine itself.
+
+The refining required engineering intent SHALL remain compatible with the refined required engineering intent within the defined scope.
+
+Refinement provenance SHALL identify the origin of the represented refinement relationship.
+
 ## 20. Decomposition
 
 A Requirement Artifact Revision MAY be decomposed into multiple subordinate Requirement Artifact Revisions.
@@ -716,7 +778,25 @@ Decomposition SHALL NOT by itself establish:
 - Lifecycle state;
 - Supersession.
 
-### 20.1 Decomposition Completeness
+### 20.1 Decomposition Relation Type
+
+For Decomposition:
+
+- the source participant SHALL be the parent Requirement Artifact Revision;
+- each target participant SHALL be a subordinate Requirement Artifact Revision;
+- direction SHALL be from parent to subordinate;
+- one parent Requirement Artifact Revision SHALL relate to one or more subordinate Requirement Artifact Revisions;
+- one subordinate Requirement Artifact Revision MAY participate in more than one Decomposition relationship only where each parent relationship and its scope remain explicitly distinguishable;
+- Decomposition cycles SHALL NOT be permitted;
+- parent and subordinate participants SHALL be identified at Requirement Artifact Revision level.
+
+A Requirement Artifact Revision SHALL NOT directly or transitively decompose itself.
+
+A subordinate Requirement identity SHALL remain distinct from the parent Requirement identity.
+
+Decomposition provenance SHALL identify the origin of the represented decomposition relationship set.
+
+### 20.2 Decomposition Completeness
 
 A Decomposition relationship set MAY explicitly assert completeness within a defined scope.
 
@@ -762,6 +842,26 @@ Dependency SHALL NOT by itself transfer:
 - identity;
 - content.
 
+### 21.1 Dependency Relation Type
+
+For Dependency:
+
+- the source participant SHALL be the dependent Requirement or Requirement Artifact Revision;
+- the target participant SHALL be the Requirement or Requirement Artifact Revision upon which the source depends;
+- direction SHALL be from dependent to dependency;
+- one dependent participant MAY depend upon one or more dependency participants;
+- one dependency participant MAY be depended upon by multiple dependent participants;
+- Dependency cycles MAY be represented;
+- each participant SHALL explicitly identify whether it refers to Requirement identity level or Requirement Artifact Revision level.
+
+Where a Dependency cycle exists, every participating Dependency relationship SHALL remain explicitly represented.
+
+The existence of a Dependency cycle SHALL NOT by itself establish that the participating Requirements are invalid, unsatisfiable, or non-conforming.
+
+An applicable PEOS Product contract MAY prohibit specified Dependency cycles or require their engineering resolution.
+
+Dependency provenance SHALL identify the origin of the represented dependency relationship.
+
 ## 22. Conflict
 
 Two or more Requirements or Requirement Artifact Revisions MAY participate in an explicitly represented Conflict relationship.
@@ -793,11 +893,33 @@ A Decision Outcome MAY establish the selected resolution.
 
 Resolution of a Conflict SHALL NOT remove the historical fact that the Conflict was represented unless applicable retention rules permit removal of that engineering information.
 
+### 22.1 Conflict Relation Type
+
+For Conflict:
+
+- every participant SHALL be an identified Requirement or Requirement Artifact Revision;
+- Conflict SHALL be symmetric with respect to its participants;
+- a Conflict SHALL contain two or more distinct participants;
+- a Requirement or Requirement Artifact Revision SHALL NOT conflict with itself;
+- one participant MAY participate in multiple Conflict relationships;
+- Conflict cycles among three or more distinct participants MAY be represented;
+- each participant SHALL explicitly identify whether it refers to Requirement identity level or Requirement Artifact Revision level.
+
+The ordering of Conflict participants SHALL NOT imply priority, authority, preference, or resolution direction.
+
+Where an implementation requires ordered source and target fields, that ordering SHALL be representational only and SHALL NOT alter the symmetric engineering semantics of Conflict.
+
+Conflict provenance SHALL identify the origin of the represented conflict relationship.
+
 ## 23. Supersession
 
 A Requirement MAY supersede one or more Requirements through an explicitly represented Supersession relationship.
 
 Supersession establishes that the required engineering intent represented by an identified superseding Requirement Artifact Revision replaces the required engineering intent represented by one or more identified superseded Requirement Artifact Revisions within a defined scope.
+
+For the purposes of this specification, a governance action is an established Decision Outcome or another governance mechanism explicitly permitted by an applicable PEOS Product contract.
+
+Governance action is a semantic role and SHALL NOT be interpreted as introducing a separate PEOS entity.
 
 Every Supersession relationship SHALL identify:
 
@@ -829,7 +951,27 @@ Supersession SHALL remain explicitly represented.
 
 A Decision Outcome MAY authorize Supersession as defined by Section 28.3.
 
-### 23.1 Superseded Requirement
+### 23.1 Supersession Relation Type
+
+For Requirement Supersession:
+
+- the source participant SHALL be the superseding Requirement Artifact Revision;
+- each target participant SHALL be a superseded Requirement Artifact Revision;
+- direction SHALL be from superseding to superseded;
+- one superseding Requirement Artifact Revision MAY supersede one or more Requirement Artifact Revisions;
+- one Requirement Artifact Revision MAY be superseded by more than one Requirement Artifact Revision only where the applicable scopes remain explicitly distinguishable and non-contradictory;
+- Supersession cycles SHALL NOT be permitted;
+- source and target SHALL be identified at Requirement Artifact Revision level while their owning Requirement identities remain identifiable.
+
+A Requirement Artifact Revision SHALL NOT directly or transitively supersede itself.
+
+The Supersession relationship SHALL identify the resulting effective status or Lifecycle consequence, if any.
+
+Absence of a Lifecycle consequence SHALL be explicitly representable and SHALL NOT invalidate an otherwise established Supersession relationship.
+
+Supersession provenance SHALL identify the origin of the represented supersession relationship.
+
+### 23.2 Superseded Requirement
 
 A superseded Requirement remains an identifiable Requirement.
 
@@ -959,7 +1101,9 @@ Requirement lifecycle SHALL be governed exclusively by PEOS-003.
 
 This specification defines no independent lifecycle mechanism.
 
-Lifecycle State Assignments SHALL remain separate from Artifact Revisions.
+In this specification, a State Assignment refers to a lifecycle State Assignment governed by PEOS-003.
+
+State Assignments SHALL remain separate from Artifact Revisions.
 
 Requirement lifecycle SHALL remain independent of:
 
@@ -1034,7 +1178,7 @@ An applicable Lifecycle Definition MAY define a Lifecycle State indicating that 
 
 Assignment of such a Lifecycle State records governance state only.
 
-A Lifecycle State Assignment SHALL NOT by itself establish:
+A State Assignment SHALL NOT by itself establish:
 
 - which Requirement supersedes another Requirement;
 - which Requirement Artifact Revisions are involved;
@@ -1043,7 +1187,7 @@ A Lifecycle State Assignment SHALL NOT by itself establish:
 
 Normative replacement of required engineering intent SHALL be represented through an explicit Supersession relationship as defined by Section 23.
 
-The Lifecycle State Assignment and the applicable Supersession relationship SHALL remain semantically distinct and independently inspectable.
+The State Assignment and the applicable Supersession relationship SHALL remain semantically distinct and independently inspectable.
 
 ## 27. Waiver
 
@@ -1261,7 +1405,7 @@ Requirement history SHALL remain inspectable.
 
 Historical Artifact Revisions SHALL remain distinguishable.
 
-Historical Lifecycle State Assignments SHALL remain distinguishable.
+Historical State Assignments SHALL remain distinguishable.
 
 The existence, participants, direction, type, scope, and engineering meaning of explicitly represented historical Requirement relationships SHALL remain inspectable where those relationships are retained as engineering information.
 
@@ -1273,7 +1417,7 @@ Historical Decisions referencing Requirements SHALL remain inspectable.
 
 Historical Engineering Commitments SHALL remain inspectable.
 
-Historical Validation Records SHALL be governed by the Validation Model.
+Historical Validation Records SHALL be governed by the future Validation Model.
 
 Historical preservation SHALL NOT require historical Requirements to remain applicable.
 
@@ -1336,7 +1480,7 @@ Lifecycle SHALL remain independent of:
 
 **Supersession**
 
-A Lifecycle State Assignment SHALL NOT by itself establish Supersession.
+A State Assignment SHALL NOT by itself establish Supersession.
 
 Supersession SHALL identify the Requirement Artifact Revisions whose required engineering intent is replaced and the scope in which replacement applies.
 
@@ -1344,7 +1488,7 @@ Supersession SHALL NOT merge or destroy Requirement identities.
 
 **Relationship Participants**
 
-A Requirement relationship SHALL NOT leave ambiguous whether a participant identifies a Requirement Artifact identity or a Requirement Artifact Revision.
+A Requirement relationship SHALL NOT leave ambiguous whether a participant identifies a Requirement identity or a Requirement Artifact Revision.
 
 A relationship whose meaning depends upon represented required engineering intent SHALL identify the applicable Requirement Artifact Revision.
 
@@ -1367,6 +1511,24 @@ Dependency SHALL NOT transfer identity, content, Authority, Applicability, Lifec
 **Conflict**
 
 Conflict SHALL NOT by itself modify, reject, withdraw, waive, or supersede a Requirement.
+
+**Artifact Relation Conformance**
+
+Every Requirement relationship SHALL conform to the Artifact Relation contract established by PEOS-002.
+
+Every Requirement relationship SHALL identify its Relation Type, provenance, participants at the required identity or Artifact Revision level, and applicable scope.
+
+Every Requirement Relation Type SHALL define direction, multiplicity, cycle policy, participant level, and integrity constraints.
+
+**Relationship Cycles**
+
+Derivation, Refinement, Decomposition, and Supersession cycles SHALL NOT be permitted.
+
+Dependency and multi-participant Conflict cycles MAY be represented subject to applicable Product contract constraints.
+
+**Relationship Provenance**
+
+Relationship provenance SHALL remain distinct from Requirement Origin, Requirement Authority, Artifact Revision provenance, and participant authorship.
 
 **Statement**
 
@@ -1516,6 +1678,28 @@ Treating a Dependency relationship as transferring Requirement Authority, Applic
 ### 36.18 Conflict as Automatic Invalidity
 
 Automatically rejecting, withdrawing, waiving, or superseding a Requirement solely because a Conflict relationship exists.
+
+### 36.19 Missing Relationship Provenance
+
+Representing a Requirement relationship without identifying the provenance of the relationship fact.
+
+---
+
+### 36.20 Undefined Relationship Cycle Policy
+
+Defining or using a Requirement Relation Type without an explicit rule stating whether cycles are permitted.
+
+---
+
+### 36.21 Prohibited Structural Cycle
+
+Representing a Derivation, Refinement, Decomposition, or Supersession cycle.
+
+---
+
+### 36.22 Subject Cardinality Ambiguity
+
+Identifying multiple Requirement Subjects without representing whether the required engineering intent applies independently, collectively, or according to another explicit relationship among those Subjects.
 
 ## 37. Summary
 
