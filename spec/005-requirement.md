@@ -645,18 +645,34 @@ A relationship SHALL conform both to PEOS-002 and to the additional semantics of
 
 Where this specification imposes a stronger constraint than the general Artifact Relation model, the stronger Requirement-specific constraint applies.
 
+Every individual Requirement relationship SHALL be represented as one binary Artifact Relation having exactly one source participant and one target participant.
+
+Where engineering semantics involve multiple sources, multiple targets, or more than two participants, those semantics SHALL be represented through multiple individually identifiable binary Artifact Relations.
+
+A collection of related Artifact Relations MAY be interpreted together for an explicitly defined engineering purpose.
+
+Such a collection SHALL NOT be interpreted as introducing a separate Relationship Set, relationship-group, hyperedge, or other PEOS entity.
+
+Every Artifact Relation within such a collection SHALL independently satisfy the identity, provenance, participant, Relation Type, scope, and integrity requirements applicable to that relation.
+
+The provenance requirement established by this section applies independently to every binary Requirement relationship, including every relationship participating in a collectively interpreted group.
+
 ## 18. Derivation
 
 A Requirement Artifact Revision MAY be derived from one or more identified Requirement Artifact Revisions.
+
+Each source-to-derived association SHALL be represented by a separate Derivation relationship.
+
+Multiple Derivation relationships MAY share the same derived Requirement Artifact Revision as their target.
 
 Derivation records that required engineering intent was produced through engineering reasoning using other represented required engineering intent as an input.
 
 Every Derivation relationship SHALL identify:
 
+- one source Requirement;
+- one source Requirement Artifact Revision;
 - the derived Requirement;
-- the derived Requirement Artifact Revision;
-- each source Requirement;
-- each source Requirement Artifact Revision.
+- the derived Requirement Artifact Revision.
 
 Derivation SHALL preserve sufficient engineering rationale to explain how the derived required engineering intent originates from its identified sources.
 
@@ -682,8 +698,9 @@ For Derivation:
 - the source participant SHALL be an identified source Requirement Artifact Revision;
 - the target participant SHALL be the derived Requirement Artifact Revision;
 - direction SHALL be from source to derived;
-- one derived Requirement Artifact Revision MAY have one or more source Requirement Artifact Revisions;
-- one source Requirement Artifact Revision MAY participate in the derivation of multiple derived Requirement Artifact Revisions;
+- each Derivation relationship SHALL have exactly one source Requirement Artifact Revision and exactly one target Requirement Artifact Revision;
+- multiple Derivation relationships MAY share the same target Requirement Artifact Revision;
+- one source Requirement Artifact Revision MAY be the source of multiple Derivation relationships;
 - Derivation cycles SHALL NOT be permitted;
 - both source and target SHALL be identified at Requirement Artifact Revision level.
 
@@ -691,28 +708,28 @@ A Requirement Artifact Revision SHALL NOT be directly or transitively derived fr
 
 Every source and target Requirement SHALL remain independently identifiable.
 
-Derivation provenance SHALL identify the origin of the represented derivation relationship.
-
 ### 18.2 Multiple Derivation
 
-A Requirement Artifact Revision MAY be derived from multiple source Requirement Artifact Revisions.
+Where a Requirement Artifact Revision is derived from multiple source Requirement Artifact Revisions, each source SHALL participate through a separate Derivation relationship targeting that derived Requirement Artifact Revision.
 
-Every source SHALL remain explicitly identified.
+The combined engineering contribution of those sources MAY be interpreted collectively without creating a separate relationship-group entity.
 
-The contribution of the identified sources to the derived engineering intent SHALL remain inspectable through applicable rationale or other retained engineering information.
+Every source relationship SHALL remain individually identifiable and inspectable.
 
 ## 19. Refinement
 
 A Requirement Artifact Revision MAY refine one or more identified Requirement Artifact Revisions.
 
+Refinement of multiple Requirement Artifact Revisions SHALL be represented through one separate Refinement relationship for each refined source Requirement Artifact Revision.
+
 Refinement records that required engineering intent is expressed with increased precision, narrower interpretation, additional constraint, or greater engineering detail while remaining compatible with the refined required engineering intent within the defined scope.
 
 Every Refinement relationship SHALL identify:
 
-- the refining Requirement;
-- the refining Requirement Artifact Revision;
-- each refined Requirement;
-- each refined Requirement Artifact Revision;
+- one refined Requirement;
+- one refined Requirement Artifact Revision;
+- one refining Requirement;
+- one refining Requirement Artifact Revision;
 - the scope within which compatibility is asserted.
 
 Refinement SHALL NOT be represented where the refining intent contradicts the refined intent within the same scope.
@@ -739,8 +756,9 @@ For Refinement:
 - the source participant SHALL be the refined Requirement Artifact Revision;
 - the target participant SHALL be the refining Requirement Artifact Revision;
 - direction SHALL be from refined to refining;
-- one refining Requirement Artifact Revision MAY refine one or more Requirement Artifact Revisions;
-- one refined Requirement Artifact Revision MAY be refined by multiple Requirement Artifact Revisions;
+- each Refinement relationship SHALL have exactly one refined source Requirement Artifact Revision and exactly one refining target Requirement Artifact Revision;
+- multiple Refinement relationships MAY share the same refining target Requirement Artifact Revision;
+- one refined Requirement Artifact Revision MAY be the source of multiple Refinement relationships;
 - Refinement cycles SHALL NOT be permitted;
 - both source and target SHALL be identified at Requirement Artifact Revision level.
 
@@ -748,21 +766,23 @@ A Requirement Artifact Revision SHALL NOT directly or transitively refine itself
 
 The refining required engineering intent SHALL remain compatible with the refined required engineering intent within the defined scope.
 
-Refinement provenance SHALL identify the origin of the represented refinement relationship.
-
 ## 20. Decomposition
 
 A Requirement Artifact Revision MAY be decomposed into multiple subordinate Requirement Artifact Revisions.
 
+Each parent-to-subordinate association SHALL be represented by a separate Decomposition relationship.
+
+Multiple Decomposition relationships sharing the same parent Requirement Artifact Revision MAY collectively represent one engineering decomposition.
+
 Decomposition records that required engineering intent represented by an identified parent Requirement Artifact Revision is partitioned into multiple independently identifiable subordinate Requirements.
 
-Every Decomposition relationship set SHALL identify:
+Every Decomposition relationship SHALL identify:
 
-- the parent Requirement;
-- the parent Requirement Artifact Revision;
-- each subordinate Requirement;
-- each subordinate Requirement Artifact Revision;
-- the scope of the decomposition.
+- one parent Requirement;
+- one parent Requirement Artifact Revision;
+- one subordinate Requirement;
+- one subordinate Requirement Artifact Revision;
+- the scope of that parent-to-subordinate association.
 
 Each subordinate Requirement SHALL possess its own Requirement identity.
 
@@ -783,10 +803,11 @@ Decomposition SHALL NOT by itself establish:
 For Decomposition:
 
 - the source participant SHALL be the parent Requirement Artifact Revision;
-- each target participant SHALL be a subordinate Requirement Artifact Revision;
+- the target participant SHALL be a subordinate Requirement Artifact Revision;
 - direction SHALL be from parent to subordinate;
-- one parent Requirement Artifact Revision SHALL relate to one or more subordinate Requirement Artifact Revisions;
-- one subordinate Requirement Artifact Revision MAY participate in more than one Decomposition relationship only where each parent relationship and its scope remain explicitly distinguishable;
+- each Decomposition relationship SHALL have exactly one parent source Requirement Artifact Revision and exactly one subordinate target Requirement Artifact Revision;
+- one parent Requirement Artifact Revision MAY be the source of multiple Decomposition relationships;
+- one subordinate Requirement Artifact Revision MAY be the target of more than one Decomposition relationship only where each parent relationship and its scope remain explicitly distinguishable;
 - Decomposition cycles SHALL NOT be permitted;
 - parent and subordinate participants SHALL be identified at Requirement Artifact Revision level.
 
@@ -794,11 +815,13 @@ A Requirement Artifact Revision SHALL NOT directly or transitively decompose its
 
 A subordinate Requirement identity SHALL remain distinct from the parent Requirement identity.
 
-Decomposition provenance SHALL identify the origin of the represented decomposition relationship set.
-
 ### 20.2 Decomposition Completeness
 
-A Decomposition relationship set MAY explicitly assert completeness within a defined scope.
+A collection of Decomposition relationships sharing an identified parent Requirement Artifact Revision MAY explicitly assert that their subordinate targets collectively provide complete decomposition within a defined scope.
+
+The completeness assertion applies to the identified collection of binary Decomposition relationships.
+
+The collection and its completeness assertion SHALL remain inspectable without creating a separate Decomposition Set entity.
 
 Where completeness is asserted, the assertion and its scope SHALL remain explicitly represented.
 
@@ -812,12 +835,16 @@ Evaluation of Satisfaction Claims across parent and subordinate Requirement Arti
 
 A Requirement or Requirement Artifact Revision MAY depend upon one or more Requirements or Requirement Artifact Revisions.
 
+Each Dependency relationship SHALL connect exactly one dependent source participant to exactly one dependency target participant.
+
+Where one participant depends upon multiple other participants, each dependency SHALL be represented through a separate Dependency relationship.
+
 Dependency records that the interpretation, applicability, authority, realization, or evaluation of one Requirement relies upon another identified Requirement or represented required engineering intent.
 
 Every Dependency relationship SHALL identify:
 
 - the dependent participant;
-- each dependency participant;
+- one dependency participant;
 - whether each participant is identified at Requirement identity level or Requirement Artifact Revision level;
 - the nature of the engineering reliance;
 - the applicable scope where the reliance is not universal.
@@ -849,6 +876,7 @@ For Dependency:
 - the source participant SHALL be the dependent Requirement or Requirement Artifact Revision;
 - the target participant SHALL be the Requirement or Requirement Artifact Revision upon which the source depends;
 - direction SHALL be from dependent to dependency;
+- each Dependency relationship SHALL have exactly one dependent source participant and exactly one dependency target participant;
 - one dependent participant MAY depend upon one or more dependency participants;
 - one dependency participant MAY be depended upon by multiple dependent participants;
 - Dependency cycles MAY be represented;
@@ -860,19 +888,21 @@ The existence of a Dependency cycle SHALL NOT by itself establish that the parti
 
 An applicable PEOS Product contract MAY prohibit specified Dependency cycles or require their engineering resolution.
 
-Dependency provenance SHALL identify the origin of the represented dependency relationship.
-
 ## 22. Conflict
 
-Two or more Requirements or Requirement Artifact Revisions MAY participate in an explicitly represented Conflict relationship.
+A Requirement or Requirement Artifact Revision MAY participate in one or more explicitly represented binary Conflict relationships.
 
-Conflict records that the required engineering intent of the identified participants cannot be assumed to be simultaneously satisfied, implemented, or applied within a defined scope without engineering resolution.
+Each Conflict relationship connects exactly two distinct participants.
+
+A Conflict relationship records that the required engineering intent of its two identified participants cannot be assumed to be simultaneously satisfied, implemented, or applied within a defined scope without engineering resolution.
 
 Every Conflict relationship SHALL identify:
 
+- one source participant;
+- one target participant;
 - each participating Requirement;
-- each applicable Requirement Artifact Revision where the conflict concerns represented engineering intent;
-- the scope in which the conflict exists;
+- each applicable Requirement Artifact Revision where the Conflict concerns represented engineering intent;
+- the scope in which the Conflict exists;
 - the nature of the incompatibility.
 
 Conflict SHALL NOT be inferred solely from different wording, different classifications, different authorities, or different Lifecycle States.
@@ -897,11 +927,11 @@ Resolution of a Conflict SHALL NOT remove the historical fact that the Conflict 
 
 For Conflict:
 
-- every participant SHALL be an identified Requirement or Requirement Artifact Revision;
-- Conflict SHALL be symmetric with respect to its participants;
-- a Conflict SHALL contain two or more distinct participants;
-- a Requirement or Requirement Artifact Revision SHALL NOT conflict with itself;
+- each Conflict relationship SHALL have exactly one source participant and exactly one target participant;
+- source and target SHALL be distinct;
+- Conflict engineering semantics SHALL be symmetric between source and target;
 - one participant MAY participate in multiple Conflict relationships;
+- a conflict involving more than two participants SHALL be represented through multiple binary Conflict relationships;
 - Conflict cycles among three or more distinct participants MAY be represented;
 - each participant SHALL explicitly identify whether it refers to Requirement identity level or Requirement Artifact Revision level.
 
@@ -909,13 +939,19 @@ The ordering of Conflict participants SHALL NOT imply priority, authority, prefe
 
 Where an implementation requires ordered source and target fields, that ordering SHALL be representational only and SHALL NOT alter the symmetric engineering semantics of Conflict.
 
-Conflict provenance SHALL identify the origin of the represented conflict relationship.
+A collection of binary Conflict relationships MAY collectively represent a broader multi-participant incompatibility.
+
+Such a collection SHALL NOT create a separate Conflict entity or relationship-group entity.
+
+Absence of a binary Conflict relationship between two participants SHALL NOT be inferred solely from both participants appearing elsewhere in the same broader incompatibility.
 
 ## 23. Supersession
 
-A Requirement MAY supersede one or more Requirements through an explicitly represented Supersession relationship.
+A Requirement MAY supersede one or more Requirements through one or more explicitly represented Supersession relationships.
 
-Supersession establishes that the required engineering intent represented by an identified superseding Requirement Artifact Revision replaces the required engineering intent represented by one or more identified superseded Requirement Artifact Revisions within a defined scope.
+Each superseding-to-superseded association SHALL be represented through a separate binary Supersession relationship.
+
+Each Supersession relationship establishes that the required engineering intent represented by an identified superseding Requirement Artifact Revision replaces the required engineering intent represented by one identified superseded Requirement Artifact Revision within a defined scope.
 
 For the purposes of this specification, a governance action is an established Decision Outcome or another governance mechanism explicitly permitted by an applicable PEOS Product contract.
 
@@ -923,12 +959,12 @@ Governance action is a semantic role and SHALL NOT be interpreted as introducing
 
 Every Supersession relationship SHALL identify:
 
-- the superseding Requirement;
-- the superseding Requirement Artifact Revision;
-- each superseded Requirement;
-- each superseded Requirement Artifact Revision;
-- the scope within which replacement applies;
-- the governance action under which Supersession was established.
+- one superseding Requirement;
+- one superseding Requirement Artifact Revision;
+- one superseded Requirement;
+- one superseded Requirement Artifact Revision;
+- the scope within which that replacement applies;
+- the governance action under which that replacement was established.
 
 Supersession SHALL NOT be inferred solely from:
 
@@ -956,20 +992,19 @@ A Decision Outcome MAY authorize Supersession as defined by Section 28.3.
 For Requirement Supersession:
 
 - the source participant SHALL be the superseding Requirement Artifact Revision;
-- each target participant SHALL be a superseded Requirement Artifact Revision;
+- the target participant SHALL be a superseded Requirement Artifact Revision;
 - direction SHALL be from superseding to superseded;
-- one superseding Requirement Artifact Revision MAY supersede one or more Requirement Artifact Revisions;
-- one Requirement Artifact Revision MAY be superseded by more than one Requirement Artifact Revision only where the applicable scopes remain explicitly distinguishable and non-contradictory;
+- each Supersession relationship SHALL have exactly one superseding source Requirement Artifact Revision and exactly one superseded target Requirement Artifact Revision;
+- one superseding Requirement Artifact Revision MAY be the source of multiple Supersession relationships;
+- one Requirement Artifact Revision MAY be the target of more than one Supersession relationship only where the applicable scopes remain explicitly distinguishable and non-contradictory;
 - Supersession cycles SHALL NOT be permitted;
 - source and target SHALL be identified at Requirement Artifact Revision level while their owning Requirement identities remain identifiable.
 
 A Requirement Artifact Revision SHALL NOT directly or transitively supersede itself.
 
-The Supersession relationship SHALL identify the resulting effective status or Lifecycle consequence, if any.
+Each Supersession relationship SHALL identify the resulting effective status or Lifecycle consequence, if any, for its superseded target within the relation scope.
 
 Absence of a Lifecycle consequence SHALL be explicitly representable and SHALL NOT invalidate an otherwise established Supersession relationship.
-
-Supersession provenance SHALL identify the origin of the represented supersession relationship.
 
 ### 23.2 Superseded Requirement
 
@@ -1512,6 +1547,10 @@ Dependency SHALL NOT transfer identity, content, Authority, Applicability, Lifec
 
 Conflict SHALL NOT by itself modify, reject, withdraw, waive, or supersede a Requirement.
 
+Conflict representation SHALL remain binary even where multiple Conflict relationships collectively represent broader incompatibility.
+
+Binary representation SHALL NOT alter the symmetric engineering semantics of Conflict.
+
 **Artifact Relation Conformance**
 
 Every Requirement relationship SHALL conform to the Artifact Relation contract established by PEOS-002.
@@ -1519,6 +1558,12 @@ Every Requirement relationship SHALL conform to the Artifact Relation contract e
 Every Requirement relationship SHALL identify its Relation Type, provenance, participants at the required identity or Artifact Revision level, and applicable scope.
 
 Every Requirement Relation Type SHALL define direction, multiplicity, cycle policy, participant level, and integrity constraints.
+
+Every individual Requirement relationship SHALL contain exactly one source participant and exactly one target participant.
+
+Engineering semantics involving multiple sources, multiple targets, or more than two participants SHALL be represented through multiple binary Requirement relationships.
+
+A collectively interpreted group of Requirement relationships SHALL NOT create a separate PEOS entity.
 
 **Relationship Cycles**
 
@@ -1700,6 +1745,28 @@ Representing a Derivation, Refinement, Decomposition, or Supersession cycle.
 ### 36.22 Subject Cardinality Ambiguity
 
 Identifying multiple Requirement Subjects without representing whether the required engineering intent applies independently, collectively, or according to another explicit relationship among those Subjects.
+
+### 36.23 Multi-Source Artifact Relation
+
+Representing one Requirement relationship with more than one source participant.
+
+---
+
+### 36.24 Multi-Target Artifact Relation
+
+Representing one Requirement relationship with more than one target participant.
+
+---
+
+### 36.25 Reified Relationship Collection
+
+Treating a collection of related Requirement relationships as a separate Relationship Set, Conflict, Decomposition Set, Supersession Set, hyperedge, or other PEOS entity without a normative Relationship Model defining that entity.
+
+---
+
+### 36.26 Non-Binary Conflict Relation
+
+Representing one Conflict relationship with more than two participants instead of multiple binary Conflict relationships.
 
 ## 37. Summary
 
