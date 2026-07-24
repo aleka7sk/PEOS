@@ -817,19 +817,20 @@ A subordinate Requirement identity SHALL remain distinct from the parent Require
 
 ### 20.2 Decomposition Completeness
 
-A collection of Decomposition relationships sharing an identified parent Requirement Artifact Revision MAY explicitly assert that their subordinate targets collectively provide complete decomposition within a defined scope.
+The existence of one or more Decomposition relationships SHALL NOT by itself imply that decomposition is complete.
 
-The completeness assertion applies to the identified collection of binary Decomposition relationships.
+Where engineering completeness is required, that completeness SHALL be established only through explicitly represented engineering information.
 
-The collection and its completeness assertion SHALL remain inspectable without creating a separate Decomposition Set entity.
+This specification defines no structural model for representing decomposition completeness.
 
-Where completeness is asserted, the assertion and its scope SHALL remain explicitly represented.
+This specification therefore SHALL NOT be interpreted as introducing:
 
-The existence of multiple subordinate Requirements SHALL NOT by itself imply completeness.
+- a Relationship Collection;
+- a Decomposition Set;
+- a Completeness Assertion entity;
+- or any other PEOS entity representing a group of Decomposition relationships.
 
-The engineering validity of a completeness assertion is outside the scope of this specification.
-
-Evaluation of Satisfaction Claims across parent and subordinate Requirement Artifact Revisions SHALL be defined by a future Validation Model.
+The ownership, identity, lifecycle, and representation of engineering completeness remain outside the scope of this specification.
 
 ## 21. Dependency
 
