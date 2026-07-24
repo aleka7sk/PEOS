@@ -4,7 +4,7 @@
 
 This specification defines the PEOS Decision Model.
 
-The Decision Model describes how identifiable engineering decisions establish, change, reject, defer, or remove normative engineering intent.
+The Decision Model describes how identifiable engineering Decisions govern the establishment, change, rejection, deferral, authorization, prohibition, or removal of normative engineering intent.
 
 It distinguishes:
 
@@ -134,7 +134,9 @@ A Decision MUST NOT be treated as equivalent to the Artifact that records it.
 
 # Decision
 
-A Decision is an identifiable engineering act that establishes, changes, rejects, defers, or removes normative engineering intent for a defined Subject.
+A Decision is an identifiable engineering determination concerning normative engineering intent for a defined Subject.
+
+When applicable, a Decision establishes, changes, rejects, defers, authorizes, prohibits, or removes normative engineering intent according to its Decision Outcome.
 
 A Decision MUST have:
 
@@ -162,7 +164,11 @@ A Decision MAY:
 * require further investigation;
 * record that no action is currently required.
 
-A discussion, proposal, recommendation, observation, or preference is not a Decision unless it establishes or changes normative engineering intent.
+A discussion, recommendation, observation, or preference is not a Decision merely because it concerns a Decision Question.
+
+A proposal becomes a Decision when it has a stable Decision identity, an identifiable proposed Decision Outcome, and is governed by an applicable Decision Lifecycle.
+
+A proposed Decision MUST NOT be treated as establishing applicable normative engineering intent unless its Lifecycle State and authority rules make that intent applicable.
 
 ---
 
@@ -550,7 +556,9 @@ The applicable Product contract MAY require review conditions based on defined u
 
 A Decision Outcome is the normative result established by a Decision.
 
-Every completed Decision MUST have an identifiable Decision Outcome.
+Every Decision MUST have an identifiable proposed or established Decision Outcome.
+
+A Decision Outcome becomes established when the applicable Decision Lifecycle and authority rules give it normative effect.
 
 A Decision Outcome MUST be distinguishable from:
 
@@ -861,7 +869,9 @@ A Decision Record SHOULD identify:
 * related Decisions;
 * the applicable lifecycle information.
 
-A Decision MAY have more than one Decision Record or Representation.
+A Decision MAY be represented by more than one Decision Record.
+
+Each Decision Record Revision MAY have one or more Representations according to PEOS-002.
 
 Multiple Decision Records representing the same Decision MUST preserve the same normative Decision identity.
 
@@ -877,12 +887,18 @@ Decision Record Revisions MUST be immutable.
 
 A new Decision Record Revision MAY:
 
-* add clarification;
-* add Evidence;
-* correct non-normative errors;
-* improve Representation;
-* add traceability;
-* record later lifecycle information.
+- clarify existing content without changing its normative meaning;
+- reference supplemental Evidence produced after the Decision;
+- correct non-normative errors;
+- provide an additional Representation;
+- add traceability relationships;
+- reference later Transition Records or State Assignments.
+
+Supplemental Evidence added after the Decision MUST be distinguishable from Evidence that formed the original Decision Basis.
+
+A Decision Record Revision MUST NOT represent later Evidence as though it had been available when the Decision was made.
+
+Later lifecycle State MUST remain established by the applicable State Assignment and Transition Record rather than by the content of a Decision Record Revision.
 
 A Decision Record Revision MUST NOT silently rewrite the historical Decision Outcome.
 
@@ -1263,7 +1279,9 @@ Every Decision has a stable Decision Identifier.
 
 ## Outcome Invariant
 
-Every completed Decision has an identifiable Decision Outcome.
+Every Decision has an identifiable proposed or established Decision Outcome.
+
+Every applicable Decision has an established Decision Outcome.
 
 ## Subject Invariant
 
