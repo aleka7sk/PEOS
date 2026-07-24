@@ -10,7 +10,7 @@ It distinguishes:
 
 * a Decision from its documentary representation;
 * a Decision Outcome from the lifecycle State of the Decision;
-* an engineering act from the reasoning that supports it;
+* an engineering determination from the reasoning that supports it;
 * authority from authorship;
 * a Decision from a Lifecycle Transition;
 * normative commitments from implementation actions.
@@ -100,10 +100,10 @@ Decision
     identifiable engineering determination
 
 Decision Outcome
-    result established by the Decision
+    proposed or established result of the Decision
 
 Engineering Commitment
-    normative intent established, changed, or removed by the Outcome
+    normative intent established, changed, or removed by an applicable Decision Outcome
 
 Decision Record
     Artifact representing the Decision
@@ -119,12 +119,12 @@ Decision
     has
         proposed or established Decision Outcome
 
-Applicable Decision Outcome
+Established Decision Outcome
     MAY establish, change, reject, defer, authorize, prohibit, or remove
         Engineering Commitment
-        
-A proposed Decision Outcome does not have normative effect unless the applicable Decision Lifecycle and authority rules establish that effect.     
 ```
+
+A proposed Decision Outcome does not have normative effect unless the applicable Decision Lifecycle and authority rules establish that effect.
 
 A Decision MAY result in zero, one, or multiple Engineering Commitments.
 
