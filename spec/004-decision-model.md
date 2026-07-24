@@ -146,7 +146,7 @@ A Decision MUST have:
 * a defined Subject or Decision Question;
 * a Decision Outcome;
 * an applicability scope;
-* - an identifiable authority requirement or authority basis;
+* an identifiable authority requirement or authority basis;
 * an identifiable lifecycle;
 * sufficient persistent representation when required by the applicable Product contract.
 
@@ -154,7 +154,7 @@ A proposed Decision MAY identify the authority required to establish its Outcome
 
 Every applicable Decision MUST have an established authority basis.
 
-A Decision MAY:
+According to its proposed or established Decision Outcome, a Decision MAY:
 
 * select an Alternative;
 * reject one or more Alternatives;
@@ -169,6 +169,8 @@ A Decision MAY:
 * delegate another Decision;
 * require further investigation;
 * record that no action is currently required.
+
+The listed effects become normative only when the Decision Outcome is established and applicable.
 
 A discussion, recommendation, observation, or preference is not a Decision merely because it concerns a Decision Question.
 
@@ -730,9 +732,9 @@ Repository order, filename order, creation time, or storage order MUST NOT be tr
 
 # Decision Authority
 
-Decision Authority is the legitimate capability of an Actor to establish a Decision for a defined scope.
+Decision Authority is the legitimate capability of an Actor to establish the normative effect of a Decision Outcome for a defined scope.
 
-Every applicable Decision MUST identify an authority basis.
+Every applicable Decision MUST identify its established authority basis.
 
 An authority basis MAY originate from:
 
