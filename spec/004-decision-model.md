@@ -97,7 +97,7 @@ The Decision Model separates five concepts:
 
 ```text
 Decision
-    identifiable engineering act
+    identifiable engineering determination
 
 Decision Outcome
     result established by the Decision
@@ -116,12 +116,14 @@ The following relationship is normative:
 
 ```text
 Decision
-    produces or establishes
-        Decision Outcome
+    has
+        proposed or established Decision Outcome
 
-Decision Outcome
-    establishes, changes, rejects, defers, or removes
+Applicable Decision Outcome
+    MAY establish, change, reject, defer, authorize, prohibit, or remove
         Engineering Commitment
+        
+A proposed Decision Outcome does not have normative effect unless the applicable Decision Lifecycle and authority rules establish that effect.     
 ```
 
 A Decision MAY result in zero, one, or multiple Engineering Commitments.
@@ -554,7 +556,9 @@ The applicable Product contract MAY require review conditions based on defined u
 
 # Decision Outcome
 
-A Decision Outcome is the normative result established by a Decision.
+A Decision Outcome is the proposed or established result of a Decision.
+
+An established Decision Outcome has normative effect within its Decision Applicability.
 
 Every Decision MUST have an identifiable proposed or established Decision Outcome.
 
@@ -960,7 +964,7 @@ A Proposed Decision expresses a candidate Decision Outcome that has not yet beco
 
 A proposal MAY include Alternatives, Rationale, Evidence, and expected Consequences.
 
-A Proposed Decision MUST NOT be treated as an applicable Engineering Commitment unless explicitly permitted by the applicable Product contract.
+A Proposed Decision MUST NOT be treated as establishing an applicable Engineering Commitment unless explicitly permitted by the applicable Product contract.
 
 ---
 
@@ -1148,7 +1152,7 @@ Hierarchy MUST NOT be inferred solely from document nesting.
 
 A Decision is not a Lifecycle Transition.
 
-A Decision establishes normative intent.
+An applicable Decision establishes normative intent according to its established Decision Outcome.
 
 A Transition changes the Lifecycle State Assignment of a Lifecycle Subject according to a Lifecycle Definition.
 
