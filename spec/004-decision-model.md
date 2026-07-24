@@ -126,9 +126,9 @@ Established Decision Outcome
 
 A proposed Decision Outcome does not have normative effect unless the applicable Decision Lifecycle and authority rules establish that effect.
 
-A Decision MAY result in zero, one, or multiple Engineering Commitments.
+An established Decision Outcome MAY result in zero, one, or multiple Engineering Commitments.
 
-A Decision MAY have normative consequences without causing an immediate Lifecycle Transition or Artifact Revision.
+An applicable Decision MAY have normative consequences without causing an immediate Lifecycle Transition or Artifact Revision.
 
 A Decision MUST NOT be treated as equivalent to the Artifact that records it.
 
@@ -146,9 +146,13 @@ A Decision MUST have:
 * a defined Subject or Decision Question;
 * a Decision Outcome;
 * an applicability scope;
-* an authority basis;
+* - an identifiable authority requirement or authority basis;
 * an identifiable lifecycle;
 * sufficient persistent representation when required by the applicable Product contract.
+
+A proposed Decision MAY identify the authority required to establish its Outcome before that authority has been exercised.
+
+Every applicable Decision MUST have an established authority basis.
 
 A Decision MAY:
 
@@ -607,7 +611,7 @@ The Decision Outcome indicates what was decided.
 
 # Engineering Commitment
 
-An Engineering Commitment is normative engineering intent established, changed, or removed by a Decision Outcome.
+An Engineering Commitment is normative engineering intent established, changed, or removed by an established Decision Outcome.
 
 Within this specification, Engineering Commitment is a semantic component of the Decision Model and is not required to be a separate top-level PEOS Entity.
 
@@ -637,7 +641,7 @@ Engineering Commitment:
 All newly created transactional persistence components SHALL use PostgreSQL unless superseded by a later applicable Decision.
 ```
 
-A Decision Outcome MAY establish zero, one, or multiple Engineering Commitments.
+An established Decision Outcome MAY establish zero, one, or multiple Engineering Commitments.
 
 An Engineering Commitment MAY also have a normative source outside a Decision, including:
 
@@ -782,9 +786,9 @@ Role identity MUST NOT be inferred solely from document authorship or repository
 
 # Decision Maker
 
-A Decision Maker is an Actor authorized to establish the Decision Outcome.
+A Decision Maker is an Actor authorized to establish the normative effect of a Decision Outcome.
 
-A Decision Maker MUST have authority applicable to the Decision Subject and Applicability.
+A Decision Maker MUST have authority applicable to the Decision Subject, Decision Outcome, and Decision Applicability.
 
 A Decision Maker MAY be:
 
