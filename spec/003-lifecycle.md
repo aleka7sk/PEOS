@@ -178,9 +178,9 @@ Its normative states, transitions, conditions, and effects MUST be inspectable.
 
 A Lifecycle Definition MAY be represented as an Artifact.
 
-When represented as an Artifact, the applicable Artifact Revision identifies the fixed Lifecycle Definition used for a transition.
+When a Lifecycle Definition is represented as an Artifact, the Lifecycle Definition Version used for a Transition MUST identify the corresponding Artifact Revision.
 
-A mutable reference to the latest Lifecycle Definition MUST NOT be used when reproduction of a historical transition requires a specific definition state.
+A mutable reference to the latest Lifecycle Definition Version MUST NOT replace the specific Lifecycle Definition Version used by a historical Transition.
 
 ---
 
@@ -1041,7 +1041,7 @@ A conformant implementation MUST preserve the following invariants.
 
 ## Definition Identity Invariant
 
-Every governed lifecycle has an identifiable Lifecycle Definition and Definition Revision.
+Every governed lifecycle has an identifiable Lifecycle Definition and Lifecycle Definition Version.
 
 ## Subject Identity Invariant
 
