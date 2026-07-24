@@ -566,13 +566,16 @@ Relationships SHALL be explicit.
 
 Relationships SHALL NOT be inferred solely from textual similarity.
 
-Relationships SHALL remain independent of:
+The existence of a Requirement relationship SHALL remain independent of:
 
-- Lifecycle;
+- Lifecycle State Assignment;
 - Representation;
-- Artifact Revision;
 - Validation;
 - Allocation.
+
+A Requirement relationship SHALL NOT become part of Requirement content solely because the relationship concerns that Requirement.
+
+A relationship MAY identify a Requirement Artifact identity, an identified Requirement Artifact Revision, or both, according to the semantics of its relationship type.
 
 Relationship semantics SHALL be determined by their defined relationship type.
 
@@ -600,99 +603,195 @@ Relationship direction SHALL NOT be ignored.
 
 Relationship semantics SHALL define the meaning of both source and target.
 
+### 17.3 Relationship Participant Level
+
+Every explicitly represented Requirement relationship SHALL make clear whether each participant identifies:
+
+- a Requirement Artifact identity;
+- a specific Requirement Artifact Revision;
+- or both.
+
+Where relationship meaning depends upon represented engineering intent, the relationship SHALL identify the applicable Requirement Artifact Revision.
+
+Where relationship meaning applies to the Requirement identity independently of any individual content revision, identifying the Requirement Artifact identity is sufficient.
+
+A relationship SHALL NOT leave participant level ambiguous.
+
+Identification of a Requirement Artifact Revision SHALL NOT create a separate Requirement Revision entity.
+
 ## 18. Derivation
 
-A Requirement MAY be derived from one or more Requirements.
+A Requirement Artifact Revision MAY be derived from one or more identified Requirement Artifact Revisions.
 
-Derivation expresses engineering refinement of engineering intent.
+Derivation records that required engineering intent was produced through engineering reasoning using other represented required engineering intent as an input.
 
-Derivation SHALL preserve traceable engineering rationale.
+Every Derivation relationship SHALL identify:
+
+- the derived Requirement;
+- the derived Requirement Artifact Revision;
+- each source Requirement;
+- each source Requirement Artifact Revision.
+
+Derivation SHALL preserve sufficient engineering rationale to explain how the derived required engineering intent originates from its identified sources.
 
 A derived Requirement SHALL possess its own identity.
 
-A derived Requirement SHALL NOT inherit the identity of its source Requirement.
+A derived Requirement SHALL NOT inherit the identity of a source Requirement.
 
-Derivation SHALL NOT imply decomposition.
+Derivation does not require the derived intent to be a more precise expression of the source intent.
 
-Derivation SHALL NOT imply implementation.
+Derivation SHALL NOT imply:
 
-Derivation SHALL NOT imply allocation.
-
-Derivation SHALL NOT imply satisfaction.
+- Refinement;
+- Decomposition;
+- Supersession;
+- implementation;
+- Allocation;
+- Satisfaction.
 
 ### 18.1 Multiple Derivation
 
-A Requirement MAY be derived from multiple source Requirements.
+A Requirement Artifact Revision MAY be derived from multiple source Requirement Artifact Revisions.
 
-Such derivation SHALL remain explicitly represented.
+Every source SHALL remain explicitly identified.
 
-Derived engineering intent SHALL remain inspectable.
+The contribution of the identified sources to the derived engineering intent SHALL remain inspectable through applicable rationale or other retained engineering information.
 
 ## 19. Refinement
 
-A Requirement MAY refine another Requirement.
+A Requirement Artifact Revision MAY refine one or more identified Requirement Artifact Revisions.
 
-Refinement expresses increased engineering precision while preserving compatible engineering intent.
+Refinement records that required engineering intent is expressed with increased precision, narrower interpretation, additional constraint, or greater engineering detail while remaining compatible with the refined required engineering intent within the defined scope.
 
-Refinement SHALL NOT replace the refined Requirement unless explicitly superseded.
+Every Refinement relationship SHALL identify:
 
-A refined Requirement SHALL remain independently identifiable.
+- the refining Requirement;
+- the refining Requirement Artifact Revision;
+- each refined Requirement;
+- each refined Requirement Artifact Revision;
+- the scope within which compatibility is asserted.
 
-Refinement SHALL NOT imply implementation.
+Refinement SHALL NOT be represented where the refining intent contradicts the refined intent within the same scope.
 
-Refinement SHALL NOT imply decomposition.
+Refinement SHALL NOT replace the refined Requirement or Requirement Artifact Revision unless an explicit Supersession relationship separately establishes replacement.
 
-Refinement SHALL NOT imply satisfaction.
+A refining Requirement SHALL remain independently identifiable.
+
+Refinement MAY also be supported by Derivation, but neither relationship SHALL be inferred solely from the existence of the other.
+
+Refinement SHALL NOT imply:
+
+- Derivation;
+- Decomposition;
+- Supersession;
+- implementation;
+- Allocation;
+- Satisfaction.
 
 ## 20. Decomposition
 
-A Requirement MAY be decomposed into multiple subordinate Requirements.
+A Requirement Artifact Revision MAY be decomposed into multiple subordinate Requirement Artifact Revisions.
 
-Decomposition divides engineering intent into smaller independently identifiable Requirements.
+Decomposition records that required engineering intent represented by an identified parent Requirement Artifact Revision is partitioned into multiple independently identifiable subordinate Requirements.
 
-Each decomposed Requirement SHALL possess its own Requirement identity.
+Every Decomposition relationship set SHALL identify:
+
+- the parent Requirement;
+- the parent Requirement Artifact Revision;
+- each subordinate Requirement;
+- each subordinate Requirement Artifact Revision;
+- the scope of the decomposition.
+
+Each subordinate Requirement SHALL possess its own Requirement identity.
 
 The parent Requirement SHALL remain independently identifiable.
 
-Decomposition SHALL NOT imply that the parent Requirement is satisfied when every child Requirement is satisfied.
+Decomposition SHALL NOT by itself establish:
 
-Satisfaction semantics are defined by the Validation Model.
+- that the subordinate Requirements completely cover the parent required engineering intent;
+- that the subordinate Requirements are mutually exclusive;
+- that Satisfaction of every subordinate Requirement establishes Satisfaction of the parent Requirement;
+- implementation structure;
+- Allocation;
+- Lifecycle state;
+- Supersession.
 
 ### 20.1 Decomposition Completeness
 
-This specification does not require decomposition to be complete.
+A Decomposition relationship set MAY explicitly assert completeness within a defined scope.
 
-Engineering completeness SHALL be determined by applicable engineering processes rather than by the existence of decomposition relationships.
+Where completeness is asserted, the assertion and its scope SHALL remain explicitly represented.
+
+The existence of multiple subordinate Requirements SHALL NOT by itself imply completeness.
+
+The engineering validity of a completeness assertion is outside the scope of this specification.
+
+Evaluation of Satisfaction Claims across parent and subordinate Requirement Artifact Revisions SHALL be defined by a future Validation Model.
 
 ## 21. Dependency
 
-A Requirement MAY depend upon one or more Requirements.
+A Requirement or Requirement Artifact Revision MAY depend upon one or more Requirements or Requirement Artifact Revisions.
 
-Dependency expresses engineering reliance.
+Dependency records that the interpretation, applicability, authority, realization, or evaluation of one Requirement relies upon another identified Requirement or represented required engineering intent.
+
+Every Dependency relationship SHALL identify:
+
+- the dependent participant;
+- each dependency participant;
+- whether each participant is identified at Requirement identity level or Requirement Artifact Revision level;
+- the nature of the engineering reliance;
+- the applicable scope where the reliance is not universal.
 
 Dependency SHALL remain explicitly represented.
 
-Dependency SHALL NOT imply derivation.
+Dependency SHALL NOT imply:
 
-Dependency SHALL NOT imply refinement.
+- Derivation;
+- Refinement;
+- Decomposition;
+- Supersession;
+- Allocation;
+- implementation order.
 
-Dependency SHALL NOT imply allocation.
+Dependency SHALL NOT by itself transfer:
 
-Dependency SHALL NOT imply implementation order.
+- Requirement Authority;
+- Requirement Applicability;
+- Lifecycle State;
+- Satisfaction;
+- identity;
+- content.
 
 ## 22. Conflict
 
-Two or more Requirements MAY conflict.
+Two or more Requirements or Requirement Artifact Revisions MAY participate in an explicitly represented Conflict relationship.
 
-Conflict indicates that simultaneous normative satisfaction cannot be assumed without engineering resolution.
+Conflict records that the required engineering intent of the identified participants cannot be assumed to be simultaneously satisfied, implemented, or applied within a defined scope without engineering resolution.
 
-Conflict SHALL remain explicitly represented.
+Every Conflict relationship SHALL identify:
 
-Conflict SHALL NOT automatically invalidate any Requirement.
+- each participating Requirement;
+- each applicable Requirement Artifact Revision where the conflict concerns represented engineering intent;
+- the scope in which the conflict exists;
+- the nature of the incompatibility.
 
-Conflict SHALL NOT automatically withdraw any Requirement.
+Conflict SHALL NOT be inferred solely from different wording, different classifications, different authorities, or different Lifecycle States.
+
+Conflict SHALL NOT automatically:
+
+- invalidate a Requirement;
+- modify Requirement content;
+- modify Requirement Applicability;
+- modify Requirement Authority;
+- withdraw a Requirement;
+- reject a Requirement;
+- establish Supersession.
 
 Conflict resolution SHALL occur through applicable engineering governance.
+
+A Decision Outcome MAY establish the selected resolution.
+
+Resolution of a Conflict SHALL NOT remove the historical fact that the Conflict was represented unless applicable retention rules permit removal of that engineering information.
 
 ## 23. Supersession
 
@@ -1023,6 +1122,23 @@ The supersession SHALL remain explicitly represented.
 
 Requirement identity SHALL remain preserved.
 
+### 28.4 Conflict Resolution
+
+A Decision Outcome MAY establish an engineering resolution for an explicitly represented Requirement Conflict.
+
+Such an Outcome MAY:
+
+- select one Requirement over another within a defined scope;
+- authorize Requirement change;
+- authorize Withdrawal;
+- authorize Supersession;
+- establish a Waiver;
+- require additional Requirements.
+
+The Decision Outcome SHALL NOT silently rewrite or delete any Requirement or Requirement Artifact Revision participating in the Conflict.
+
+Any resulting Requirement change, Lifecycle transition, Supersession relationship, or Waiver SHALL remain explicitly represented through its applicable PEOS semantics.
+
 ## 29. Requirement and Engineering Commitment
 
 Requirements and Engineering Commitments are distinct engineering entities.
@@ -1226,6 +1342,32 @@ Supersession SHALL identify the Requirement Artifact Revisions whose required en
 
 Supersession SHALL NOT merge or destroy Requirement identities.
 
+**Relationship Participants**
+
+A Requirement relationship SHALL NOT leave ambiguous whether a participant identifies a Requirement Artifact identity or a Requirement Artifact Revision.
+
+A relationship whose meaning depends upon represented required engineering intent SHALL identify the applicable Requirement Artifact Revision.
+
+**Derivation**
+
+Derivation SHALL record engineering origin and SHALL NOT be treated as synonymous with Refinement.
+
+**Refinement**
+
+Refinement SHALL preserve compatibility with refined required engineering intent within its defined scope.
+
+**Decomposition**
+
+Decomposition SHALL NOT imply completeness or Satisfaction aggregation unless those semantics are explicitly represented through applicable models.
+
+**Dependency**
+
+Dependency SHALL NOT transfer identity, content, Authority, Applicability, Lifecycle State, or Satisfaction.
+
+**Conflict**
+
+Conflict SHALL NOT by itself modify, reject, withdraw, waive, or supersede a Requirement.
+
 **Statement**
 
 Requirement Statement SHALL NOT define Requirement identity.
@@ -1346,6 +1488,34 @@ Treating assignment of a Superseded Lifecycle State as sufficient to establish w
 ### 36.13 Implicit Supersession
 
 Inferring Supersession solely from a newer Artifact Revision, document order, identifier order, Statement similarity, archival status, or Lifecycle State without an explicitly represented Supersession relationship.
+
+### 36.14 Ambiguous Relationship Participant
+
+Representing a Requirement relationship without identifying whether a participant refers to the Requirement identity or to a specific Requirement Artifact Revision.
+
+---
+
+### 36.15 Derivation as Refinement
+
+Treating every derived Requirement as necessarily being a more precise or narrower expression of its source Requirement.
+
+---
+
+### 36.16 Implicit Decomposition Completeness
+
+Assuming that a set of subordinate Requirements completely covers the parent required engineering intent solely because Decomposition relationships exist.
+
+---
+
+### 36.17 Dependency Property Transfer
+
+Treating a Dependency relationship as transferring Requirement Authority, Applicability, Lifecycle State, content, identity, or Satisfaction between participants.
+
+---
+
+### 36.18 Conflict as Automatic Invalidity
+
+Automatically rejecting, withdrawing, waiving, or superseding a Requirement solely because a Conflict relationship exists.
 
 ## 37. Summary
 
