@@ -136,11 +136,19 @@ A Transition Record preserves what occurred.
 
 # Lifecycle Definition
 
-A Lifecycle Definition MUST define an entry Transition through which a Subject enters the lifecycle.
+A Lifecycle Definition is an identifiable normative contract defining the permitted states and transitions of one or more Lifecycle Subject Types.
 
 A Lifecycle Definition Version is an immutable and identifiable state of a Lifecycle Definition.
 
 When a Lifecycle Definition is represented as an Artifact, its Definition Version MUST identify the corresponding Artifact Revision.
+
+Every published Lifecycle Definition MUST have at least one identifiable Lifecycle Definition Version.
+
+A mutable working copy of a Lifecycle Definition is not a Lifecycle Definition Version.
+
+Material change to the normative states, transitions, guards, authority requirements, effects, or invariants of a Lifecycle Definition MUST produce a new Lifecycle Definition Version.
+
+A Lifecycle Definition MUST define an entry Transition through which a Subject enters the lifecycle.
 
 Every Lifecycle Definition MUST have:
 
@@ -149,9 +157,10 @@ Every Lifecycle Definition MUST have:
 * one or more governed Subject Types;
 * one or more Lifecycle States;
 * an initial-state policy;
+* an entry Transition;
 * a Transition set;
 * applicable lifecycle invariants;
-* an identifiable version or Revision.
+* an identifiable Lifecycle Definition Version.
 
 A Lifecycle Definition SHOULD identify:
 
@@ -250,11 +259,11 @@ Such mechanisms MAY represent State, but they do not define its semantics.
 
 State Identifiers MUST be unique within a Lifecycle Definition.
 
-State identity MUST remain stable within a published Lifecycle Definition Revision.
+State identity MUST remain stable within a published Lifecycle Definition Version.
 
-A State Identifier MUST NOT be reused for a State with materially different normative meaning within the same Lifecycle Definition version.
+A State Identifier MUST NOT be reused for a State with materially different normative meaning within the same Lifecycle Definition Version.
 
-A later Lifecycle Definition Revision MAY change State semantics only when the compatibility and migration consequences are explicit.
+A later Lifecycle Definition Version MAY change State semantics only when the compatibility and migration consequences are explicit.
 
 Textual labels MAY change without changing State identity when normative meaning remains unchanged.
 
@@ -264,18 +273,23 @@ Implementations MUST NOT determine State equivalence solely from display labels.
 
 # Initial State
 
-A Lifecycle Definition MUST define how a Subject enters the lifecycle.
+A Lifecycle Definition MUST define one or more permitted initial States.
 
-It MAY define:
+A Subject enters a lifecycle through an entry Transition from an unassigned condition to one of the permitted initial States.
+
+The unassigned condition represents the absence of a State Assignment.
+
+It is not an ordinary Lifecycle State and MUST NOT be treated as part of the Lifecycle Definition's State set.
+
+A Lifecycle Definition MAY define:
 
 * one required initial State;
 * multiple permitted initial States;
-* a conditional initial-State selection rule;
-* an explicit entry Transition from an unassigned condition.
+* a conditional initial-State selection rule.
 
 A Subject MUST NOT be treated as occupying an initial State merely because it exists.
 
-Initial assignment MUST be recorded or deterministically established according to the applicable Lifecycle Definition.
+Initial assignment MUST be established through a completed entry Transition and recorded by its Transition Record.
 
 When initial State selection depends on conditions or Evidence, those conditions MUST be inspectable.
 
@@ -337,7 +351,7 @@ A State Assignment is an identifiable association between:
 * a Lifecycle Definition;
 * a Lifecycle State;
 * an effective point or interval;
-* the Transition Record or initial-assignment record that established it.
+* the Transition Record that established it.
 
 A State Assignment represents lifecycle status.
 
@@ -349,7 +363,7 @@ A State Assignment MUST NOT modify the normative content of an Artifact Revision
 
 When a state change also requires a change to Artifact content, the content change MUST produce a new Artifact Revision according to PEOS-002.
 
-A State Assignment MUST identify the specific Lifecycle Definition Revision under which it was established.
+A State Assignment MUST identify the specific Lifecycle Definition Version under which it was established.
 
 A recorded State Assignment MUST be immutable.
 
@@ -391,7 +405,7 @@ State History MUST preserve:
 * the responsible Actor or Runtime;
 * transition time or ordering;
 * applicable evidence references;
-* the Lifecycle Definition Revision used;
+* the Lifecycle Definition Version used;
 * failure or compensation information when applicable.
 
 State History MUST NOT be rewritten solely to present a simplified or successful narrative.
@@ -436,9 +450,9 @@ A Transition MUST NOT be treated as permitted solely because a Runtime is techni
 
 A Transition Identifier MUST be unique within its Lifecycle Definition.
 
-Transition identity MUST remain stable within a published Lifecycle Definition Revision.
+Transition identity MUST remain stable within a published Lifecycle Definition Version.
 
-A Transition Identifier MUST NOT be reused for materially different semantics within the same Lifecycle Definition version.
+A Transition Identifier MUST NOT be reused for materially different semantics within the same Lifecycle Definition Version.
 
 A Transition Record MUST identify the exact Transition definition used.
 
@@ -601,7 +615,6 @@ A Transition Effect is a persistent or observable consequence of successful Tran
 Effects MAY include:
 
 * creation of a new State Assignment;
-* creation of a new State Assignment;
 * supersession of the previously applicable State Assignment;
 * creation of a Transition Record;
 * creation of Artifact Relations;
@@ -629,7 +642,7 @@ A Transition Attempt MUST identify:
 * the requested Transition;
 * the expected source State;
 * the initiating Actor or Runtime;
-* the Lifecycle Definition Revision;
+* the Lifecycle Definition Version;
 * the attempt time or ordering.
 
 A Transition Attempt MAY result in:
@@ -658,7 +671,7 @@ Every completed Transition MUST produce or be represented by a Transition Record
 A Transition Record MUST identify:
 
 * the Lifecycle Subject;
-* the Lifecycle Definition Revision;
+* the Lifecycle Definition Version;
 * the Transition definition;
 * the source State Assignment;
 * the resulting target State Assignment when successful;
@@ -833,19 +846,19 @@ Compensation is not equivalent to mutation or deletion of historical records.
 
 # Supersession
 
-A Lifecycle Definition or Lifecycle Definition Revision MAY supersede another Lifecycle Definition.
+A Lifecycle Definition Version MAY supersede another Lifecycle Definition Version.
 
 Supersession MUST identify:
 
-* the superseding definition;
-* the superseded definition;
+* the superseding Lifecycle Definition Version;
+* the superseded Lifecycle Definition Version;
 * effective scope;
 * compatibility consequences;
 * migration requirements when applicable.
 
-Historical Transitions MUST remain associated with the Lifecycle Definition Revision under which they occurred.
+Historical Transitions MUST remain associated with the Lifecycle Definition Version under which they occurred.
 
-A new Lifecycle Definition MUST NOT retroactively reinterpret completed historical Transitions without an explicit migration or reinterpretation record.
+A new Lifecycle Definition Version MUST NOT retroactively reinterpret completed historical Transitions without an explicit migration or reinterpretation record.
 
 Artifact or Artifact Revision supersession remains governed by PEOS-002 and applicable specialized lifecycles.
 
@@ -853,12 +866,12 @@ Artifact or Artifact Revision supersession remains governed by PEOS-002 and appl
 
 # Lifecycle Migration
 
-Lifecycle Migration is the controlled adoption of a different Lifecycle Definition or Revision for an existing Subject.
+Lifecycle Migration is the controlled adoption of a different Lifecycle Definition or Lifecycle Definition Version for an existing Subject.
 
 Migration MUST define:
 
-* the source Lifecycle Definition Revision;
-* the target Lifecycle Definition Revision;
+* the source Lifecycle Definition Version;
+* the target Lifecycle Definition Version;
 * State mapping;
 * invalid or unmappable States;
 * authority requirements;
@@ -1122,7 +1135,7 @@ A Runtime MUST NOT:
 * mutate historical Transition Records;
 * erase failed or compensating history;
 * conflate Artifact Revision changes with lifecycle State changes;
-* reinterpret historical Transitions using a different Lifecycle Definition Revision without recording that reinterpretation.
+* reinterpret historical Transitions using a different Lifecycle Definition Version without recording that reinterpretation.
 
 Runtime-specific execution obligations are defined by PEOS-008.
 
