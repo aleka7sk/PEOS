@@ -696,9 +696,27 @@ Conflict resolution SHALL occur through applicable engineering governance.
 
 ## 23. Supersession
 
-A Requirement MAY supersede one or more Requirements.
+A Requirement MAY supersede one or more Requirements through an explicitly represented Supersession relationship.
 
-Supersession establishes replacement of normative engineering intent.
+Supersession establishes that the required engineering intent represented by an identified superseding Requirement Artifact Revision replaces the required engineering intent represented by one or more identified superseded Requirement Artifact Revisions within a defined scope.
+
+Every Supersession relationship SHALL identify:
+
+- the superseding Requirement;
+- the superseding Requirement Artifact Revision;
+- each superseded Requirement;
+- each superseded Requirement Artifact Revision;
+- the scope within which replacement applies;
+- the governance action under which Supersession was established.
+
+Supersession SHALL NOT be inferred solely from:
+
+- creation of a newer Artifact Revision;
+- similarity of Requirement Statements;
+- document order;
+- identifier order;
+- Lifecycle State;
+- archival status.
 
 Superseded Requirements SHALL retain their identities.
 
@@ -706,17 +724,28 @@ Supersession SHALL preserve engineering history.
 
 Supersession SHALL NOT merge Requirement identities.
 
-Supersession SHALL NOT delete historical Requirement Revisions.
+Supersession SHALL NOT delete historical Artifact Revisions.
 
 Supersession SHALL remain explicitly represented.
+
+A Decision Outcome MAY authorize Supersession as defined by Section 28.3.
 
 ### 23.1 Superseded Requirement
 
 A superseded Requirement remains an identifiable Requirement.
 
-Supersession does not erase engineering history.
+A Supersession relationship does not erase the Requirement, its Artifact Revisions, or its engineering history.
 
-Superseded Requirements MAY remain referenced by historical Artifacts, Decisions, Engineering Commitments, or Validation Records.
+A superseded Requirement SHALL NOT be interpreted as universally non-applicable solely because a Supersession relationship exists.
+
+Its normative applicability SHALL be determined according to:
+
+- the scope of the applicable Supersession relationship;
+- its Requirement Applicability conditions;
+- its Lifecycle State;
+- Requirement Authority where required by applicable governance.
+
+Superseded Requirements and their Artifact Revisions MAY remain referenced by historical Artifacts, Decisions, Engineering Commitments, Validation Records, and other engineering information.
 
 ## 24. Requirement Allocation
 
@@ -847,11 +876,11 @@ Lifecycle SHALL NOT determine engineering correctness.
 
 ### 26.1 Proposed Requirement
 
-A Requirement MAY exist in the Proposed state.
+An applicable Lifecycle Definition MAY define a Proposed Lifecycle State.
 
-A Proposed Requirement is a valid Requirement.
+A Requirement assigned such a state remains a valid Requirement identity.
 
-Proposed Requirements MAY participate in:
+A Proposed Requirement MAY participate in:
 
 - traceability;
 - derivation;
@@ -860,7 +889,7 @@ Proposed Requirements MAY participate in:
 - Decisions;
 - engineering discussion.
 
-The Proposed state SHALL NOT imply normative applicability.
+Assignment of a Proposed Lifecycle State SHALL NOT by itself establish normative applicability.
 
 ### 26.2 Applicable Requirement
 
@@ -878,29 +907,44 @@ A Requirement SHALL NOT become applicable solely because it exists.
 
 ### 26.3 Rejected Requirement
 
-A Rejected Requirement remains historically identifiable.
+An applicable Lifecycle Definition MAY define a Rejected Lifecycle State.
 
-Rejection SHALL NOT destroy Requirement identity.
+Assignment of such a state SHALL NOT destroy Requirement identity or Requirement Artifact Revisions.
 
-Rejected Requirements SHALL remain inspectable.
+Rejected Requirements SHALL remain historically inspectable.
 
-Rejected Requirements MAY remain referenced by historical Decisions and Engineering Commitments.
+Rejected Requirements and their Artifact Revisions MAY remain referenced by historical Decisions, Engineering Commitments, Validation Records, and other engineering information.
+
+Any later Lifecycle transition SHALL be governed exclusively by the applicable Lifecycle Definition and PEOS-003.
 
 ### 26.4 Withdrawn Requirement
 
-Withdrawal removes future normative applicability.
+An applicable Lifecycle Definition MAY define a Withdrawn Lifecycle State.
 
-Withdrawal SHALL NOT erase engineering history.
+While a Requirement is assigned a Lifecycle State whose semantics prohibit normative effect, the Requirement SHALL NOT possess normative applicability.
 
-Withdrawal SHALL NOT invalidate historical decisions made while the Requirement was applicable.
+Withdrawal SHALL NOT erase Requirement identity, Requirement Artifact Revisions, Lifecycle history, or other engineering history.
+
+Withdrawal SHALL NOT by itself invalidate historical Decisions, Engineering Commitments, Validation Records, or engineering actions established while the Requirement possessed normative applicability.
+
+Any later Lifecycle transition SHALL be governed exclusively by the applicable Lifecycle Definition and PEOS-003.
 
 ### 26.5 Superseded Requirement
 
-Supersession changes normative precedence.
+An applicable Lifecycle Definition MAY define a Lifecycle State indicating that a Requirement has been superseded.
 
-Superseded Requirements remain historically valid artifacts.
+Assignment of such a Lifecycle State records governance state only.
 
-Supersession SHALL preserve complete engineering traceability.
+A Lifecycle State Assignment SHALL NOT by itself establish:
+
+- which Requirement supersedes another Requirement;
+- which Requirement Artifact Revisions are involved;
+- the scope of replacement;
+- the authority or governance action establishing replacement.
+
+Normative replacement of required engineering intent SHALL be represented through an explicit Supersession relationship as defined by Section 23.
+
+The Lifecycle State Assignment and the applicable Supersession relationship SHALL remain semantically distinct and independently inspectable.
 
 ## 27. Waiver
 
@@ -1103,7 +1147,11 @@ Historical Artifact Revisions SHALL remain distinguishable.
 
 Historical Lifecycle State Assignments SHALL remain distinguishable.
 
-Historical relationships SHALL remain inspectable.
+The existence, participants, direction, type, scope, and engineering meaning of explicitly represented historical Requirement relationships SHALL remain inspectable where those relationships are retained as engineering information.
+
+This requirement does not define independent revision, lifecycle, or temporal-history semantics for relationships.
+
+Such semantics remain outside the scope of this specification as defined by Section 17.1.
 
 Historical Decisions referencing Requirements SHALL remain inspectable.
 
@@ -1169,6 +1217,14 @@ Lifecycle SHALL remain independent of:
 - implementation;
 - allocation;
 - satisfaction.
+
+**Supersession**
+
+A Lifecycle State Assignment SHALL NOT by itself establish Supersession.
+
+Supersession SHALL identify the Requirement Artifact Revisions whose required engineering intent is replaced and the scope in which replacement applies.
+
+Supersession SHALL NOT merge or destroy Requirement identities.
 
 **Statement**
 
@@ -1245,7 +1301,7 @@ Representing engineering content change using lifecycle transitions.
 
 ### 36.4 Revision as Lifecycle
 
-Representing lifecycle transitions by creating new Requirement revisions.
+Representing lifecycle transitions by creating new Requirement Artifact Revisions.
 
 ### 36.5 Allocation as Satisfaction
 
@@ -1282,6 +1338,14 @@ Requirement {
 waived = true
 }
 ```
+
+### 36.12 Lifecycle-Only Supersession
+
+Treating assignment of a Superseded Lifecycle State as sufficient to establish which Requirement, Requirement Artifact Revision, and scope replace another required engineering intent.
+
+### 36.13 Implicit Supersession
+
+Inferring Supersession solely from a newer Artifact Revision, document order, identifier order, Statement similarity, archival status, or Lifecycle State without an explicitly represented Supersession relationship.
 
 ## 37. Summary
 
