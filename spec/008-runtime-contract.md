@@ -161,7 +161,15 @@ Compliance Claim
         exactly one Subject
 ```
 
-Design-time existence of a Runtime Contract, its runtime binding, its runtime activation under an applicable Lifecycle, and its actual runtime deployment are four distinct, independently inspectable conditions. None implies another.
+The following are distinct, independently inspectable conditions, and none implies another:
+
+1. design-time existence of a Runtime Contract Artifact;
+2. publication of a specific Runtime Contract Artifact Revision;
+3. an optional State Assignment marking Lifecycle activation of the Runtime Contract, governed by PEOS-003;
+4. a Runtime Binding Record connecting a Runtime Contract Artifact Revision to a runtime subject, governed by this specification;
+5. actual runtime deployment or execution.
+
+Lifecycle activation (item 3) and runtime binding (item 4) are not the same concern. Lifecycle activation is governed exclusively by PEOS-003. Runtime binding is governed exclusively by this specification.
 
 ---
 
@@ -264,7 +272,8 @@ Every Runtime Binding Record SHALL identify:
 * the exact runtime subject or deployment target;
 * environment;
 * scope;
-* deployment or activation timestamp;
+* binding timestamp;
+* deployment timestamp, where distinct from the binding timestamp;
 * actor;
 * authority, where required;
 * provenance;
@@ -332,6 +341,8 @@ ArtifactRevision.deployed
 ```
 
 Lifecycle activation, as defined by PEOS-003 through a State Assignment, and runtime binding, as defined by this specification through Binding and Unbinding Records, remain distinct. A Runtime Binding Record is not a State Assignment, and a State Assignment does not itself establish or terminate a Runtime Binding.
+
+A State Assignment MAY be an additional Product-defined eligibility condition for Current Runtime Binding, where the applicable Product contract explicitly requires it. A State Assignment is not inherently part of Binding Record history.
 
 ---
 
@@ -539,7 +550,15 @@ A Runtime Violation does not, by itself, authorize remediation. Authorization re
 
 # Runtime and Artifact Lifecycle
 
-Requirement applicability (PEOS-005), Artifact Lifecycle State (PEOS-003), runtime binding (this specification), runtime activation or deployment (this specification), Allocation (PEOS-005), Validation Claim outcome (PEOS-006), conformance (PEOS-006 Conformance Claim), and runtime compliance (this specification) are eight distinct concerns. None is interchangeable with another.
+Requirement applicability (PEOS-005), Artifact Lifecycle State (PEOS-003), Lifecycle activation of a Runtime Contract (PEOS-003), runtime binding (this specification), runtime deployment (this specification), Allocation (PEOS-005), Validation Claim outcome (PEOS-006), conformance (PEOS-006 Conformance Claim), and runtime compliance (this specification) are nine distinct concerns. None is interchangeable with another.
+
+Runtime binding is governed by PEOS-008. Lifecycle activation is governed by PEOS-003.
+
+A State Assignment marking Lifecycle activation for a Runtime Contract is optional unless the applicable Product contract or Lifecycle Definition explicitly requires it.
+
+A Runtime Binding Record does not create, imply, or replace a State Assignment. A State Assignment does not create, imply, or replace a Runtime Binding Record.
+
+A Runtime Contract MAY be bound regardless of whether it participates in a Lifecycle, unless a governing Product rule explicitly requires a particular Lifecycle State.
 
 Runtime deployment does not mutate an Artifact Revision. A deployed Artifact Revision remains exactly the immutable Revision it was before deployment.
 
@@ -786,4 +805,4 @@ This document depends on:
 
 This document provides the Runtime foundation for:
 
-* PEOS-009 — Template Contract, where a Runtime Contract is itself a Template-generated Artifact.
+* PEOS-009 — Template Contract, where a Runtime Contract MAY itself be a Template-generated Artifact.

@@ -1383,7 +1383,13 @@ Requirement satisfaction is not defined by this specification.
 
 A future Validation Model SHALL define Satisfaction Claims and the evaluation of those Claims.
 
-A Satisfaction Claim SHALL identify the Requirement Artifact Revision whose required engineering intent is being evaluated.
+A Satisfaction Claim SHALL identify exactly one engineering subject whose satisfaction of the Requirement is being evaluated.
+
+The applicable Requirement SHALL be represented as a Claim criterion.
+
+Where the required engineering intent, wording, acceptance criteria, or applicability are revision-specific, the Satisfaction Claim SHALL identify the exact Requirement Artifact Revision used as that criterion.
+
+A Requirement SHALL NOT be treated as satisfied in the abstract independently of an identified subject, scope, applicability, and governing Product rules.
 
 A Requirement SHALL NOT possess mutable satisfaction state.
 

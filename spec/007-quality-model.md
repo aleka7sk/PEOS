@@ -72,6 +72,8 @@ This specification builds upon:
 * PEOS-000 — Overview;
 * PEOS-001 — Philosophy;
 * PEOS-002 — Artifact Model;
+* PEOS-003 — Lifecycle;
+* PEOS-004 — Decision Model;
 * PEOS-005 — Requirement Model;
 * PEOS-006 — Validation Model.
 
@@ -264,7 +266,11 @@ This specification does not define a second Claim base model, a second replaceme
 
 # Quality Claim Subject and Criteria
 
-For a Quality Claim:
+A Quality Claim subject is the engineering subject whose quality is evaluated.
+
+Quality Characteristic, Quality Measure, Threshold, Target, Quality Constraint, Requirement, and Requirement Artifact Revision are criteria, not subjects.
+
+For the ordinary case, where a quality expectation is expressed by a Quality Profile:
 
 ```text
 subject = the evaluated Artifact or Artifact Revision
@@ -277,9 +283,20 @@ criteria may include:
     Quality Constraint
 ```
 
-A Quality Claim SHALL NOT identify a composite subject such as a Characteristic-and-Revision pair. The Subject remains exactly one Artifact or Artifact Revision, as required by PEOS-006. The Characteristic, Measure, Threshold, Target, or Constraint being evaluated is a criterion, never a second Subject.
+Where a quality expectation is instead expressed by a Requirement:
 
-A Quality Claim's Subject MAY instead be a Requirement or Requirement Artifact Revision, when the evaluated quality expectation was expressed as a Requirement rather than as a Quality Profile entry, in accordance with the participant-level rules of PEOS-006.
+```text
+subject = the evaluated Artifact or Artifact Revision
+
+criteria = the applicable Quality Characteristic or Measure
+           and the Requirement or Requirement Artifact Revision expressing the expectation
+```
+
+A Quality Claim SHALL NOT identify a composite subject such as a Characteristic-and-Revision pair. The Subject remains exactly one Artifact or Artifact Revision, as required by PEOS-006. The Characteristic, Measure, Threshold, Target, Constraint, Requirement, or Requirement Artifact Revision being evaluated against is a criterion, never a second Subject.
+
+A Requirement MAY be the Subject of a Quality Claim only where the Requirement itself is being evaluated as an engineering artifact, for example for clarity, ambiguity, testability, completeness, or conformance to a Requirement-quality profile. In that case the criterion SHALL be a Quality Characteristic, Measure, Threshold, Profile rule, or other rule distinct from the Requirement subject itself; the Requirement SHALL NOT be its own criterion.
+
+A Requirement used as a normative quality expectation SHALL be a Quality Claim criterion, not the evaluated subject.
 
 ---
 
@@ -392,6 +409,10 @@ Every Quality Claim identifies exactly one Subject.
 ## Quality Criterion Separation Invariant
 
 A Quality Characteristic, Measure, Threshold, Target, or Constraint is always a criterion, never a second Subject.
+
+## Requirement as Quality Criterion Invariant
+
+A Requirement used as a normative quality expectation is a Quality Claim criterion, not the evaluated subject. A Requirement MAY be the evaluated subject only when the Requirement itself is being assessed as an engineering artifact, and never against itself as the criterion.
 
 ## Derived Quality State Invariant
 
@@ -519,6 +540,8 @@ This document depends on:
 * PEOS-000 — Overview;
 * PEOS-001 — Philosophy;
 * PEOS-002 — Artifact Model;
+* PEOS-003 — Lifecycle;
+* PEOS-004 — Decision Model;
 * PEOS-005 — Requirement Model;
 * PEOS-006 — Validation Model.
 

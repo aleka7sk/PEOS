@@ -391,9 +391,10 @@ Every Validation Claim SHALL identify:
 * explicit scope;
 * zero or more criteria;
 * outcome;
-* basis;
-* the exact Evidence Artifact Revisions relied upon;
 * the Validation Method or evaluation rule applied;
+* the exact Evidence Artifact Revisions relied upon;
+* relevant Validation Execution Records, where applicable;
+* reasoning or interpretation necessary to connect those inputs to the outcome, where the outcome is not mechanically determined;
 * provenance;
 * timestamp;
 * authority, where required by applicable governance.
@@ -461,7 +462,11 @@ There is no separate Verdict entity. The outcome recorded on a Validation Claim 
 
 # Claim Basis
 
-A Claim Basis is the combination of the Validation Method or evaluation rule applied, the criteria evaluated, and the Evidence relied upon to reach the Claim's outcome.
+Claim Basis is a derived or grouped view over the Validation Method or evaluation rule applied, the criteria evaluated, the Evidence relied upon, relevant Validation Execution Records, and the reasoning or interpretation necessary to connect those inputs to the Claim's outcome.
+
+Claim Basis is not an independent opaque field distinct from the fields it groups. This specification does not require an additional required field named "basis" beyond the individually identified method, criteria, Evidence, Execution Records, and reasoning listed under **Validation Claim**.
+
+The term Claim Basis MAY remain in use as the collective name for those inputs. It does not introduce independent Claim Basis identity, revision, or lifecycle.
 
 Claim Basis MUST be distinguishable from Claim Outcome. Identifying the basis does not, by itself, establish the outcome; the outcome is the recorded determination reached from that basis.
 
@@ -505,11 +510,58 @@ The currently applicable Claim for a given Subject, scope, and criteria is deriv
 
 A Satisfaction Claim is a Validation Claim whose criteria identify one or more Requirements.
 
-A Satisfaction Claim evaluates exactly one Subject against one or more identified Requirement criteria.
+A Satisfaction Claim SHALL have exactly one engineering subject.
 
-When the wording or acceptance criteria being evaluated are revision-specific, the criterion SHALL identify the exact Requirement Artifact Revision rather than only the Requirement identity.
+The subject is the Artifact, Artifact Revision, runtime subject, Decision Outcome, Engineering Commitment, or other explicitly permitted engineering subject whose satisfaction of the Requirement criteria is asserted.
+
+Each Requirement or Requirement Artifact Revision SHALL appear as a Claim criterion.
+
+A Requirement SHALL NOT become the Claim subject merely because it supplies the required intent being evaluated.
+
+When the wording, acceptance criteria, or applicability being evaluated are revision-specific, the criterion SHALL identify the exact Requirement Artifact Revision rather than only the Requirement identity.
+
+A Satisfaction Claim answers whether an identified engineering subject satisfies an identified Requirement criterion within an explicit scope. It does not answer whether a Requirement is satisfied in the abstract.
+
+A Requirement SHALL NOT become both the Claim subject and the same Claim's criterion.
+
+Example:
+
+```text
+subject:
+Artifact Revision AR-42
+
+criterion:
+Requirement Artifact Revision RR-7
+
+outcome:
+satisfied
+```
+
+Non-conforming counterexample:
+
+```text
+subject:
+Requirement Artifact Revision RR-7
+
+criterion:
+Requirement Artifact Revision RR-7
+```
+
+The counterexample is non-conforming because the same Requirement Artifact Revision is used as both the evaluated subject and its own criterion.
+
+This does not prohibit every Claim whose subject is a Requirement. A general Validation Claim MAY evaluate a Requirement as an engineering subject for other purposes, such as statement quality, completeness, consistency, or conformance to a Requirement-writing profile. The prohibition applies specifically to using a Requirement as the Satisfaction Claim subject merely to represent satisfaction of that same Requirement.
 
 A Requirement SHALL NOT own mutable satisfaction state. Requirement satisfaction is derived exclusively from applicable Satisfaction Claims, in accordance with PEOS-005 §30.2 and §35.
+
+## Derived Satisfaction and Aggregation
+
+Current Requirement satisfaction requires Product-owned aggregation rules where more than one applicable subject, Allocation, or Satisfaction Claim contributes to the derived view.
+
+This specification owns the Claim mechanism. It SHALL NOT silently define a universal aggregation policy such as any subject satisfied, all subjects satisfied, or latest subject satisfied.
+
+A Product contract SHALL define the aggregation rule where more than one applicable subject, allocation, or Satisfaction Claim contributes to a derived Requirement-satisfaction view.
+
+This is not general traceability coverage. This specification does not define orphan detection or completeness.
 
 ---
 

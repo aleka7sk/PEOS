@@ -80,12 +80,13 @@ This specification builds upon:
 * PEOS-001 — Philosophy;
 * PEOS-002 — Artifact Model;
 * PEOS-003 — Lifecycle;
+* PEOS-004 — Decision Model;
 * PEOS-005 — Requirement Model;
 * PEOS-006 — Validation Model.
 
 Terms defined by those specifications retain their normative meaning unless explicitly specialized here.
 
-This specification does not redefine Artifact identity, Artifact Relation structure, Artifact Supersession, Lifecycle semantics, Requirement structure, or the Validation Claim mechanism.
+This specification does not redefine Artifact identity, Artifact Relation structure, Artifact Supersession, Lifecycle semantics, Decision structure, Requirement structure, or the Validation Claim mechanism.
 
 ---
 
@@ -383,17 +384,26 @@ One logical multi-template composition MAY be represented through multiple binar
 
 A composition reference SHALL identify the exact Template Artifact Revision, where exact content matters.
 
-Every Template Composition relation SHALL define:
+The source participant is the composing Template Artifact Revision. The target participant is the composed Template Artifact Revision. This direction SHALL be used consistently throughout this specification.
 
+One Template Artifact Revision MAY compose multiple other Template Artifact Revisions. One Template Artifact Revision MAY be composed by multiple other Template Artifact Revisions. Many-to-many composition semantics SHALL be represented through multiple binary Artifact Relations, never a single relation with more than one source or target.
+
+Every Template Composition relation SHALL identify:
+
+* its exact source (the composing Template Artifact Revision);
+* its exact target (the composed Template Artifact Revision);
 * participant levels;
 * direction;
 * multiplicity;
 * cycle policy;
+* scope;
 * provenance;
 * parameter mapping rules;
 * conflict handling.
 
 Composition cycles SHALL NOT be permitted.
+
+Controlled runtime recursive expansion, as defined in **Recursive Template Use**, is a separate mechanism and does not relax this prohibition.
 
 This specification does not introduce:
 
@@ -597,7 +607,13 @@ Template parameter values do not become Requirement identity.
 
 Changing generated Requirement wording, after generation, requires an ordinary Artifact Revision, per PEOS-002 and PEOS-005.
 
-Template Application does not, by itself, establish Requirement satisfaction, Validation, Allocation, Applicability, Authority, or Lifecycle State for a generated Requirement. Those remain established exclusively through their own owning models (PEOS-006, PEOS-005, PEOS-003 respectively).
+Template Application does not, by itself, establish Requirement satisfaction, Validation, Allocation, Applicability, Authority, or Lifecycle State for a generated Requirement.
+
+Requirement satisfaction and Validation are governed by PEOS-006.
+
+Requirement Allocation, Applicability, and Requirement Authority are governed by PEOS-005.
+
+Lifecycle State and State Assignment are governed by PEOS-003.
 
 ---
 
@@ -845,6 +861,7 @@ This document depends on:
 * PEOS-001 — Philosophy;
 * PEOS-002 — Artifact Model;
 * PEOS-003 — Lifecycle;
+* PEOS-004 — Decision Model;
 * PEOS-005 — Requirement Model;
 * PEOS-006 — Validation Model.
 
