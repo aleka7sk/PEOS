@@ -11,6 +11,22 @@ func mustMediaType(t *testing.T) VocabularyValue {
 	return mustVocabularyValue(t, "mime", "text/markdown")
 }
 
+// --- RepresentationRole ------------------------------------------------------
+
+func TestNewRepresentationRoleAndString(t *testing.T) {
+	v := mustVocabularyValue(t, "product-x", "custom-role")
+	r := NewRepresentationRole(v)
+	if r.IsZero() {
+		t.Error("constructed RepresentationRole reports IsZero() = true")
+	}
+	if r.Value() != v {
+		t.Errorf("Value() = %v, want %v", r.Value(), v)
+	}
+	if got, want := r.String(), "product-x:custom-role"; got != want {
+		t.Errorf("String() = %q, want %q", got, want)
+	}
+}
+
 // --- RepresentationContent --------------------------------------------------
 
 func TestRepresentationContentInlineBytes(t *testing.T) {
@@ -177,10 +193,328 @@ func TestRepresentationContentPayloadMismatch(t *testing.T) {
 	}
 }
 
+func TestRepresentationContentMalformedBase64(t *testing.T) {
+	original, err := NewRepresentationContentFromInlineBytes([]byte("pre-existing valid data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := original
+	err = json.Unmarshal([]byte(`{"kind":"inline_bytes","ref":"%%%invalid-base64%%%"}`), &receiver)
+	if err == nil {
+		t.Fatal("malformed base64 inline_bytes ref accepted, want error")
+	}
+	// RepresentationContent is not comparable with == (it holds a []byte and
+	// a []RepresentationComponentRef slice), so fields are checked via their
+	// own accessors.
+	if receiver.Kind() != original.Kind() {
+		t.Errorf("failed Unmarshal changed Kind(): got %q, want %q", receiver.Kind(), original.Kind())
+	}
+	gotBytes, ok := receiver.AsInlineBytes()
+	wantBytes, _ := original.AsInlineBytes()
+	if !ok || string(gotBytes) != string(wantBytes) {
+		t.Errorf("failed Unmarshal changed AsInlineBytes(): got (%s, %v), want %s", gotBytes, ok, wantBytes)
+	}
+}
+
+func TestRepresentationContentUnmarshalJSONFailurePreservesReceiver(t *testing.T) {
+	original, err := NewRepresentationContentFromInlineText("pre-existing valid data")
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := original
+	if err := json.Unmarshal([]byte(`{"kind":"","ref":""}`), &receiver); err == nil {
+		t.Fatal("malformed RepresentationContent JSON accepted, want error")
+	}
+	if receiver.Kind() != original.Kind() {
+		t.Errorf("failed Unmarshal changed Kind(): got %q, want %q", receiver.Kind(), original.Kind())
+	}
+	gotText, ok := receiver.AsInlineText()
+	wantText, _ := original.AsInlineText()
+	if !ok || gotText != wantText {
+		t.Errorf("failed Unmarshal changed AsInlineText(): got (%q, %v), want %q", gotText, ok, wantText)
+	}
+}
+
 func TestRepresentationContentZeroValue(t *testing.T) {
 	var c RepresentationContent
 	if !c.IsZero() {
 		t.Error("zero-value RepresentationContent.IsZero() = false, want true")
+	}
+}
+
+// --- RepresentationComponentRef ----------------------------------------------
+
+func TestRepresentationComponentRefExternalReference(t *testing.T) {
+	c, err := NewRepresentationComponentRefFromExternalReference("https://example.com/component/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Kind() != RepresentationComponentKindExternalReference {
+		t.Errorf("Kind() = %q, want %q", c.Kind(), RepresentationComponentKindExternalReference)
+	}
+	got, ok := c.AsExternalReference()
+	if !ok || got != "https://example.com/component/1" {
+		t.Errorf("AsExternalReference() = (%q, %v)", got, ok)
+	}
+	if _, _, ok := c.AsContentAddress(); ok {
+		t.Error("AsContentAddress() ok = true for external_reference component")
+	}
+}
+
+func TestRepresentationComponentRefExternalReferenceEmptyRejected(t *testing.T) {
+	if _, err := NewRepresentationComponentRefFromExternalReference(""); !errors.Is(err, ErrInvalidRepresentationComponent) {
+		t.Errorf("error = %v, want %v", err, ErrInvalidRepresentationComponent)
+	}
+}
+
+func TestRepresentationComponentRefContentAddress(t *testing.T) {
+	algo := mustVocabularyValue(t, "peos", "sha256")
+	c, err := NewRepresentationComponentRefFromContentAddress(algo, "abc123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gotAlgo, gotDigest, ok := c.AsContentAddress()
+	if !ok || gotAlgo != algo || gotDigest != "abc123" {
+		t.Errorf("AsContentAddress() = (%v, %q, %v)", gotAlgo, gotDigest, ok)
+	}
+}
+
+func TestRepresentationComponentRefContentAddressZeroAlgorithmRejected(t *testing.T) {
+	if _, err := NewRepresentationComponentRefFromContentAddress(VocabularyValue{}, "abc123"); !errors.Is(err, ErrInvalidRepresentationComponent) {
+		t.Errorf("error = %v, want %v", err, ErrInvalidRepresentationComponent)
+	}
+}
+
+func TestRepresentationComponentRefContentAddressEmptyDigestRejected(t *testing.T) {
+	algo := mustVocabularyValue(t, "peos", "sha256")
+	if _, err := NewRepresentationComponentRefFromContentAddress(algo, ""); !errors.Is(err, ErrInvalidRepresentationComponent) {
+		t.Errorf("error = %v, want %v", err, ErrInvalidRepresentationComponent)
+	}
+}
+
+func TestRepresentationComponentRefJSONRoundTrip(t *testing.T) {
+	algo := mustVocabularyValue(t, "peos", "sha256")
+	tests := []struct {
+		name string
+		make func() (RepresentationComponentRef, error)
+	}{
+		{"external_reference", func() (RepresentationComponentRef, error) {
+			return NewRepresentationComponentRefFromExternalReference("https://example.com/component/1")
+		}},
+		{"content_address", func() (RepresentationComponentRef, error) {
+			return NewRepresentationComponentRefFromContentAddress(algo, "abc123")
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			original, err := tt.make()
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := json.Marshal(original)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var decoded RepresentationComponentRef
+			if err := json.Unmarshal(data, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if decoded != original {
+				t.Errorf("round trip mismatch: got %+v, want %+v", decoded, original)
+			}
+		})
+	}
+}
+
+func TestRepresentationComponentRefMalformedDiscriminator(t *testing.T) {
+	var c RepresentationComponentRef
+	if err := json.Unmarshal([]byte(`{"kind":"","ref":""}`), &c); !errors.Is(err, ErrInvalidReferenceDiscriminator) {
+		t.Errorf("empty kind: error = %v, want %v", err, ErrInvalidReferenceDiscriminator)
+	}
+	if err := json.Unmarshal([]byte(`{"kind":"inline_bytes","ref":""}`), &c); !errors.Is(err, ErrInvalidReferenceDiscriminator) {
+		t.Errorf("excluded inline_bytes kind: error = %v, want %v", err, ErrInvalidReferenceDiscriminator)
+	}
+	if err := json.Unmarshal([]byte(`{"kind":"composed","ref":""}`), &c); !errors.Is(err, ErrInvalidReferenceDiscriminator) {
+		t.Errorf("excluded composed kind: error = %v, want %v", err, ErrInvalidReferenceDiscriminator)
+	}
+}
+
+func TestRepresentationComponentRefZeroValue(t *testing.T) {
+	var c RepresentationComponentRef
+	if !c.IsZero() {
+		t.Error("zero-value RepresentationComponentRef.IsZero() = false, want true")
+	}
+}
+
+func TestRepresentationComponentRefUnmarshalJSONFailurePreservesReceiver(t *testing.T) {
+	original, err := NewRepresentationComponentRefFromExternalReference("https://example.com/pre-existing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := original
+	if err := json.Unmarshal([]byte(`{"kind":"","ref":""}`), &receiver); err == nil {
+		t.Fatal("malformed RepresentationComponentRef JSON accepted, want error")
+	}
+	// RepresentationComponentRef has no slice or map fields, so it is
+	// directly comparable with ==, unlike most other mutable receiver types
+	// in this package.
+	if receiver != original {
+		t.Errorf("failed Unmarshal changed receiver: got %+v, want %+v", receiver, original)
+	}
+}
+
+// --- RepresentationContent: composed -----------------------------------------
+
+func TestRepresentationContentComposedSingleExternalReferenceComponent(t *testing.T) {
+	comp, err := NewRepresentationComponentRefFromExternalReference("https://example.com/component/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := NewRepresentationContentFromComposed(comp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Kind() != RepresentationContentKindComposed {
+		t.Errorf("Kind() = %q, want %q", c.Kind(), RepresentationContentKindComposed)
+	}
+	got, ok := c.AsComposed()
+	if !ok || len(got) != 1 || got[0] != comp {
+		t.Errorf("AsComposed() = (%v, %v), want ([%v], true)", got, ok, comp)
+	}
+}
+
+func TestRepresentationContentComposedSingleContentAddressComponent(t *testing.T) {
+	algo := mustVocabularyValue(t, "peos", "sha256")
+	comp, err := NewRepresentationComponentRefFromContentAddress(algo, "abc123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := NewRepresentationContentFromComposed(comp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := c.AsComposed()
+	if !ok || len(got) != 1 || got[0] != comp {
+		t.Errorf("AsComposed() = (%v, %v), want ([%v], true)", got, ok, comp)
+	}
+}
+
+func TestRepresentationContentComposedMixedOrderedComponents(t *testing.T) {
+	algo := mustVocabularyValue(t, "peos", "sha256")
+	compA, err := NewRepresentationComponentRefFromExternalReference("https://example.com/component/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	compB, err := NewRepresentationComponentRefFromContentAddress(algo, "abc123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := NewRepresentationContentFromComposed(compA, compB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := c.AsComposed()
+	if !ok || len(got) != 2 || got[0] != compA || got[1] != compB {
+		t.Errorf("AsComposed() = %v, want [%v %v] (order preserved)", got, compA, compB)
+	}
+}
+
+func TestRepresentationContentComposedZeroComponentsRejected(t *testing.T) {
+	if _, err := NewRepresentationContentFromComposed(); !errors.Is(err, ErrMissingRepresentationContent) {
+		t.Errorf("error = %v, want %v", err, ErrMissingRepresentationContent)
+	}
+}
+
+func TestRepresentationContentComposedZeroValueComponentRejected(t *testing.T) {
+	comp, err := NewRepresentationComponentRefFromExternalReference("https://example.com/component/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewRepresentationContentFromComposed(comp, RepresentationComponentRef{}); !errors.Is(err, ErrInvalidRepresentationComponent) {
+		t.Errorf("error = %v, want %v", err, ErrInvalidRepresentationComponent)
+	}
+}
+
+func TestRepresentationContentComposedExactDuplicatesAllowed(t *testing.T) {
+	comp, err := NewRepresentationComponentRefFromExternalReference("https://example.com/component/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := NewRepresentationContentFromComposed(comp, comp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := c.AsComposed()
+	if !ok || len(got) != 2 || got[0] != comp || got[1] != comp {
+		t.Errorf("AsComposed() = %v, want [%v %v] (exact duplicates must be permitted)", got, comp, comp)
+	}
+}
+
+func TestRepresentationContentComposedDefensiveCopy(t *testing.T) {
+	comp, err := NewRepresentationComponentRefFromExternalReference("https://example.com/component/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := NewRepresentationComponentRefFromExternalReference("https://example.com/component/2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := NewRepresentationContentFromComposed(comp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, _ := c.AsComposed()
+	got[0] = other
+	again, _ := c.AsComposed()
+	if again[0] != comp {
+		t.Errorf("mutating an AsComposed() result affected internal state: got %v, want %v", again[0], comp)
+	}
+}
+
+func TestRepresentationContentComposedJSONRoundTrip(t *testing.T) {
+	algo := mustVocabularyValue(t, "peos", "sha256")
+	compA, err := NewRepresentationComponentRefFromExternalReference("https://example.com/component/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	compB, err := NewRepresentationComponentRefFromContentAddress(algo, "abc123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := NewRepresentationContentFromComposed(compA, compB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded RepresentationContent
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Kind() != original.Kind() {
+		t.Errorf("round trip Kind() = %q, want %q", decoded.Kind(), original.Kind())
+	}
+	got, ok := decoded.AsComposed()
+	if !ok || len(got) != 2 || got[0] != compA || got[1] != compB {
+		t.Errorf("round trip AsComposed() = %v, want [%v %v]", got, compA, compB)
+	}
+}
+
+func TestRepresentationContentComposedMalformedComponentRejected(t *testing.T) {
+	var c RepresentationContent
+	err := json.Unmarshal([]byte(`{"kind":"composed","ref":[{"kind":"","ref":""}]}`), &c)
+	if err == nil {
+		t.Error("malformed component within composed content accepted, want error")
+	}
+}
+
+func TestRepresentationContentComposedUnknownComponentDiscriminatorRejected(t *testing.T) {
+	var c RepresentationContent
+	err := json.Unmarshal([]byte(`{"kind":"composed","ref":[{"kind":"not_a_real_kind","ref":""}]}`), &c)
+	if !errors.Is(err, ErrInvalidReferenceDiscriminator) {
+		t.Errorf("error = %v, want %v", err, ErrInvalidReferenceDiscriminator)
 	}
 }
 
@@ -231,6 +565,49 @@ func TestNewRepresentationFromContentAddress(t *testing.T) {
 	gotAlgo, gotDigest, ok := rep.Content().AsContentAddress()
 	if !ok || gotAlgo != algo || gotDigest != "abc123" {
 		t.Errorf("Content().AsContentAddress() = (%v, %q, %v)", gotAlgo, gotDigest, ok)
+	}
+}
+
+func TestNewRepresentationFromComposed(t *testing.T) {
+	algo := mustVocabularyValue(t, "peos", "sha256")
+	compA, err := NewRepresentationComponentRefFromExternalReference("https://example.com/component/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	compB, err := NewRepresentationComponentRefFromContentAddress(algo, "abc123")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rep, err := NewRepresentationFromComposed([]RepresentationComponentRef{compA, compB}, mustMediaType(t), RepresentationRoleAuthoritative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := rep.Content().AsComposed()
+	if !ok || len(got) != 2 || got[0] != compA || got[1] != compB {
+		t.Errorf("Content().AsComposed() = (%v, %v), want ([%v %v], true)", got, ok, compA, compB)
+	}
+}
+
+func TestRepresentationJSONRoundTripComposedContent(t *testing.T) {
+	compA, err := NewRepresentationComponentRefFromExternalReference("https://example.com/component/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := NewRepresentationFromComposed([]RepresentationComponentRef{compA}, mustMediaType(t), RepresentationRoleAuthoritative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Representation
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := decoded.Content().AsComposed()
+	if !ok || len(got) != 1 || got[0] != compA {
+		t.Errorf("round trip Content().AsComposed() = (%v, %v), want ([%v], true)", got, ok, compA)
 	}
 }
 
@@ -387,6 +764,33 @@ func TestRepresentationJSONHasNoIdentityOrOwnershipFields(t *testing.T) {
 		if _, present := raw[forbidden]; present {
 			t.Errorf("forbidden field %q present in Representation JSON", forbidden)
 		}
+	}
+}
+
+func TestRepresentationUnmarshalJSONFailurePreservesReceiver(t *testing.T) {
+	original, err := NewRepresentationFromInlineText("pre-existing valid data", mustMediaType(t), RepresentationRoleAuthoritative)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := original
+	err = json.Unmarshal([]byte(`{"content":{"kind":"not_a_real_kind","ref":""},"media_type":"mime:text/markdown","classification":["peos:authoritative"]}`), &receiver)
+	if err == nil {
+		t.Fatal("malformed Representation JSON accepted, want error")
+	}
+	// Representation is not comparable with == (it holds a
+	// []RepresentationRole slice and an Extension map), so fields are
+	// checked via their own accessors.
+	gotText, ok := receiver.Content().AsInlineText()
+	wantText, _ := original.Content().AsInlineText()
+	if !ok || gotText != wantText {
+		t.Errorf("failed Unmarshal changed Content(): got (%q, %v), want %q", gotText, ok, wantText)
+	}
+	if receiver.MediaType() != original.MediaType() {
+		t.Errorf("failed Unmarshal changed MediaType(): got %v, want %v", receiver.MediaType(), original.MediaType())
+	}
+	gotClass, wantClass := receiver.Classification(), original.Classification()
+	if len(gotClass) != len(wantClass) || gotClass[0] != wantClass[0] {
+		t.Errorf("failed Unmarshal changed Classification(): got %v, want %v", gotClass, wantClass)
 	}
 }
 

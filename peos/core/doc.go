@@ -68,4 +68,27 @@
 // Representations, not by a reference field on Representation itself. A
 // combined "Artifact plus its Revisions" shape is an application-level
 // export or interchange envelope, not part of this domain model.
+//
+// Representation is Revision-owned content, not an independently owned
+// PEOS record: its standalone JSON encoding (required for correct
+// behavior when nested inside ArtifactRevision.Representations, and
+// therefore unavoidably also usable on its own) is a value encoding of
+// Representation's own fields, not a complete, self-sufficient PEOS
+// interchange record — it does not identify which Artifact Revision it
+// belongs to. The enclosing ArtifactRevision's own JSON envelope supplies
+// that Revision identity for every Representation nested inside it.
+//
+// # Specialized Revisions use nested composition, not flattening
+//
+// Future PEOS Artifact specializations (Requirement, Validation Plan,
+// Quality Profile, Runtime Contract, Template, Decision Record, and so
+// on) each compose core.ArtifactRevision by value field, not by
+// embedding, and each SHOULD preserve that field as a nested JSON object
+// rather than manually flattening its fields up a level — see
+// ArtifactRevision's own doc comment in artifact_revision.go for the full
+// rationale and a worked example. This keeps generic Revision metadata
+// (identity, origin, provenance, integrity, Representations) insulated
+// from specialization-specific typed content, and means a field Packet B
+// adds later does not require every specialization's own serialization
+// code to change.
 package core

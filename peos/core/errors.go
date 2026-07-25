@@ -84,4 +84,15 @@ var (
 	// ErrMissingRepresentationContent is returned when a Representation
 	// Content constructor receives an empty or zero-value payload.
 	ErrMissingRepresentationContent = errors.New("core: representation content is missing")
+
+	// ErrInvalidRepresentationComponent is returned when a
+	// RepresentationComponentRef fails to satisfy its required fields, or
+	// when composed Representation Content receives a zero-value
+	// component.
+	ErrInvalidRepresentationComponent = errors.New("core: representation component is invalid")
+
+	// ErrDuplicateIntegrityProtectedScope is returned when an Integrity
+	// Identity's declared protected scopes contain the same scope more
+	// than once.
+	ErrDuplicateIntegrityProtectedScope = errors.New("core: duplicate integrity protected scope")
 )

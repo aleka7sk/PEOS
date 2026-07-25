@@ -50,22 +50,41 @@ var (
 	RepresentationRoleRendered = RepresentationRole{value: VocabularyValue{namespace: PEOSNamespace, value: "rendered"}}
 )
 
-// Known discriminator values for RepresentationContent. Unlike the open
-// vocabularies used elsewhere in this package, this set is closed: it
-// names exactly the four content storage mechanisms PEOS-002 §Artifact
-// Content describes (embedded, content-addressed, externally stored, or
-// composed/other — mapped here to inline_bytes, inline_text,
-// content_address, and external_reference), and no opaque/unknown-kind
-// fallback is provided. This is a Go-level storage-mechanism
-// discriminator, not an open PEOS normative vocabulary, so the
-// forward-compatibility concerns that justify an opaque fallback
-// elsewhere in this package (EngineeringSubjectRef, CriterionRef,
-// RecordRef) do not apply here.
+// Known discriminator values for RepresentationContent.
+//
+// PEOS-002 §Artifact Content permits content to be directly embedded,
+// referenced through an immutable content address, stored in an external
+// system, composed from multiple identifiable components, or
+// "represented through another conformant mechanism." That last clause
+// means PEOS-002 does not itself enumerate a closed set of content
+// mechanisms — it deliberately leaves the set open. Packet B therefore
+// supports a known set of typed content mechanisms (inline_bytes and
+// inline_text for embedded content, external_reference for an externally
+// stored reference, content_address for a content-addressed reference,
+// and composed for content assembled from multiple identifiable
+// components — see RepresentationComponentRef below). Additional content
+// kinds MAY be added additively in later packets or SDK versions,
+// without breaking any existing kind, constructor, or serialized value.
+//
+// This packet does not provide an opaque/unknown-kind fallback for this
+// union, unlike EngineeringSubjectRef, CriterionRef, and RecordRef
+// elsewhere in this package. That is a deliberate choice, not an
+// oversight: an unrecognized content-storage mechanism describes *how
+// bytes are physically carried*, not a namespaced normative vocabulary
+// term, so there is no safe, lossless (namespace, identifier) shape to
+// fall back to the way there is for an unrecognized Claim subject or
+// criterion kind. An unknown discriminator therefore fails loudly
+// (ErrInvalidReferenceDiscriminator) rather than being silently
+// interpreted as one of the known mechanisms above, or accepted as an
+// opaque, uninterpreted payload. A future packet MAY design a dedicated
+// opaque-fallback mechanism for this union if a concrete need arises;
+// Packet B.1 does not attempt that here.
 const (
 	RepresentationContentKindInlineBytes       = "inline_bytes"
 	RepresentationContentKindInlineText        = "inline_text"
 	RepresentationContentKindExternalReference = "external_reference"
 	RepresentationContentKindContentAddress    = "content_address"
+	RepresentationContentKindComposed          = "composed"
 )
 
 type contentAddressPayload struct {
@@ -73,12 +92,151 @@ type contentAddressPayload struct {
 	digest    string
 }
 
+// Known discriminator values for RepresentationComponentRef.
+const (
+	RepresentationComponentKindExternalReference = "external_reference"
+	RepresentationComponentKindContentAddress    = "content_address"
+)
+
+// RepresentationComponentRef is a restricted reference to one identifiable
+// component of composed Representation Content (PEOS-002 §Artifact
+// Content: "composed from multiple identifiable components"). It is
+// deliberately narrower than RepresentationContent itself: only
+// external_reference and content_address are permitted here.
+// inline_bytes, inline_text, and composed are excluded on purpose, so
+// that composed content cannot recurse into itself (a composed
+// Representation Content made of components that are themselves composed
+// Representation Content, without bound) and so that every component is
+// always an identifiable *reference* to content that exists independently
+// of this structure, never inline bytes whose canonicalization inside a
+// composed value PEOS-002 does not define.
+type RepresentationComponentRef struct {
+	kind string
+
+	externalReference string
+	contentAddress    contentAddressPayload
+}
+
+// Kind returns the component's discriminator string.
+func (c RepresentationComponentRef) Kind() string { return c.kind }
+
+// IsZero reports whether c is the zero value.
+func (c RepresentationComponentRef) IsZero() bool { return c.kind == "" }
+
+// NewRepresentationComponentRefFromExternalReference validates locator
+// and returns a RepresentationComponentRef referencing it.
+func NewRepresentationComponentRefFromExternalReference(locator string) (RepresentationComponentRef, error) {
+	if locator == "" {
+		return RepresentationComponentRef{}, fmt.Errorf("core: NewRepresentationComponentRefFromExternalReference: %w", ErrInvalidRepresentationComponent)
+	}
+	return RepresentationComponentRef{kind: RepresentationComponentKindExternalReference, externalReference: locator}, nil
+}
+
+// AsExternalReference returns c's external locator, and true, if c's kind
+// is external_reference.
+func (c RepresentationComponentRef) AsExternalReference() (string, bool) {
+	if c.kind != RepresentationComponentKindExternalReference {
+		return "", false
+	}
+	return c.externalReference, true
+}
+
+// NewRepresentationComponentRefFromContentAddress validates algorithm and
+// digest and returns a RepresentationComponentRef carrying a
+// content-addressed reference.
+func NewRepresentationComponentRefFromContentAddress(algorithm VocabularyValue, digest string) (RepresentationComponentRef, error) {
+	if algorithm.IsZero() {
+		return RepresentationComponentRef{}, fmt.Errorf("core: NewRepresentationComponentRefFromContentAddress: %w: algorithm must not be zero", ErrInvalidRepresentationComponent)
+	}
+	if digest == "" {
+		return RepresentationComponentRef{}, fmt.Errorf("core: NewRepresentationComponentRefFromContentAddress: %w: digest must not be empty", ErrInvalidRepresentationComponent)
+	}
+	return RepresentationComponentRef{
+		kind:           RepresentationComponentKindContentAddress,
+		contentAddress: contentAddressPayload{algorithm: algorithm, digest: digest},
+	}, nil
+}
+
+// AsContentAddress returns c's algorithm and digest, and true, if c's
+// kind is content_address.
+func (c RepresentationComponentRef) AsContentAddress() (algorithm VocabularyValue, digest string, ok bool) {
+	if c.kind != RepresentationComponentKindContentAddress {
+		return VocabularyValue{}, "", false
+	}
+	return c.contentAddress.algorithm, c.contentAddress.digest, true
+}
+
+type representationComponentRefEnvelope struct {
+	Kind string          `json:"kind"`
+	Ref  json.RawMessage `json:"ref"`
+}
+
+// MarshalJSON encodes c as {"kind": ..., "ref": ...}.
+func (c RepresentationComponentRef) MarshalJSON() ([]byte, error) {
+	if c.kind == "" {
+		return nil, fmt.Errorf("core: marshal RepresentationComponentRef: %w", ErrInvalidReferenceDiscriminator)
+	}
+	var (
+		refBytes []byte
+		err      error
+	)
+	switch c.kind {
+	case RepresentationComponentKindExternalReference:
+		refBytes, err = json.Marshal(c.externalReference)
+	case RepresentationComponentKindContentAddress:
+		refBytes, err = json.Marshal(contentAddressJSON{Algorithm: c.contentAddress.algorithm, Digest: c.contentAddress.digest})
+	default:
+		return nil, fmt.Errorf("core: marshal RepresentationComponentRef: %w", ErrInvalidReferenceDiscriminator)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(representationComponentRefEnvelope{Kind: c.kind, Ref: refBytes})
+}
+
+// UnmarshalJSON decodes c from {"kind": ..., "ref": ...}. An unrecognized
+// kind fails explicitly; this restricted union has no opaque fallback.
+func (c *RepresentationComponentRef) UnmarshalJSON(data []byte) error {
+	var env representationComponentRefEnvelope
+	if err := json.Unmarshal(data, &env); err != nil {
+		return fmt.Errorf("core: unmarshal RepresentationComponentRef: %w", err)
+	}
+	if env.Kind == "" {
+		return fmt.Errorf("core: unmarshal RepresentationComponentRef: %w", ErrInvalidReferenceDiscriminator)
+	}
+
+	var (
+		result RepresentationComponentRef
+		err    error
+	)
+	switch env.Kind {
+	case RepresentationComponentKindExternalReference:
+		var s string
+		if err = json.Unmarshal(env.Ref, &s); err == nil {
+			result, err = NewRepresentationComponentRefFromExternalReference(s)
+		}
+	case RepresentationComponentKindContentAddress:
+		var payload contentAddressJSON
+		if err = json.Unmarshal(env.Ref, &payload); err == nil {
+			result, err = NewRepresentationComponentRefFromContentAddress(payload.Algorithm, payload.Digest)
+		}
+	default:
+		err = fmt.Errorf("core: unmarshal RepresentationComponentRef: unrecognized kind %q: %w", env.Kind, ErrInvalidReferenceDiscriminator)
+	}
+	if err != nil {
+		return err
+	}
+	*c = result
+	return nil
+}
+
 // RepresentationContent is the tagged union of ways a Representation's
 // content MAY be carried (PEOS-002 §Artifact Content): directly embedded
-// bytes or text, a locator into an external system, or a content-
-// addressed reference. Exactly one kind is ever populated; the type
-// system makes "conflicting content forms" within one RepresentationContent
-// structurally impossible.
+// bytes or text, a locator into an external system, a content-addressed
+// reference, or content composed from multiple identifiable components.
+// Exactly one kind is ever populated; the type system makes "conflicting
+// content forms" within one RepresentationContent structurally
+// impossible.
 type RepresentationContent struct {
 	kind string
 
@@ -86,6 +244,7 @@ type RepresentationContent struct {
 	inlineText        string
 	externalReference string
 	contentAddress    contentAddressPayload
+	composed          []RepresentationComponentRef
 }
 
 // Kind returns the content's discriminator string.
@@ -186,6 +345,41 @@ func (c RepresentationContent) AsContentAddress() (algorithm VocabularyValue, di
 	return c.contentAddress.algorithm, c.contentAddress.digest, true
 }
 
+// NewRepresentationContentFromComposed validates components and returns
+// a RepresentationContent composed from them (PEOS-002 §Artifact
+// Content: "composed from multiple identifiable components"). At least
+// one component is required; components are preserved in the order
+// given and defensively copied. Exact duplicate components are
+// permitted: PEOS-002 does not forbid citing the same identifiable
+// component more than once (for example, to emphasize its relevance),
+// so this constructor does not deduplicate, unlike Artifact.Roles or
+// Representation.Classification, which represent mathematical sets
+// rather than an ordered composition sequence.
+func NewRepresentationContentFromComposed(components ...RepresentationComponentRef) (RepresentationContent, error) {
+	if len(components) == 0 {
+		return RepresentationContent{}, fmt.Errorf("core: NewRepresentationContentFromComposed: %w", ErrMissingRepresentationContent)
+	}
+	cp := make([]RepresentationComponentRef, len(components))
+	for idx, component := range components {
+		if component.IsZero() {
+			return RepresentationContent{}, fmt.Errorf("core: NewRepresentationContentFromComposed: %w", ErrInvalidRepresentationComponent)
+		}
+		cp[idx] = component
+	}
+	return RepresentationContent{kind: RepresentationContentKindComposed, composed: cp}, nil
+}
+
+// AsComposed returns a defensive copy of c's composed components, in
+// declaration order, and true, if c's kind is composed.
+func (c RepresentationContent) AsComposed() ([]RepresentationComponentRef, bool) {
+	if c.kind != RepresentationContentKindComposed {
+		return nil, false
+	}
+	cp := make([]RepresentationComponentRef, len(c.composed))
+	copy(cp, c.composed)
+	return cp, true
+}
+
 type representationContentEnvelope struct {
 	Kind string          `json:"kind"`
 	Ref  json.RawMessage `json:"ref"`
@@ -214,6 +408,8 @@ func (c RepresentationContent) MarshalJSON() ([]byte, error) {
 		refBytes, err = json.Marshal(c.externalReference)
 	case RepresentationContentKindContentAddress:
 		refBytes, err = json.Marshal(contentAddressJSON{Algorithm: c.contentAddress.algorithm, Digest: c.contentAddress.digest})
+	case RepresentationContentKindComposed:
+		refBytes, err = json.Marshal(c.composed)
 	default:
 		return nil, fmt.Errorf("core: marshal RepresentationContent: %w", ErrInvalidReferenceDiscriminator)
 	}
@@ -260,6 +456,11 @@ func (c *RepresentationContent) UnmarshalJSON(data []byte) error {
 		if err = json.Unmarshal(env.Ref, &payload); err == nil {
 			result, err = NewRepresentationContentFromContentAddress(payload.Algorithm, payload.Digest)
 		}
+	case RepresentationContentKindComposed:
+		var components []RepresentationComponentRef
+		if err = json.Unmarshal(env.Ref, &components); err == nil {
+			result, err = NewRepresentationContentFromComposed(components...)
+		}
 	default:
 		err = fmt.Errorf("core: unmarshal RepresentationContent: unrecognized kind %q: %w", env.Kind, ErrInvalidReferenceDiscriminator)
 	}
@@ -276,7 +477,36 @@ func (c *RepresentationContent) UnmarshalJSON(data []byte) error {
 // back to its owning Artifact or Artifact Revision — its ownership is
 // established structurally by being stored inside
 // ArtifactRevision.Representations, never duplicated as a field on this
-// type.
+// type. Reusing an equal Representation value across multiple
+// ArtifactRevision values does not create shared PEOS identity, because
+// Representation has none to share: it is a plain, ownership-agnostic
+// immutable value, not a uniquely identified record.
+//
+// A Representation value is conformant as Revision-owned content: PEOS-002
+// requires it to identify its Revision, its format/mechanism, any
+// required transformation, and its classification (see Classification),
+// and this type satisfies all of those while it remains — as it is
+// intended to remain — a Representations entry of exactly one
+// ArtifactRevision value.
+//
+// Representation also implements json.Marshaler/json.Unmarshaler
+// directly, both because Go's encoding/json requires this for correct
+// behavior when Representation appears nested inside
+// ArtifactRevision.Representations, and because that same mechanism
+// unavoidably makes standalone marshaling of a bare Representation value
+// possible too (json.Marshal(rep) compiles and runs regardless of
+// whether rep is, in fact, currently held by any ArtifactRevision).
+// Callers MUST NOT treat that standalone JSON encoding as a complete,
+// self-sufficient PEOS interchange record: it is a *value* encoding of
+// this Representation's own fields, and it does not — and structurally
+// cannot, without reintroducing an owning-Revision reference this
+// packet deliberately omits — identify which Artifact Revision the
+// encoded value belongs to. The enclosing ArtifactRevision's own JSON
+// envelope is what supplies the Revision identity required to interpret
+// any Representation values nested inside it; a Representation
+// serialized and transmitted on its own, outside that envelope, has lost
+// that context and is not a self-sufficient record of "this
+// Representation of this Revision."
 type Representation struct {
 	content           RepresentationContent
 	mediaType         VocabularyValue
@@ -351,6 +581,21 @@ func NewRepresentationFromExternalReference(locator string, mediaType Vocabulary
 // content is a content-addressed reference.
 func NewRepresentationFromContentAddress(algorithm VocabularyValue, digest string, mediaType VocabularyValue, classification ...RepresentationRole) (Representation, error) {
 	c, err := NewRepresentationContentFromContentAddress(algorithm, digest)
+	if err != nil {
+		return Representation{}, err
+	}
+	return newRepresentationFromContent(c, mediaType, classification)
+}
+
+// NewRepresentationFromComposed constructs a Representation whose content
+// is composed from multiple identifiable components. components is a
+// plain slice rather than the trailing-variadic style used by the other
+// NewRepresentationFromX constructors, because Go permits only one
+// variadic parameter per function and classification already occupies
+// that position here, consistent with every other constructor in this
+// file.
+func NewRepresentationFromComposed(components []RepresentationComponentRef, mediaType VocabularyValue, classification ...RepresentationRole) (Representation, error) {
+	c, err := NewRepresentationContentFromComposed(components...)
 	if err != nil {
 		return Representation{}, err
 	}

@@ -126,6 +126,46 @@ func TestArtifactWithRolesZeroRoleRejected(t *testing.T) {
 	}
 }
 
+func TestArtifactWithRolesChainedCallsReplaceNotAccumulate(t *testing.T) {
+	roleA := mustArtifactRole(t, "peos", "evidence")
+	roleB := mustArtifactRole(t, "peos", "authoritative")
+
+	base, err := NewArtifact(mustArtifactID(t, "ART-1"), mustArtifactType(t, "peos", "requirement"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	a1, err := base.WithRoles(roleA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a2, err := a1.WithRoles(roleB)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if got := a2.Roles(); len(got) != 1 || got[0] != roleB {
+		t.Errorf("a2.Roles() = %v, want [%v] (second WithRoles call must replace, not accumulate)", got, roleB)
+	}
+	if got := a1.Roles(); len(got) != 1 || got[0] != roleA {
+		t.Errorf("a1.Roles() = %v, want [%v] (a1 must remain unaffected by a2's WithRoles call)", got, roleA)
+	}
+	if got := base.Roles(); got != nil {
+		t.Errorf("base.Roles() = %v, want nil (base must remain unaffected)", got)
+	}
+
+	a3, err := a2.WithRoles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := a3.Roles(); got != nil {
+		t.Errorf("a3.Roles() after no-args WithRoles() = %v, want nil", got)
+	}
+	if got := a2.Roles(); len(got) != 1 || got[0] != roleB {
+		t.Errorf("a2.Roles() = %v, want [%v] (a2 must remain unaffected by a3's clearing call)", got, roleB)
+	}
+}
+
 func TestArtifactRolesDefensiveCopy(t *testing.T) {
 	evidence := mustArtifactRole(t, "peos", "evidence")
 	a, err := NewArtifact(mustArtifactID(t, "ART-1"), mustArtifactType(t, "peos", "requirement"))
@@ -261,6 +301,33 @@ func TestArtifactJSONMalformed(t *testing.T) {
 	}
 	if err := json.Unmarshal([]byte(`{"artifact_id":"ART-1", "artifact_type":"peos:requirement", "roles":["peos:evidence","peos:evidence"]}`), &a); !errors.Is(err, ErrDuplicateArtifactRole) {
 		t.Errorf("duplicate roles: error = %v, want %v", err, ErrDuplicateArtifactRole)
+	}
+}
+
+func TestArtifactUnmarshalJSONFailurePreservesReceiver(t *testing.T) {
+	evidence := mustArtifactRole(t, "peos", "evidence")
+	original, err := NewArtifact(mustArtifactID(t, "ART-1"), mustArtifactType(t, "peos", "requirement"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err = original.WithRoles(evidence)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := original
+	if err := json.Unmarshal([]byte(`{"artifact_id":"", "artifact_type":""}`), &receiver); err == nil {
+		t.Fatal("malformed Artifact JSON accepted, want error")
+	}
+	// Artifact is not comparable with == (it holds a []ArtifactRole slice and
+	// an Extension map), so every field is checked individually via its own
+	// accessor.
+	if receiver.ID() != original.ID() || receiver.Type() != original.Type() {
+		t.Errorf("failed Unmarshal changed ID()/Type(): got (%v, %v), want (%v, %v)",
+			receiver.ID(), receiver.Type(), original.ID(), original.Type())
+	}
+	gotRoles, wantRoles := receiver.Roles(), original.Roles()
+	if len(gotRoles) != len(wantRoles) || gotRoles[0] != wantRoles[0] {
+		t.Errorf("failed Unmarshal changed Roles(): got %v, want %v", gotRoles, wantRoles)
 	}
 }
 

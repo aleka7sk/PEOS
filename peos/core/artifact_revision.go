@@ -5,10 +5,33 @@ import (
 	"fmt"
 )
 
-// OriginKind classifies an Artifact Revision's Origin (PEOS-002 Artifact
-// Origin). PEOS-002 names known, unknown, unavailable, and reconstructed
-// as origin conditions; this is an open vocabulary, not a closed Go enum
-// — a Product MAY declare additional origin kinds.
+// OriginKind currently represents the knowledge/availability
+// qualification of an Artifact Revision's Origin — PEOS-002 §Artifact
+// Origin names known, unknown, unavailable, disputed, and reconstructed
+// as exactly this kind of condition ("When origin is unknown,
+// unavailable, disputed, or reconstructed, that condition MUST be
+// explicit"). This is an open vocabulary, not a closed Go enum — a
+// Product MAY declare additional qualification kinds.
+//
+// OriginKind does NOT represent the origin-producing mechanism or basis
+// — for example, that a Revision was produced by a Decision, a
+// Transformation, an observation, an external constraint, or an
+// authorized instruction, all of which PEOS-002 separately names as
+// valid origin content ("An origin MAY include: one or more Artifact
+// Revisions; one or more Decisions; an external constraint; an
+// authorized instruction; an observation; a Transformation; accepted
+// evidence; a formally declared independent creation"). That mechanism
+// axis is a distinct concern from this qualification axis: a Revision's
+// origin can simultaneously be, for example, "produced by a
+// Transformation" (mechanism) and "known" (qualification), or "produced
+// by an observation" and "unavailable." Packet B does not yet model the
+// mechanism axis structurally at all — Origin.Note (free text) is the
+// only place that information can currently be recorded. A structured
+// origin-basis model (Decision references, Transformation references,
+// Template Application Record references, and so on) is deliberately
+// deferred to a later Artifact Relation model or a specialization-
+// specific field, not introduced as a universal OriginReference union
+// here.
 type OriginKind struct{ value VocabularyValue }
 
 // NewOriginKind wraps v as an OriginKind.
@@ -36,6 +59,10 @@ var (
 	// OriginKindUnavailable marks a Revision whose origin existed but is
 	// no longer available to record.
 	OriginKindUnavailable = OriginKind{value: VocabularyValue{namespace: PEOSNamespace, value: "unavailable"}}
+
+	// OriginKindDisputed marks a Revision whose origin is contested or
+	// not agreed upon.
+	OriginKindDisputed = OriginKind{value: VocabularyValue{namespace: PEOSNamespace, value: "disputed"}}
 
 	// OriginKindReconstructed marks a Revision whose origin was
 	// reconstructed rather than recorded at the time it occurred.
@@ -153,11 +180,17 @@ var (
 	IntegrityMechanismTrustedRepositoryCommit    = IntegrityMechanism{value: VocabularyValue{namespace: PEOSNamespace, value: "trusted-repository-commit"}}
 )
 
-// IntegrityProtectedScope names what an Integrity Identity's protection
-// covers (PEOS-002: "The scope MAY include: content; normative metadata;
-// Representation; relations embedded in the Revision; provenance
-// information."). Open vocabulary; a Product MAY declare additional
-// protected-scope values, or a composite value of its own choosing.
+// IntegrityProtectedScope names one category an Integrity Identity's
+// protection covers (PEOS-002: "The scope MAY include: content;
+// normative metadata; Representation; relations embedded in the
+// Revision; provenance information."). Open vocabulary; a Product MAY
+// declare additional protected-scope values. An IntegrityIdentity holds
+// one or more of these (see IntegrityIdentity.ProtectedScopes), since
+// PEOS-002's "MAY include" phrasing, applied to a list, describes a set
+// of categories a single mechanism commonly covers together (for
+// example, one content digest that covers content, metadata, and
+// Representation all at once is the ordinary case, not the exception),
+// not a single mandatory choice among them.
 type IntegrityProtectedScope struct{ value VocabularyValue }
 
 func NewIntegrityProtectedScope(v VocabularyValue) IntegrityProtectedScope {
@@ -194,25 +227,40 @@ var (
 // is responsible for actually computing and verifying integrity values;
 // this type only carries the resulting declaration.
 type IntegrityIdentity struct {
-	mechanism      IntegrityMechanism
-	value          string
-	protectedScope IntegrityProtectedScope
-	extension      Extension
+	mechanism       IntegrityMechanism
+	value           string
+	protectedScopes []IntegrityProtectedScope
+	extension       Extension
 }
 
-// NewIntegrityIdentity validates mechanism, value, and protectedScope and
-// returns an IntegrityIdentity.
-func NewIntegrityIdentity(mechanism IntegrityMechanism, value string, protectedScope IntegrityProtectedScope) (IntegrityIdentity, error) {
+// NewIntegrityIdentity validates mechanism, value, and protectedScopes
+// and returns an IntegrityIdentity. At least one protected scope is
+// required; protectedScopes are preserved in the order given, an exact
+// duplicate is rejected, and a zero-value scope among them is rejected.
+func NewIntegrityIdentity(mechanism IntegrityMechanism, value string, protectedScopes ...IntegrityProtectedScope) (IntegrityIdentity, error) {
 	if mechanism.IsZero() {
 		return IntegrityIdentity{}, fmt.Errorf("core: NewIntegrityIdentity: %w: mechanism must not be zero", ErrInvalidIntegrityIdentity)
 	}
 	if value == "" {
 		return IntegrityIdentity{}, fmt.Errorf("core: NewIntegrityIdentity: %w: value must not be empty", ErrInvalidIntegrityIdentity)
 	}
-	if protectedScope.IsZero() {
-		return IntegrityIdentity{}, fmt.Errorf("core: NewIntegrityIdentity: %w: protected scope must not be zero", ErrInvalidIntegrityIdentity)
+	if len(protectedScopes) == 0 {
+		return IntegrityIdentity{}, fmt.Errorf("core: NewIntegrityIdentity: %w: at least one protected scope is required", ErrInvalidIntegrityIdentity)
 	}
-	return IntegrityIdentity{mechanism: mechanism, value: value, protectedScope: protectedScope}, nil
+	seen := make(map[string]bool, len(protectedScopes))
+	deduped := make([]IntegrityProtectedScope, 0, len(protectedScopes))
+	for _, scope := range protectedScopes {
+		if scope.IsZero() {
+			return IntegrityIdentity{}, fmt.Errorf("core: NewIntegrityIdentity: %w: protected scope must not be zero", ErrInvalidIntegrityIdentity)
+		}
+		key := scope.Value().String()
+		if seen[key] {
+			return IntegrityIdentity{}, fmt.Errorf("core: NewIntegrityIdentity: protected scope %q: %w", key, ErrDuplicateIntegrityProtectedScope)
+		}
+		seen[key] = true
+		deduped = append(deduped, scope)
+	}
+	return IntegrityIdentity{mechanism: mechanism, value: value, protectedScopes: deduped}, nil
 }
 
 // WithExtension returns a copy of i with its extension data set.
@@ -221,26 +269,47 @@ func (i IntegrityIdentity) WithExtension(extension Extension) IntegrityIdentity 
 	return i
 }
 
-func (i IntegrityIdentity) Mechanism() IntegrityMechanism           { return i.mechanism }
-func (i IntegrityIdentity) Value() string                           { return i.value }
-func (i IntegrityIdentity) ProtectedScope() IntegrityProtectedScope { return i.protectedScope }
-func (i IntegrityIdentity) Extension() Extension                    { return i.extension }
+func (i IntegrityIdentity) Mechanism() IntegrityMechanism { return i.mechanism }
+func (i IntegrityIdentity) Value() string                 { return i.value }
+
+// ProtectedScopes returns a defensive copy of i's protected scopes, in
+// declaration order.
+func (i IntegrityIdentity) ProtectedScopes() []IntegrityProtectedScope {
+	if len(i.protectedScopes) == 0 {
+		return nil
+	}
+	cp := make([]IntegrityProtectedScope, len(i.protectedScopes))
+	copy(cp, i.protectedScopes)
+	return cp
+}
+
+func (i IntegrityIdentity) Extension() Extension { return i.extension }
 
 // IsZero reports whether i is the zero value.
 func (i IntegrityIdentity) IsZero() bool {
-	return i.mechanism.IsZero() && i.value == "" && i.protectedScope.IsZero()
+	return i.mechanism.IsZero() && i.value == "" && len(i.protectedScopes) == 0
 }
 
 type integrityIdentityJSON struct {
-	Mechanism      IntegrityMechanism      `json:"mechanism"`
-	Value          string                  `json:"value"`
-	ProtectedScope IntegrityProtectedScope `json:"protected_scope"`
-	Extension      *Extension              `json:"extension,omitempty"`
+	Mechanism       IntegrityMechanism        `json:"mechanism"`
+	Value           string                    `json:"value"`
+	ProtectedScopes []IntegrityProtectedScope `json:"protected_scopes,omitempty"`
+	// ProtectedScope is a read-only compatibility field for JSON produced
+	// by commit eaafa23 (Packet B), before IntegrityIdentity supported
+	// more than one protected scope. MarshalJSON never writes it;
+	// UnmarshalJSON accepts it only when protected_scopes is absent, and
+	// rejects a payload that supplies both as ambiguous.
+	ProtectedScope *IntegrityProtectedScope `json:"protected_scope,omitempty"`
+	Extension      *Extension               `json:"extension,omitempty"`
 }
 
-// MarshalJSON encodes i as {"mechanism":..., "value":..., "protected_scope":..., "extension":...}.
+// MarshalJSON encodes i as {"mechanism":..., "value":..., "protected_scopes":[...], "extension":...}.
+// It never writes the legacy singular protected_scope field.
 func (i IntegrityIdentity) MarshalJSON() ([]byte, error) {
-	raw := integrityIdentityJSON{Mechanism: i.mechanism, Value: i.value, ProtectedScope: i.protectedScope}
+	raw := integrityIdentityJSON{Mechanism: i.mechanism, Value: i.value}
+	if len(i.protectedScopes) > 0 {
+		raw.ProtectedScopes = i.protectedScopes
+	}
 	if !i.extension.IsZero() {
 		raw.Extension = &i.extension
 	}
@@ -248,13 +317,28 @@ func (i IntegrityIdentity) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON decodes i from its JSON form, applying the same
-// validation as NewIntegrityIdentity.
+// validation as NewIntegrityIdentity. For compatibility with JSON
+// produced by commit eaafa23, a legacy singular protected_scope field is
+// accepted when protected_scopes is absent; a payload supplying both
+// fields is rejected as ambiguous.
 func (i *IntegrityIdentity) UnmarshalJSON(data []byte) error {
 	var raw integrityIdentityJSON
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("core: unmarshal IntegrityIdentity: %w", err)
 	}
-	result, err := NewIntegrityIdentity(raw.Mechanism, raw.Value, raw.ProtectedScope)
+	hasPlural := len(raw.ProtectedScopes) > 0
+	hasLegacySingular := raw.ProtectedScope != nil
+	if hasPlural && hasLegacySingular {
+		return fmt.Errorf("core: unmarshal IntegrityIdentity: %w: both protected_scopes and legacy protected_scope present", ErrInvalidIntegrityIdentity)
+	}
+	var scopes []IntegrityProtectedScope
+	switch {
+	case hasPlural:
+		scopes = raw.ProtectedScopes
+	case hasLegacySingular:
+		scopes = []IntegrityProtectedScope{*raw.ProtectedScope}
+	}
+	result, err := NewIntegrityIdentity(raw.Mechanism, raw.Value, scopes...)
 	if err != nil {
 		return err
 	}
@@ -280,6 +364,52 @@ func (i *IntegrityIdentity) UnmarshalJSON(data []byte) error {
 // recorded Artifact; that cross-check is a future repository or
 // validator rule (PEOS-ART-006 in the Packet B blueprint), not something
 // a single in-memory ArtifactRevision value can establish on its own.
+//
+// # Specialized Revisions compose this type by value, nested in JSON
+//
+// Requirement, Validation Plan, Quality Profile, Runtime Contract,
+// Template, Decision Record, and every other future PEOS Artifact
+// specialization are each "an Artifact using ordinary Artifact Revision"
+// (PEOS-005/006/007/008/009/004). The recommended, and expected, way for
+// a later package to specialize this type is composition by value field,
+// not embedding:
+//
+//	type RequirementRevision struct {
+//	    Core    core.ArtifactRevision
+//	    Content RequirementContent
+//	}
+//
+// and the recommended JSON shape preserves that same nesting rather than
+// manually flattening Core's fields up a level:
+//
+//	{
+//	  "core": {
+//	    "artifact_id": "REQ-1", "revision_id": "REV-2",
+//	    "origin": {}, "provenance": {}, "integrity": {}
+//	  },
+//	  "content": { "statement": "...", "subject": {} }
+//	}
+//
+// Specialized packages SHOULD preserve core.ArtifactRevision as a nested
+// JSON object rather than manually flattening its fields, because: (1)
+// fields Packet B adds to ArtifactRevision later do not require a change
+// in every specialization's own MarshalJSON/UnmarshalJSON; (2) no
+// specialization needs to duplicate ArtifactRevision's own field list;
+// (3) generic Revision metadata stays clearly separated from
+// specialization-specific typed content; (4) a manual flattening step is
+// one more place a future field could be silently dropped; and (5) this
+// achieves specialization through composition, never through an
+// inheritance-like embedded base struct.
+//
+// A specialized package's own constructor, not this package, is
+// responsible for validating: that its Core.Type() matches the Artifact
+// Type expected for that specialization; that the ArtifactID used to
+// construct its own Artifact and its own Core ArtifactRevision actually
+// match; its own specialized normative content; and, where a Core
+// Revision with zero Representations is otherwise permitted by this
+// package, that the specialization's own typed content is what completes
+// that Revision's required normative content (see NewArtifactRevision's
+// documentation of PEOS-002's content requirement).
 type ArtifactRevision struct {
 	artifactID      ArtifactID
 	revisionID      ArtifactRevisionID
@@ -293,6 +423,26 @@ type ArtifactRevision struct {
 // NewArtifactRevision validates artifactID, revisionID, origin,
 // provenance, and integrity and returns an ArtifactRevision with no
 // Representations and no extension data.
+//
+// # Provenance mechanism
+//
+// Packet B implements the embedded-provenance mechanism: provenance is a
+// required, non-zero core.Provenance value carried directly by this
+// Revision. PEOS-002 §Provenance and Engineering Justification also
+// permits provenance and justification to be "represented through
+// Artifact Relations rather than duplicated directly in every Revision,
+// provided that the required information remains persistent and
+// inspectable" — a second, textually valid mechanism this constructor
+// does not yet support, because Artifact Relations do not exist in this
+// package. Support for relation-based provenance is deferred until
+// Artifact Relations are implemented in a later packet; this constructor
+// therefore requires embedded Provenance unconditionally and does not
+// yet represent every provenance-storage strategy PEOS-002 permits. This
+// is a known, deliberate limitation, not an oversight, and this
+// constructor's required, non-optional Provenance parameter is
+// unchanged by that limitation — Packet B.1 does not make Provenance
+// optional and does not introduce a placeholder or sentinel standing in
+// for relation-based provenance.
 func NewArtifactRevision(
 	artifactID ArtifactID,
 	revisionID ArtifactRevisionID,
