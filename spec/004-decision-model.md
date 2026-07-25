@@ -1160,7 +1160,7 @@ A Decision is not a Lifecycle Transition.
 
 An applicable Decision establishes normative intent according to its established Decision Outcome.
 
-A Transition changes the Lifecycle State Assignment of a Lifecycle Subject according to a Lifecycle Definition.
+A Transition changes the State Assignment of a Lifecycle Subject according to a Lifecycle Definition.
 
 A Decision MAY:
 

@@ -553,6 +553,14 @@ A relation to a logical Artifact MAY be used when the relationship intentionally
 
 The distinction between Artifact-level and Revision-level relations MUST be preserved.
 
+Every Artifact Relation SHALL identify exactly one source participant and exactly one target participant.
+
+An Artifact Relation SHALL NOT have normative identity, revision history, or lifecycle unless a future PEOS specification explicitly introduces such a model.
+
+Implementation-specific relation identifiers do not establish PEOS-level Relation identity.
+
+Every Artifact Relation SHALL identify its Relation Type, scope, and provenance.
+
 ---
 
 # Relation Type

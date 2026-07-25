@@ -200,6 +200,20 @@ Indicates optional behavior.
 
 Unless explicitly stated otherwise, these keywords are interpreted as normative requirements.
 
+SHALL has the same normative force as MUST.
+
+SHALL NOT has the same normative force as MUST NOT.
+
+REQUIRED is equivalent to MUST.
+
+RECOMMENDED is equivalent to SHOULD.
+
+NOT RECOMMENDED is equivalent to SHOULD NOT.
+
+OPTIONAL is equivalent to MAY.
+
+A specification SHOULD prefer one keyword family consistently within a single document.
+
 ---
 
 # Conformance
