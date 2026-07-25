@@ -326,7 +326,7 @@ func (i *IntegrityIdentity) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("core: unmarshal IntegrityIdentity: %w", err)
 	}
-	hasPlural := len(raw.ProtectedScopes) > 0
+	hasPlural := raw.ProtectedScopes != nil
 	hasLegacySingular := raw.ProtectedScope != nil
 	if hasPlural && hasLegacySingular {
 		return fmt.Errorf("core: unmarshal IntegrityIdentity: %w: both protected_scopes and legacy protected_scope present", ErrInvalidIntegrityIdentity)

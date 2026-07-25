@@ -335,6 +335,105 @@ func TestIntegrityIdentityJSONBothScalarAndListRejected(t *testing.T) {
 	}
 }
 
+func TestIntegrityIdentityJSONEmptyPluralPlusLegacyRejected(t *testing.T) {
+	original, err := NewIntegrityIdentity(IntegrityMechanismCryptographicDigest, "sha256:pre-existing", IntegrityProtectedScopeContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := original
+	// protected_scopes is present as an explicit empty array, not absent.
+	// Presence MUST be decided by whether the JSON key was supplied, not by
+	// the array's length, so this must be detected as both fields present
+	// and rejected as ambiguous, the same as a non-empty plural array would
+	// be.
+	ambiguous := `{"mechanism":"peos:cryptographic-digest","value":"abc","protected_scopes":[],"protected_scope":"peos:content"}`
+	if err := json.Unmarshal([]byte(ambiguous), &receiver); !errors.Is(err, ErrInvalidIntegrityIdentity) {
+		t.Errorf("error = %v, want %v", err, ErrInvalidIntegrityIdentity)
+	}
+	if receiver.Mechanism() != original.Mechanism() || receiver.Value() != original.Value() {
+		t.Errorf("failed Unmarshal changed Mechanism()/Value(): got (%v, %q), want (%v, %q)",
+			receiver.Mechanism(), receiver.Value(), original.Mechanism(), original.Value())
+	}
+	gotScopes, wantScopes := receiver.ProtectedScopes(), original.ProtectedScopes()
+	if len(gotScopes) != len(wantScopes) || gotScopes[0] != wantScopes[0] {
+		t.Errorf("failed Unmarshal changed ProtectedScopes(): got %v, want %v", gotScopes, wantScopes)
+	}
+}
+
+func TestIntegrityIdentityJSONDuplicatePluralScopesRejected(t *testing.T) {
+	original, err := NewIntegrityIdentity(IntegrityMechanismCryptographicDigest, "sha256:pre-existing", IntegrityProtectedScopeContent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := original
+	duplicate := `{"mechanism":"peos:cryptographic-digest","value":"abc","protected_scopes":["peos:content","peos:content"]}`
+	err = json.Unmarshal([]byte(duplicate), &receiver)
+	// NewIntegrityIdentity's existing duplicate-scope error wraps only
+	// ErrDuplicateIntegrityProtectedScope, not ErrInvalidIntegrityIdentity
+	// (see artifact_revision.go's duplicate-scope check) — that wrapping
+	// contract predates this fix and is unchanged by it.
+	if !errors.Is(err, ErrDuplicateIntegrityProtectedScope) {
+		t.Errorf("error = %v, want %v", err, ErrDuplicateIntegrityProtectedScope)
+	}
+	if receiver.Mechanism() != original.Mechanism() || receiver.Value() != original.Value() {
+		t.Errorf("failed Unmarshal changed Mechanism()/Value(): got (%v, %q), want (%v, %q)",
+			receiver.Mechanism(), receiver.Value(), original.Mechanism(), original.Value())
+	}
+	gotScopes, wantScopes := receiver.ProtectedScopes(), original.ProtectedScopes()
+	if len(gotScopes) != len(wantScopes) || gotScopes[0] != wantScopes[0] {
+		t.Errorf("failed Unmarshal changed ProtectedScopes(): got %v, want %v", gotScopes, wantScopes)
+	}
+}
+
+func TestIntegrityIdentityJSONExtensionWithPluralScopesRoundTrip(t *testing.T) {
+	original, err := NewIntegrityIdentity(IntegrityMechanismCryptographicDigest, "sha256:abc123",
+		IntegrityProtectedScopeContent, IntegrityProtectedScopeMetadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ext, err := NewExtension().With("product-x", json.RawMessage(`{"a":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	original = original.WithExtension(ext)
+
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := raw["protected_scopes"]; !present {
+		t.Error("protected_scopes field missing from Marshal output")
+	}
+	if _, present := raw["protected_scope"]; present {
+		t.Error("legacy singular protected_scope field present in Marshal output; MarshalJSON must only ever write protected_scopes")
+	}
+
+	var decoded IntegrityIdentity
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Mechanism() != original.Mechanism() || decoded.Value() != original.Value() {
+		t.Errorf("round trip mismatch: got %+v, want %+v", decoded, original)
+	}
+	gotScopes, wantScopes := decoded.ProtectedScopes(), original.ProtectedScopes()
+	if len(gotScopes) != len(wantScopes) {
+		t.Fatalf("round trip ProtectedScopes() len = %d, want %d", len(gotScopes), len(wantScopes))
+	}
+	for idx := range wantScopes {
+		if gotScopes[idx] != wantScopes[idx] {
+			t.Errorf("round trip ProtectedScopes()[%d] = %v, want %v", idx, gotScopes[idx], wantScopes[idx])
+		}
+	}
+	got, ok := decoded.Extension().Get("product-x")
+	if !ok || string(got) != `{"a":1}` {
+		t.Errorf("round trip Extension().Get(\"product-x\") = (%s, %v)", got, ok)
+	}
+}
+
 func TestIntegrityIdentityUnmarshalJSONFailurePreservesReceiver(t *testing.T) {
 	original, err := NewIntegrityIdentity(IntegrityMechanismCryptographicDigest, "sha256:pre-existing", IntegrityProtectedScopeContent)
 	if err != nil {
