@@ -149,6 +149,9 @@ func TestRemainingIdentityConstructors(t *testing.T) {
 		{"TemplateApplicationRecordID", func(v string) (interface{ IsZero() bool }, error) { return NewTemplateApplicationRecordID(v) }},
 		{"ControlledVocabularyID", func(v string) (interface{ IsZero() bool }, error) { return NewControlledVocabularyID(v) }},
 		{"LocalKey", func(v string) (interface{ IsZero() bool }, error) { return NewLocalKey(v) }},
+		{"LifecycleDefinitionID", func(v string) (interface{ IsZero() bool }, error) { return NewLifecycleDefinitionID(v) }},
+		{"LifecycleDefinitionVersionID", func(v string) (interface{ IsZero() bool }, error) { return NewLifecycleDefinitionVersionID(v) }},
+		{"StateAssignmentID", func(v string) (interface{ IsZero() bool }, error) { return NewStateAssignmentID(v) }},
 	}
 
 	for _, c := range constructors {
@@ -173,6 +176,176 @@ func TestRemainingIdentityConstructors(t *testing.T) {
 				t.Errorf("error = %v, want %v", err, ErrEmptyIdentity)
 			}
 		})
+	}
+}
+
+// --- Packet E: LifecycleDefinitionID, LifecycleDefinitionVersionID, StateAssignmentID ---
+
+func TestLifecycleDefinitionIDJSONRoundTrip(t *testing.T) {
+	original, err := NewLifecycleDefinitionID("LC-REVIEW-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if string(data) != `"LC-REVIEW-1"` {
+		t.Errorf("Marshal = %s, want %q", data, `"LC-REVIEW-1"`)
+	}
+	var decoded LifecycleDefinitionID
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if decoded != original {
+		t.Errorf("round trip mismatch: got %v, want %v", decoded, original)
+	}
+}
+
+func TestLifecycleDefinitionIDJSONRejectsEmpty(t *testing.T) {
+	var id LifecycleDefinitionID
+	if err := json.Unmarshal([]byte(`""`), &id); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("error = %v, want %v", err, ErrEmptyIdentity)
+	}
+}
+
+func TestLifecycleDefinitionIDMalformedJSONRejected(t *testing.T) {
+	var id LifecycleDefinitionID
+	if err := json.Unmarshal([]byte(`123`), &id); err == nil {
+		t.Fatal("malformed JSON accepted, want error")
+	}
+}
+
+func TestLifecycleDefinitionIDFailedUnmarshalPreservesReceiver(t *testing.T) {
+	original, err := NewLifecycleDefinitionID("LC-REVIEW-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := original
+	if err := json.Unmarshal([]byte(`""`), &receiver); err == nil {
+		t.Fatal("empty value accepted, want error")
+	}
+	if receiver != original {
+		t.Errorf("failed Unmarshal changed receiver: got %v, want %v", receiver, original)
+	}
+}
+
+func TestLifecycleDefinitionVersionIDJSONRoundTrip(t *testing.T) {
+	original, err := NewLifecycleDefinitionVersionID("V1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var decoded LifecycleDefinitionVersionID
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if decoded != original {
+		t.Errorf("round trip mismatch: got %v, want %v", decoded, original)
+	}
+}
+
+func TestLifecycleDefinitionVersionIDJSONRejectsEmpty(t *testing.T) {
+	var id LifecycleDefinitionVersionID
+	if err := json.Unmarshal([]byte(`""`), &id); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("error = %v, want %v", err, ErrEmptyIdentity)
+	}
+}
+
+func TestLifecycleDefinitionVersionIDMalformedJSONRejected(t *testing.T) {
+	var id LifecycleDefinitionVersionID
+	if err := json.Unmarshal([]byte(`{}`), &id); err == nil {
+		t.Fatal("malformed JSON accepted, want error")
+	}
+}
+
+func TestLifecycleDefinitionVersionIDFailedUnmarshalPreservesReceiver(t *testing.T) {
+	original, err := NewLifecycleDefinitionVersionID("V1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := original
+	if err := json.Unmarshal([]byte(`""`), &receiver); err == nil {
+		t.Fatal("empty value accepted, want error")
+	}
+	if receiver != original {
+		t.Errorf("failed Unmarshal changed receiver: got %v, want %v", receiver, original)
+	}
+}
+
+func TestStateAssignmentIDJSONRoundTrip(t *testing.T) {
+	original, err := NewStateAssignmentID("SA-1001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	var decoded StateAssignmentID
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if decoded != original {
+		t.Errorf("round trip mismatch: got %v, want %v", decoded, original)
+	}
+}
+
+func TestStateAssignmentIDJSONRejectsEmpty(t *testing.T) {
+	var id StateAssignmentID
+	if err := json.Unmarshal([]byte(`""`), &id); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("error = %v, want %v", err, ErrEmptyIdentity)
+	}
+}
+
+func TestStateAssignmentIDMalformedJSONRejected(t *testing.T) {
+	var id StateAssignmentID
+	if err := json.Unmarshal([]byte(`null`), &id); err == nil {
+		t.Fatal("malformed JSON accepted, want error")
+	}
+}
+
+func TestStateAssignmentIDFailedUnmarshalPreservesReceiver(t *testing.T) {
+	original, err := NewStateAssignmentID("SA-1001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := original
+	if err := json.Unmarshal([]byte(`""`), &receiver); err == nil {
+		t.Fatal("empty value accepted, want error")
+	}
+	if receiver != original {
+		t.Errorf("failed Unmarshal changed receiver: got %v, want %v", receiver, original)
+	}
+}
+
+// TestLifecycleIdentityTypesAreNotInterchangeable documents, like
+// TestIdentityTypesAreNotInterchangeable above, that the three new Packet
+// E identity types each have their own field name and are therefore not
+// structurally interchangeable with each other, with ArtifactID, or with
+// ImmutableRecordID.
+func TestLifecycleIdentityTypesAreNotInterchangeable(t *testing.T) {
+	defID, err := NewLifecycleDefinitionID("LC-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	versionID, err := NewLifecycleDefinitionVersionID("V1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignmentID, err := NewStateAssignmentID("SA-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The following, if uncommented, must fail to compile:
+	//   var _ LifecycleDefinitionID = versionID
+	//   var _ LifecycleDefinitionVersionID = assignmentID
+	//   var _ StateAssignmentID = LifecycleDefinitionID(defID)
+	if defID.String() == versionID.String() || versionID.String() == assignmentID.String() {
+		t.Skip("identical opaque values chosen; not a meaningful collision")
 	}
 }
 

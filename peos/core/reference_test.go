@@ -402,6 +402,161 @@ func TestIdentityLevelReferenceFamilies(t *testing.T) {
 	})
 }
 
+// --- Packet E: LifecycleDefinitionRef, LifecycleDefinitionVersionRef, StateAssignmentRef ---
+
+func mustLifecycleDefinitionID(t *testing.T, value string) LifecycleDefinitionID {
+	t.Helper()
+	id, err := NewLifecycleDefinitionID(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func TestLifecycleDefinitionRef(t *testing.T) {
+	defID := mustLifecycleDefinitionID(t, "LC-REVIEW-1")
+
+	ref, err := NewLifecycleDefinitionRef(defID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.LifecycleDefinitionID() != defID {
+		t.Error("component mismatch")
+	}
+	if ref.IsZero() {
+		t.Error("valid LifecycleDefinitionRef reports IsZero() = true")
+	}
+
+	if _, err := NewLifecycleDefinitionRef(LifecycleDefinitionID{}); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("error = %v, want %v", err, ErrEmptyIdentity)
+	}
+
+	var zero LifecycleDefinitionRef
+	if !zero.IsZero() {
+		t.Error("zero-value LifecycleDefinitionRef.IsZero() = false, want true")
+	}
+
+	roundTripJSON(t, &ref, &LifecycleDefinitionRef{})
+
+	if err := json.Unmarshal([]byte(`{"lifecycle_definition_id": ""}`), &LifecycleDefinitionRef{}); err == nil {
+		t.Fatal("malformed (empty id) JSON accepted, want error")
+	}
+
+	receiver := ref
+	if err := json.Unmarshal([]byte(`{"lifecycle_definition_id": ""}`), &receiver); err == nil {
+		t.Fatal("malformed JSON accepted, want error")
+	}
+	if receiver != ref {
+		t.Errorf("failed Unmarshal changed receiver: got %v, want %v", receiver, ref)
+	}
+}
+
+func TestLifecycleDefinitionVersionRef(t *testing.T) {
+	defID := mustLifecycleDefinitionID(t, "LC-REVIEW-1")
+	versionID, err := NewLifecycleDefinitionVersionID("V1")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ref, err := NewLifecycleDefinitionVersionRef(defID, versionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.LifecycleDefinitionID() != defID || ref.VersionID() != versionID {
+		t.Error("component mismatch")
+	}
+	if ref.IsZero() {
+		t.Error("valid LifecycleDefinitionVersionRef reports IsZero() = true")
+	}
+
+	if _, err := NewLifecycleDefinitionVersionRef(LifecycleDefinitionID{}, versionID); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("error = %v, want %v", err, ErrEmptyIdentity)
+	}
+	if _, err := NewLifecycleDefinitionVersionRef(defID, LifecycleDefinitionVersionID{}); !errors.Is(err, ErrMissingRevisionID) {
+		t.Errorf("error = %v, want %v", err, ErrMissingRevisionID)
+	}
+
+	var zero LifecycleDefinitionVersionRef
+	if !zero.IsZero() {
+		t.Error("zero-value LifecycleDefinitionVersionRef.IsZero() = false, want true")
+	}
+
+	roundTripJSON(t, &ref, &LifecycleDefinitionVersionRef{})
+
+	receiver := ref
+	if err := json.Unmarshal([]byte(`{"lifecycle_definition_id": "LC-REVIEW-1"}`), &receiver); err == nil {
+		t.Fatal("JSON missing version id accepted, want error")
+	}
+	if receiver != ref {
+		t.Errorf("failed Unmarshal changed receiver: got %v, want %v", receiver, ref)
+	}
+}
+
+func TestStateAssignmentRef(t *testing.T) {
+	assignmentID, err := NewStateAssignmentID("SA-1001")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ref, err := NewStateAssignmentRef(assignmentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.StateAssignmentID() != assignmentID {
+		t.Error("component mismatch")
+	}
+	if ref.IsZero() {
+		t.Error("valid StateAssignmentRef reports IsZero() = true")
+	}
+
+	if _, err := NewStateAssignmentRef(StateAssignmentID{}); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("error = %v, want %v", err, ErrEmptyIdentity)
+	}
+
+	var zero StateAssignmentRef
+	if !zero.IsZero() {
+		t.Error("zero-value StateAssignmentRef.IsZero() = false, want true")
+	}
+
+	roundTripJSON(t, &ref, &StateAssignmentRef{})
+
+	receiver := ref
+	if err := json.Unmarshal([]byte(`{"state_assignment_id": ""}`), &receiver); err == nil {
+		t.Fatal("malformed JSON accepted, want error")
+	}
+	if receiver != ref {
+		t.Errorf("failed Unmarshal changed receiver: got %v, want %v", receiver, ref)
+	}
+}
+
+// TestLifecycleReferenceTypesAreNotInterchangeable documents that
+// LifecycleDefinitionRef, LifecycleDefinitionVersionRef, and
+// StateAssignmentRef are structurally distinct from each other and from
+// ArtifactRef/DecisionRef, exactly like every other reference family in
+// this file.
+func TestLifecycleReferenceTypesAreNotInterchangeable(t *testing.T) {
+	defRef, err := NewLifecycleDefinitionRef(mustLifecycleDefinitionID(t, "LC-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignmentRef, err := NewStateAssignmentRef(func() StateAssignmentID {
+		id, err := NewStateAssignmentID("SA-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The following, if uncommented, must fail to compile:
+	//   var _ LifecycleDefinitionRef = assignmentRef
+	//   var _ StateAssignmentRef = defRef
+	if defRef.LifecycleDefinitionID().String() == assignmentRef.StateAssignmentID().String() {
+		t.Skip("identical opaque values chosen; not a meaningful collision")
+	}
+}
+
 // roundTripJSON marshals src, unmarshals into dst, and fails the test if
 // the two do not marshal to the same bytes (used for types without a
 // convenient equality check exposed).

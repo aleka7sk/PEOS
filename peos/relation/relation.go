@@ -141,6 +141,24 @@ type relationJSON struct {
 	Extension    *core.Extension            `json:"extension,omitempty"`
 }
 
+// relationUnmarshalJSON mirrors relationJSON's field set for decoding
+// only, with one difference: Scope is captured as raw, undecoded bytes
+// rather than *core.Scope. A standard *core.Scope field cannot
+// distinguish an absent "scope" key from one explicitly present with a
+// JSON null value — encoding/json sets a pointer field to nil for both
+// cases, without ever invoking core.Scope's own UnmarshalJSON. Capturing
+// the raw bytes lets UnmarshalJSON below tell the two cases apart and
+// reject an explicit null, per this type's own presence/absence
+// contract for Scope (see WithScope).
+type relationUnmarshalJSON struct {
+	RelationType core.RelationType          `json:"relation_type"`
+	Source       core.EngineeringSubjectRef `json:"source"`
+	Target       core.EngineeringSubjectRef `json:"target"`
+	Provenance   core.Provenance            `json:"provenance"`
+	Scope        json.RawMessage            `json:"scope"`
+	Extension    *core.Extension            `json:"extension,omitempty"`
+}
+
 // MarshalJSON encodes r as {"relation_type":..., "source":...,
 // "target":..., "provenance":..., ...}, omitting scope and extension
 // when not set. relation_type, source, target, and provenance are never
@@ -169,7 +187,7 @@ func (r Relation) MarshalJSON() ([]byte, error) {
 // null, or an explicit but zero-value scope object, is rejected rather
 // than silently treated as "no scope."
 func (r *Relation) UnmarshalJSON(data []byte) error {
-	var raw relationJSON
+	var raw relationUnmarshalJSON
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("relation: unmarshal Relation: %w", err)
 	}
@@ -177,8 +195,15 @@ func (r *Relation) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	if raw.Scope != nil {
-		result, err = result.WithScope(*raw.Scope)
+	if len(raw.Scope) > 0 {
+		if string(raw.Scope) == "null" {
+			return fmt.Errorf("relation: unmarshal Relation: %w: scope must not be null", core.ErrInvalidScope)
+		}
+		var scope core.Scope
+		if err := json.Unmarshal(raw.Scope, &scope); err != nil {
+			return fmt.Errorf("relation: unmarshal Relation: %w", err)
+		}
+		result, err = result.WithScope(scope)
 		if err != nil {
 			return err
 		}

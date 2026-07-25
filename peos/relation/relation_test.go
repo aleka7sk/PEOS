@@ -630,21 +630,77 @@ func TestRelationJSONInvalidTargetDiscriminatorRejected(t *testing.T) {
 func TestRelationJSONScopeNullRejected(t *testing.T) {
 	var r Relation
 	payload := `{"relation_type":"peos:dependency","source":{"kind":"artifact","ref":{"artifact_id":"ART-1"}},"target":{"kind":"artifact","ref":{"artifact_id":"ART-2"}},"provenance":{"actor":{"namespace":"peos-cli","identifier":"svc-1"}},"scope":null}`
-	// scope:null decodes raw.Scope as a nil *core.Scope (same as if the
-	// key were absent), so this is accepted -- confirmed and asserted
-	// explicitly here rather than assumed, since "null" and "absent" are
-	// standard encoding/json equivalents for a pointer field.
+	// An explicit "scope": null is distinct from an absent "scope" key
+	// and must be rejected, not silently treated as "no scope" --
+	// see TestRelationJSONScopeAbsentMeansNoScope for the absent case.
+	err := json.Unmarshal([]byte(payload), &r)
+	if !errors.Is(err, core.ErrInvalidScope) {
+		t.Errorf("error = %v, want %v", err, core.ErrInvalidScope)
+	}
+}
+
+func TestRelationJSONScopeAbsentMeansNoScope(t *testing.T) {
+	var r Relation
+	// Hand-built minimum-valid JSON with no "scope" key at all.
+	payload := `{"relation_type":"peos:dependency","source":{"kind":"artifact","ref":{"artifact_id":"ART-1"}},"target":{"kind":"artifact","ref":{"artifact_id":"ART-2"}},"provenance":{"actor":{"namespace":"peos-cli","identifier":"svc-1"}}}`
 	if err := json.Unmarshal([]byte(payload), &r); err != nil {
-		t.Fatalf("scope:null unexpectedly rejected: %v", err)
+		t.Fatalf("absent scope key unexpectedly rejected: %v", err)
 	}
 	if _, ok := r.Scope(); ok {
-		t.Error("Scope() ok = true after decoding scope:null")
+		t.Error("Scope() ok = true after decoding a payload with no scope key")
+	}
+}
+
+func TestRelationJSONScopeNullPreservesReceiver(t *testing.T) {
+	scope := mustScope(t, "product-x", "deployment=eu")
+	original, err := mustRelation(t).WithScope(scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ext, err := core.NewExtension().With("product-x", json.RawMessage(`{"a":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	original = original.WithExtension(ext)
+
+	receiver := original
+	payload := `{"relation_type":"peos:dependency","source":{"kind":"artifact","ref":{"artifact_id":"ART-1"}},"target":{"kind":"artifact","ref":{"artifact_id":"ART-2"}},"provenance":{"actor":{"namespace":"peos-cli","identifier":"svc-1"}},"scope":null}`
+	if err := json.Unmarshal([]byte(payload), &receiver); !errors.Is(err, core.ErrInvalidScope) {
+		t.Fatalf("error = %v, want %v", err, core.ErrInvalidScope)
+	}
+
+	// Relation is not comparable with == (it holds core.Extension, which
+	// embeds a map), so every field is checked individually via its own
+	// accessor.
+	if receiver.RelationType() != original.RelationType() {
+		t.Errorf("failed Unmarshal changed RelationType(): got %v, want %v", receiver.RelationType(), original.RelationType())
+	}
+	if receiver.Source() != original.Source() {
+		t.Errorf("failed Unmarshal changed Source(): got %v, want %v", receiver.Source(), original.Source())
+	}
+	if receiver.Target() != original.Target() {
+		t.Errorf("failed Unmarshal changed Target(): got %v, want %v", receiver.Target(), original.Target())
+	}
+	gotActor, gotOK := receiver.Provenance().Actor()
+	wantActor, wantOK := original.Provenance().Actor()
+	if gotActor != wantActor || gotOK != wantOK {
+		t.Errorf("failed Unmarshal changed Provenance(): got (%v, %v), want (%v, %v)", gotActor, gotOK, wantActor, wantOK)
+	}
+	gotScope, gotScopeOK := receiver.Scope()
+	wantScope, wantScopeOK := original.Scope()
+	if gotScopeOK != wantScopeOK || !gotScope.Equal(wantScope) {
+		t.Errorf("failed Unmarshal changed Scope(): got (%v, %v), want (%v, %v)", gotScope, gotScopeOK, wantScope, wantScopeOK)
+	}
+	gotExt, gotExtOK := receiver.Extension().Get("product-x")
+	wantExt, wantExtOK := original.Extension().Get("product-x")
+	if gotExtOK != wantExtOK || string(gotExt) != string(wantExt) {
+		t.Errorf("failed Unmarshal changed Extension(): got (%s, %v), want (%s, %v)", gotExt, gotExtOK, wantExt, wantExtOK)
 	}
 }
 
 func TestRelationJSONScopeEmptyObjectRejected(t *testing.T) {
 	var r Relation
-	payload := `{"relation_type":"peos:dependency","source":{"kind":"artifact","ref":{"artifact_id":"ART-1"}},"target":{"kind":"artifact","ref":{"artifact_id":"ART-2"}},"provenance":{},"scope":{}}`
+	payload := `{"relation_type":"peos:dependency","source":{"kind":"artifact","ref":{"artifact_id":"ART-1"}},"target":{"kind":"artifact","ref":{"artifact_id":"ART-2"}},"provenance":{"actor":{"namespace":"peos-cli","identifier":"svc-1"}},"scope":{}}`
 	err := json.Unmarshal([]byte(payload), &r)
 	if !errors.Is(err, core.ErrInvalidScope) {
 		t.Errorf("error = %v, want %v", err, core.ErrInvalidScope)

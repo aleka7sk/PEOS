@@ -48,12 +48,44 @@ type ArtifactRevisionID struct{ artifactRevisionID string }
 
 // ImmutableRecordID is the shared identity type for immutable record
 // families that this packet does not yet assign a dedicated identity type
-// (for example, State Assignment, Transition Record, and Measurement
-// Record). A later packet MAY introduce a dedicated identity type for one
-// of these without breaking this packet's contract, because every
-// dedicated identity type defined here is structurally distinct from
-// ImmutableRecordID and from every other identity type.
+// (for example, Measurement Record). A later packet MAY introduce a
+// dedicated identity type for one of these without breaking this packet's
+// contract, because every dedicated identity type defined here is
+// structurally distinct from ImmutableRecordID and from every other
+// identity type. State Assignment (PEOS-003) has its own dedicated
+// StateAssignmentID below; Transition Record (PEOS-003) is a persistent
+// Artifact per PEOS-003's own text ("A Transition Record is a persistent
+// Artifact... A Transition Record MUST conform to PEOS-002") and therefore
+// uses core.ArtifactID / core.ArtifactRevisionID, not this type or a
+// dedicated ID of its own.
 type ImmutableRecordID struct{ immutableRecordID string }
+
+// LifecycleDefinitionID is the identity of a Lifecycle Definition
+// (PEOS-003). A Lifecycle Definition has its own normative identity,
+// independent of core.ArtifactID: PEOS-003 permits, but does not require,
+// representing a Lifecycle Definition as an Artifact ("A Lifecycle
+// Definition MAY be represented as an Artifact"), so this identity type
+// does not assume Artifact backing. An Artifact-backed representation is
+// left to a future additive profile.
+type LifecycleDefinitionID struct{ lifecycleDefinitionID string }
+
+// LifecycleDefinitionVersionID is the identity of a Lifecycle Definition
+// Version (PEOS-003), meaningful only together with the
+// LifecycleDefinitionID of its parent Definition (see
+// LifecycleDefinitionVersionRef in reference.go). PEOS-003 requires every
+// Lifecycle Definition Version to have "an ordering or version
+// identifier"; this identity type itself satisfies that requirement's
+// "version identifier" alternative, exactly as ArtifactRevisionID already
+// does for Artifact Revisions without this package assuming any inherent
+// sort order (PEOS-002 §Revision Ordering: "An implementation MUST NOT
+// assume that Revision Identifiers are inherently sortable").
+type LifecycleDefinitionVersionID struct{ lifecycleDefinitionVersionID string }
+
+// StateAssignmentID is the identity of a State Assignment (PEOS-003): an
+// immutable record, not an Artifact -- PEOS-003 never calls a State
+// Assignment "an Artifact" or requires it to conform to PEOS-002, unlike
+// Transition Record (see ImmutableRecordID's own comment above).
+type StateAssignmentID struct{ stateAssignmentID string }
 
 // DecisionID is the PEOS Decision identity (PEOS-004). It is distinct
 // from the identity of the Decision Record Artifact that documents the
@@ -490,5 +522,94 @@ func (k *LocalKey) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*k = v
+	return nil
+}
+
+// NewLifecycleDefinitionID validates value and returns a
+// LifecycleDefinitionID.
+func NewLifecycleDefinitionID(value string) (LifecycleDefinitionID, error) {
+	v, err := normalizeIdentityValue(value)
+	if err != nil {
+		return LifecycleDefinitionID{}, fmt.Errorf("core: NewLifecycleDefinitionID: %w", err)
+	}
+	return LifecycleDefinitionID{lifecycleDefinitionID: v}, nil
+}
+
+func (id LifecycleDefinitionID) String() string { return id.lifecycleDefinitionID }
+func (id LifecycleDefinitionID) IsZero() bool   { return id.lifecycleDefinitionID == "" }
+
+func (id LifecycleDefinitionID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(id.lifecycleDefinitionID)
+}
+
+func (id *LifecycleDefinitionID) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("core: unmarshal LifecycleDefinitionID: %w", err)
+	}
+	v, err := NewLifecycleDefinitionID(s)
+	if err != nil {
+		return err
+	}
+	*id = v
+	return nil
+}
+
+// NewLifecycleDefinitionVersionID validates value and returns a
+// LifecycleDefinitionVersionID.
+func NewLifecycleDefinitionVersionID(value string) (LifecycleDefinitionVersionID, error) {
+	v, err := normalizeIdentityValue(value)
+	if err != nil {
+		return LifecycleDefinitionVersionID{}, fmt.Errorf("core: NewLifecycleDefinitionVersionID: %w", err)
+	}
+	return LifecycleDefinitionVersionID{lifecycleDefinitionVersionID: v}, nil
+}
+
+func (id LifecycleDefinitionVersionID) String() string { return id.lifecycleDefinitionVersionID }
+func (id LifecycleDefinitionVersionID) IsZero() bool   { return id.lifecycleDefinitionVersionID == "" }
+
+func (id LifecycleDefinitionVersionID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(id.lifecycleDefinitionVersionID)
+}
+
+func (id *LifecycleDefinitionVersionID) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("core: unmarshal LifecycleDefinitionVersionID: %w", err)
+	}
+	v, err := NewLifecycleDefinitionVersionID(s)
+	if err != nil {
+		return err
+	}
+	*id = v
+	return nil
+}
+
+// NewStateAssignmentID validates value and returns a StateAssignmentID.
+func NewStateAssignmentID(value string) (StateAssignmentID, error) {
+	v, err := normalizeIdentityValue(value)
+	if err != nil {
+		return StateAssignmentID{}, fmt.Errorf("core: NewStateAssignmentID: %w", err)
+	}
+	return StateAssignmentID{stateAssignmentID: v}, nil
+}
+
+func (id StateAssignmentID) String() string { return id.stateAssignmentID }
+func (id StateAssignmentID) IsZero() bool   { return id.stateAssignmentID == "" }
+
+func (id StateAssignmentID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(id.stateAssignmentID)
+}
+
+func (id *StateAssignmentID) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("core: unmarshal StateAssignmentID: %w", err)
+	}
+	v, err := NewStateAssignmentID(s)
+	if err != nil {
+		return err
+	}
+	*id = v
 	return nil
 }

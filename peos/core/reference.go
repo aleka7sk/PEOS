@@ -824,6 +824,144 @@ func (r *ValidationExecutionRecordRef) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// LifecycleDefinitionRef identifies a Lifecycle Definition at the identity
+// level (PEOS-003). A Lifecycle Definition has its own normative identity,
+// independent of ArtifactID (see LifecycleDefinitionID in identity.go).
+type LifecycleDefinitionRef struct{ lifecycleDefinitionRefID LifecycleDefinitionID }
+
+// NewLifecycleDefinitionRef validates id and returns a
+// LifecycleDefinitionRef.
+func NewLifecycleDefinitionRef(id LifecycleDefinitionID) (LifecycleDefinitionRef, error) {
+	if id.IsZero() {
+		return LifecycleDefinitionRef{}, fmt.Errorf("core: NewLifecycleDefinitionRef: %w", ErrEmptyIdentity)
+	}
+	return LifecycleDefinitionRef{lifecycleDefinitionRefID: id}, nil
+}
+
+func (r LifecycleDefinitionRef) LifecycleDefinitionID() LifecycleDefinitionID {
+	return r.lifecycleDefinitionRefID
+}
+func (r LifecycleDefinitionRef) IsZero() bool { return r.lifecycleDefinitionRefID.IsZero() }
+
+type lifecycleDefinitionRefJSON struct {
+	LifecycleDefinitionID LifecycleDefinitionID `json:"lifecycle_definition_id"`
+}
+
+func (r LifecycleDefinitionRef) MarshalJSON() ([]byte, error) {
+	return json.Marshal(lifecycleDefinitionRefJSON{LifecycleDefinitionID: r.lifecycleDefinitionRefID})
+}
+
+func (r *LifecycleDefinitionRef) UnmarshalJSON(data []byte) error {
+	var raw lifecycleDefinitionRefJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("core: unmarshal LifecycleDefinitionRef: %w", err)
+	}
+	v, err := NewLifecycleDefinitionRef(raw.LifecycleDefinitionID)
+	if err != nil {
+		return err
+	}
+	*r = v
+	return nil
+}
+
+// LifecycleDefinitionVersionRef identifies an exact Lifecycle Definition
+// Version (PEOS-003): the owning Lifecycle Definition plus the exact
+// Version. A Lifecycle Definition Version is not an Artifact Revision (see
+// LifecycleDefinitionID's own doc comment), so this reference pairs
+// LifecycleDefinitionID with LifecycleDefinitionVersionID rather than
+// ArtifactID with ArtifactRevisionID.
+type LifecycleDefinitionVersionRef struct {
+	lifecycleDefinitionVersionRefDefinitionID LifecycleDefinitionID
+	lifecycleDefinitionVersionRefVersionID    LifecycleDefinitionVersionID
+}
+
+// NewLifecycleDefinitionVersionRef validates definitionID and versionID
+// and returns a LifecycleDefinitionVersionRef.
+func NewLifecycleDefinitionVersionRef(definitionID LifecycleDefinitionID, versionID LifecycleDefinitionVersionID) (LifecycleDefinitionVersionRef, error) {
+	if definitionID.IsZero() {
+		return LifecycleDefinitionVersionRef{}, fmt.Errorf("core: NewLifecycleDefinitionVersionRef: %w", ErrEmptyIdentity)
+	}
+	if versionID.IsZero() {
+		return LifecycleDefinitionVersionRef{}, fmt.Errorf("core: NewLifecycleDefinitionVersionRef: %w", ErrMissingRevisionID)
+	}
+	return LifecycleDefinitionVersionRef{
+		lifecycleDefinitionVersionRefDefinitionID: definitionID,
+		lifecycleDefinitionVersionRefVersionID:    versionID,
+	}, nil
+}
+
+func (r LifecycleDefinitionVersionRef) LifecycleDefinitionID() LifecycleDefinitionID {
+	return r.lifecycleDefinitionVersionRefDefinitionID
+}
+func (r LifecycleDefinitionVersionRef) VersionID() LifecycleDefinitionVersionID {
+	return r.lifecycleDefinitionVersionRefVersionID
+}
+func (r LifecycleDefinitionVersionRef) IsZero() bool {
+	return r.lifecycleDefinitionVersionRefDefinitionID.IsZero() && r.lifecycleDefinitionVersionRefVersionID.IsZero()
+}
+
+type lifecycleDefinitionVersionRefJSON struct {
+	LifecycleDefinitionID        LifecycleDefinitionID        `json:"lifecycle_definition_id"`
+	LifecycleDefinitionVersionID LifecycleDefinitionVersionID `json:"lifecycle_definition_version_id"`
+}
+
+func (r LifecycleDefinitionVersionRef) MarshalJSON() ([]byte, error) {
+	return json.Marshal(lifecycleDefinitionVersionRefJSON{
+		LifecycleDefinitionID:        r.lifecycleDefinitionVersionRefDefinitionID,
+		LifecycleDefinitionVersionID: r.lifecycleDefinitionVersionRefVersionID,
+	})
+}
+
+func (r *LifecycleDefinitionVersionRef) UnmarshalJSON(data []byte) error {
+	var raw lifecycleDefinitionVersionRefJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("core: unmarshal LifecycleDefinitionVersionRef: %w", err)
+	}
+	v, err := NewLifecycleDefinitionVersionRef(raw.LifecycleDefinitionID, raw.LifecycleDefinitionVersionID)
+	if err != nil {
+		return err
+	}
+	*r = v
+	return nil
+}
+
+// StateAssignmentRef identifies a State Assignment at the identity level
+// (PEOS-003). State Assignment is an immutable record, not an Artifact
+// (see StateAssignmentID's own doc comment).
+type StateAssignmentRef struct{ stateAssignmentRefID StateAssignmentID }
+
+// NewStateAssignmentRef validates id and returns a StateAssignmentRef.
+func NewStateAssignmentRef(id StateAssignmentID) (StateAssignmentRef, error) {
+	if id.IsZero() {
+		return StateAssignmentRef{}, fmt.Errorf("core: NewStateAssignmentRef: %w", ErrEmptyIdentity)
+	}
+	return StateAssignmentRef{stateAssignmentRefID: id}, nil
+}
+
+func (r StateAssignmentRef) StateAssignmentID() StateAssignmentID { return r.stateAssignmentRefID }
+func (r StateAssignmentRef) IsZero() bool                         { return r.stateAssignmentRefID.IsZero() }
+
+type stateAssignmentRefJSON struct {
+	StateAssignmentID StateAssignmentID `json:"state_assignment_id"`
+}
+
+func (r StateAssignmentRef) MarshalJSON() ([]byte, error) {
+	return json.Marshal(stateAssignmentRefJSON{StateAssignmentID: r.stateAssignmentRefID})
+}
+
+func (r *StateAssignmentRef) UnmarshalJSON(data []byte) error {
+	var raw stateAssignmentRefJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("core: unmarshal StateAssignmentRef: %w", err)
+	}
+	v, err := NewStateAssignmentRef(raw.StateAssignmentID)
+	if err != nil {
+		return err
+	}
+	*r = v
+	return nil
+}
+
 // Known discriminator values for EngineeringSubjectRef. These are plain
 // strings, not a closed Go enum: EngineeringSubjectRef accepts any
 // discriminator through its opaque construction path (see
