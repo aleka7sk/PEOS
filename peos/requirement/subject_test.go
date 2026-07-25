@@ -77,3 +77,10 @@ func TestSubjectCombinationZeroValue(t *testing.T) {
 		t.Error("zero-value SubjectCombination.IsZero() = false, want true")
 	}
 }
+
+func TestSubjectCombinationZeroValueMarshalFails(t *testing.T) {
+	var sc SubjectCombination
+	if _, err := json.Marshal(sc); !errors.Is(err, ErrInvalidSubjectCombination) {
+		t.Errorf("Marshal(zero SubjectCombination): error = %v, want %v", err, ErrInvalidSubjectCombination)
+	}
+}

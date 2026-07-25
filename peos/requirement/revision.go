@@ -44,7 +44,7 @@ func NewRevision(requirement Requirement, revision core.ArtifactRevision, conten
 	}
 	result, err := newRevisionFromParts(revision, content)
 	if err != nil {
-		return Revision{}, fmt.Errorf("requirement: NewRevision: %w", err)
+		return Revision{}, err
 	}
 	if revision.ArtifactID() != requirement.ID() {
 		return Revision{}, fmt.Errorf("requirement: NewRevision: %w", ErrRequirementArtifactIDMismatch)

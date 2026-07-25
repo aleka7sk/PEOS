@@ -127,6 +127,13 @@ func TestStatementZeroValue(t *testing.T) {
 	}
 }
 
+func TestStatementZeroValueMarshalFails(t *testing.T) {
+	var s Statement
+	if _, err := json.Marshal(s); !errors.Is(err, ErrInvalidStatement) {
+		t.Errorf("Marshal(zero Statement): error = %v, want %v", err, ErrInvalidStatement)
+	}
+}
+
 func TestStatementDuplicatesNotForbidden(t *testing.T) {
 	a, err := NewStatement("Duplicate wording")
 	if err != nil {

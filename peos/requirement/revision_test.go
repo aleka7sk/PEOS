@@ -164,3 +164,10 @@ func TestRevisionZeroValue(t *testing.T) {
 		t.Error("zero-value Revision.IsZero() = false, want true")
 	}
 }
+
+func TestRevisionZeroValueMarshalFails(t *testing.T) {
+	var rev Revision
+	if _, err := json.Marshal(rev); !errors.Is(err, ErrInvalidRequirementRevision) {
+		t.Errorf("Marshal(zero Revision): error = %v, want %v", err, ErrInvalidRequirementRevision)
+	}
+}

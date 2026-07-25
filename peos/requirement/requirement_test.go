@@ -235,6 +235,13 @@ func TestRequirementZeroValue(t *testing.T) {
 	}
 }
 
+func TestRequirementZeroValueMarshalFails(t *testing.T) {
+	var r Requirement
+	if _, err := json.Marshal(r); !errors.Is(err, ErrInvalidRequirement) {
+		t.Errorf("Marshal(zero Requirement): error = %v, want %v", err, ErrInvalidRequirement)
+	}
+}
+
 func TestArtifactTypeRequirementValue(t *testing.T) {
 	if ArtifactTypeRequirement.IsZero() {
 		t.Error("ArtifactTypeRequirement reports IsZero() = true")

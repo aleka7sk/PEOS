@@ -138,6 +138,13 @@ func TestApplicabilityZeroValue(t *testing.T) {
 	}
 }
 
+func TestApplicabilityZeroValueMarshalFails(t *testing.T) {
+	var a Applicability
+	if _, err := json.Marshal(a); !errors.Is(err, ErrInvalidApplicability) {
+		t.Errorf("Marshal(zero Applicability): error = %v, want %v", err, ErrInvalidApplicability)
+	}
+}
+
 // --- OriginRef ---------------------------------------------------------
 
 func TestNewOriginRefValid(t *testing.T) {
@@ -223,6 +230,13 @@ func TestOriginRefZeroValue(t *testing.T) {
 	}
 }
 
+func TestOriginRefZeroValueMarshalFails(t *testing.T) {
+	var o OriginRef
+	if _, err := json.Marshal(o); !errors.Is(err, ErrInvalidOrigin) {
+		t.Errorf("Marshal(zero OriginRef): error = %v, want %v", err, ErrInvalidOrigin)
+	}
+}
+
 // --- Classification ---------------------------------------------------------
 
 func TestNewClassificationValid(t *testing.T) {
@@ -284,6 +298,13 @@ func TestClassificationZeroValue(t *testing.T) {
 	var c Classification
 	if !c.IsZero() {
 		t.Error("zero-value Classification.IsZero() = false, want true")
+	}
+}
+
+func TestClassificationZeroValueMarshalFails(t *testing.T) {
+	var c Classification
+	if _, err := json.Marshal(c); !errors.Is(err, ErrInvalidClassification) {
+		t.Errorf("Marshal(zero Classification): error = %v, want %v", err, ErrInvalidClassification)
 	}
 }
 
@@ -358,6 +379,13 @@ func TestRationaleZeroValue(t *testing.T) {
 	var r Rationale
 	if !r.IsZero() {
 		t.Error("zero-value Rationale.IsZero() = false, want true")
+	}
+}
+
+func TestRationaleZeroValueMarshalFails(t *testing.T) {
+	var r Rationale
+	if _, err := json.Marshal(r); !errors.Is(err, ErrInvalidRationale) {
+		t.Errorf("Marshal(zero Rationale): error = %v, want %v", err, ErrInvalidRationale)
 	}
 }
 
@@ -819,5 +847,49 @@ func TestContentZeroValue(t *testing.T) {
 	var c Content
 	if !c.IsZero() {
 		t.Error("zero-value Content.IsZero() = false, want true")
+	}
+}
+
+func TestContentZeroValueMarshalFails(t *testing.T) {
+	var c Content
+	if _, err := json.Marshal(c); !errors.Is(err, ErrMissingRequirementContent) {
+		t.Errorf("Marshal(zero Content): error = %v, want %v", err, ErrMissingRequirementContent)
+	}
+}
+
+func TestContentJSONDuplicateClassificationRejected(t *testing.T) {
+	original := mustContent(t)
+	receiver := original
+
+	// Hand-built JSON, not obtained through any constructor or With*
+	// call, with an exact duplicate classification value.
+	payload := `{
+		"statements": [{"text": "The service shall retain audit records."}],
+		"subjects": [{"kind": "artifact", "ref": {"artifact_id": "ART-1"}}],
+		"subject_combination": "peos:independent",
+		"applicability": {"kind": "unrestricted"},
+		"classifications": ["product-x:security", "product-x:security"]
+	}`
+	err := json.Unmarshal([]byte(payload), &receiver)
+	if !errors.Is(err, ErrDuplicateClassification) {
+		t.Errorf("error = %v, want %v", err, ErrDuplicateClassification)
+	}
+
+	// Receiver preservation, checked via accessors (Content holds slices
+	// and is not comparable with ==).
+	if len(receiver.Statements()) != len(original.Statements()) || receiver.Statements()[0].Text() != original.Statements()[0].Text() {
+		t.Errorf("failed Unmarshal changed Statements(): got %v, want %v", receiver.Statements(), original.Statements())
+	}
+	if len(receiver.Subjects()) != len(original.Subjects()) || receiver.Subjects()[0] != original.Subjects()[0] {
+		t.Errorf("failed Unmarshal changed Subjects(): got %v, want %v", receiver.Subjects(), original.Subjects())
+	}
+	if receiver.SubjectCombination().Value() != original.SubjectCombination().Value() {
+		t.Errorf("failed Unmarshal changed SubjectCombination(): got %v, want %v", receiver.SubjectCombination().Value(), original.SubjectCombination().Value())
+	}
+	if receiver.Applicability().IsUnrestricted() != original.Applicability().IsUnrestricted() {
+		t.Errorf("failed Unmarshal changed Applicability(): got %v, want %v", receiver.Applicability(), original.Applicability())
+	}
+	if got := receiver.Classifications(); got != nil {
+		t.Errorf("failed Unmarshal changed Classifications(): got %v, want nil (original had none)", got)
 	}
 }
