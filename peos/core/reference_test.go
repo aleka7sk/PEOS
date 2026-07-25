@@ -236,6 +236,46 @@ func TestValidationClaimRefAndExecutionRecordRef(t *testing.T) {
 	}
 }
 
+func TestValidationExecutionRecordRef(t *testing.T) {
+	if _, err := NewValidationExecutionRecordRef(ValidationExecutionRecordID{}); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("empty identity: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+
+	recordID, err := NewValidationExecutionRecordID("EXEC-2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := NewValidationExecutionRecordRef(recordID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.IsZero() {
+		t.Error("valid ValidationExecutionRecordRef reports IsZero() = true")
+	}
+	var zero ValidationExecutionRecordRef
+	if !zero.IsZero() {
+		t.Error("zero-value ValidationExecutionRecordRef.IsZero() = false, want true")
+	}
+	if ref.RecordID() != recordID {
+		t.Error("RecordID() mismatch")
+	}
+
+	data, err := json.Marshal(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"record_id":"EXEC-2"}` {
+		t.Errorf("Marshal = %s", data)
+	}
+	var decoded ValidationExecutionRecordRef
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded != ref {
+		t.Errorf("round trip mismatch: got %v, want %v", decoded, ref)
+	}
+}
+
 // revisionRefFamily captures the constructor and JSON field names shared
 // by every "owning Artifact + exact Revision" reference type, so the
 // remaining six families (beyond ArtifactRevisionRef, tested above in
@@ -554,34 +594,87 @@ func TestEngineeringSubjectRefUnrecognizedKindNonOpaqueRefFails(t *testing.T) {
 
 // --- LifecycleSubjectRef -------------------------------------------------
 
-func TestLifecycleSubjectRefFromArtifact(t *testing.T) {
+func TestLifecycleSubjectRefKnownVariants(t *testing.T) {
 	artifactID := mustArtifactID(t, "ART-1")
+	revisionID := mustArtifactRevisionID(t, "REV-1")
+	decisionID := mustDecisionID(t, "DEC-1")
+
 	artifactRef, err := NewArtifactRef(artifactID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	subject, err := NewLifecycleSubjectRefFromArtifact(artifactRef)
+	artifactRevisionRef, err := NewArtifactRevisionRef(artifactID, revisionID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if subject.Kind() != SubjectKindArtifact {
-		t.Errorf("Kind() = %q, want %q", subject.Kind(), SubjectKindArtifact)
+	requirementRef, err := NewRequirementRef(artifactID)
+	if err != nil {
+		t.Fatal(err)
 	}
-	got, ok := subject.Subject().AsArtifact()
-	if !ok || got != artifactRef {
-		t.Errorf("Subject().AsArtifact() = (%v, %v), want (%v, true)", got, ok, artifactRef)
+	requirementRevisionRef, err := NewRequirementArtifactRevisionRef(artifactID, revisionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decisionRef, err := NewDecisionRef(decisionID)
+	if err != nil {
+		t.Fatal(err)
 	}
 
-	data, err := json.Marshal(subject)
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name string
+		make func() (LifecycleSubjectRef, error)
+		kind string
+		as   func(EngineeringSubjectRef) bool
+	}{
+		{"FromArtifact", func() (LifecycleSubjectRef, error) { return NewLifecycleSubjectRefFromArtifact(artifactRef) }, SubjectKindArtifact, func(r EngineeringSubjectRef) bool { _, ok := r.AsArtifact(); return ok }},
+		{"FromArtifactRevision", func() (LifecycleSubjectRef, error) {
+			return NewLifecycleSubjectRefFromArtifactRevision(artifactRevisionRef)
+		}, SubjectKindArtifactRevision, func(r EngineeringSubjectRef) bool { _, ok := r.AsArtifactRevision(); return ok }},
+		{"FromRequirement", func() (LifecycleSubjectRef, error) { return NewLifecycleSubjectRefFromRequirement(requirementRef) }, SubjectKindRequirement, func(r EngineeringSubjectRef) bool { _, ok := r.AsRequirement(); return ok }},
+		{"FromRequirementRevision", func() (LifecycleSubjectRef, error) {
+			return NewLifecycleSubjectRefFromRequirementRevision(requirementRevisionRef)
+		}, SubjectKindRequirementRevision, func(r EngineeringSubjectRef) bool { _, ok := r.AsRequirementRevision(); return ok }},
+		{"FromDecision", func() (LifecycleSubjectRef, error) { return NewLifecycleSubjectRefFromDecision(decisionRef) }, SubjectKindDecision, func(r EngineeringSubjectRef) bool { _, ok := r.AsDecision(); return ok }},
 	}
-	var decoded LifecycleSubjectRef
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatal(err)
-	}
-	if decoded.Kind() != subject.Kind() {
-		t.Errorf("round trip Kind() = %q, want %q", decoded.Kind(), subject.Kind())
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subject, err := tt.make()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if subject.Kind() != tt.kind {
+				t.Errorf("Kind() = %q, want %q", subject.Kind(), tt.kind)
+			}
+			if !tt.as(subject.Subject()) {
+				t.Errorf("accessor for kind %q returned ok=false", tt.kind)
+			}
+			// A mismatched accessor (any kind other than this one) must
+			// fail; Decision is a safe "other kind" probe for every case
+			// except the Decision case itself, and Artifact is safe there.
+			if tt.kind != SubjectKindDecision {
+				if _, ok := subject.Subject().AsDecision(); ok {
+					t.Error("AsDecision() ok=true for a non-decision Lifecycle Subject")
+				}
+			} else if _, ok := subject.Subject().AsArtifact(); ok {
+				t.Error("AsArtifact() ok=true for a decision Lifecycle Subject")
+			}
+
+			data, err := json.Marshal(subject)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var decoded LifecycleSubjectRef
+			if err := json.Unmarshal(data, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if decoded.Kind() != subject.Kind() {
+				t.Errorf("round trip Kind() = %q, want %q", decoded.Kind(), subject.Kind())
+			}
+			if !tt.as(decoded.Subject()) {
+				t.Errorf("accessor for round-tripped kind %q returned ok=false", tt.kind)
+			}
+		})
 	}
 }
 
@@ -592,5 +685,22 @@ func TestLifecycleSubjectRefOpaque(t *testing.T) {
 	}
 	if subject.IsZero() {
 		t.Error("valid opaque LifecycleSubjectRef reports IsZero() = true")
+	}
+	opaque, ok := subject.Subject().AsOpaque()
+	if !ok || opaque.Kind() != "planned-validation-activity" || opaque.Namespace() != "plan-x" || opaque.Identifier() != "ACT-1" {
+		t.Errorf("AsOpaque() = (%+v, %v)", opaque, ok)
+	}
+
+	data, err := json.Marshal(subject)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded LifecycleSubjectRef
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	decodedOpaque, ok := decoded.Subject().AsOpaque()
+	if !ok || decodedOpaque != opaque {
+		t.Errorf("round trip mismatch: got (%v, %v), want (%v, true)", decodedOpaque, ok, opaque)
 	}
 }

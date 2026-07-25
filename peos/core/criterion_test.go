@@ -215,25 +215,149 @@ func TestCriterionRefTemplateConstraint(t *testing.T) {
 	}
 }
 
-func TestCriterionRefExternalRules(t *testing.T) {
-	productRule := mustVocabularyValue(t, "acme-corp", "pricing-rule-7")
+func TestProductRuleRef(t *testing.T) {
+	if _, err := NewProductRuleRef(VocabularyValue{}); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("zero vocabulary: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+
+	v := mustVocabularyValue(t, "acme-corp", "pricing-rule-7")
+	rule, err := NewProductRuleRef(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rule.IsZero() {
+		t.Error("valid ProductRuleRef reports IsZero() = true")
+	}
+	if !rule.VocabularyValue().Equal(v) {
+		t.Errorf("VocabularyValue() = %v, want %v", rule.VocabularyValue(), v)
+	}
+
+	data, err := json.Marshal(rule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded ProductRuleRef
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !decoded.VocabularyValue().Equal(v) {
+		t.Errorf("round trip mismatch: got %v, want %v", decoded.VocabularyValue(), v)
+	}
+}
+
+func TestExternalRuleRef(t *testing.T) {
+	if _, err := NewExternalRuleRef(VocabularyValue{}); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("zero vocabulary: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+
+	v := mustVocabularyValue(t, "iso-25010", "maintainability")
+	rule, err := NewExternalRuleRef(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rule.IsZero() {
+		t.Error("valid ExternalRuleRef reports IsZero() = true")
+	}
+	if !rule.VocabularyValue().Equal(v) {
+		t.Errorf("VocabularyValue() = %v, want %v", rule.VocabularyValue(), v)
+	}
+
+	data, err := json.Marshal(rule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded ExternalRuleRef
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !decoded.VocabularyValue().Equal(v) {
+		t.Errorf("round trip mismatch: got %v, want %v", decoded.VocabularyValue(), v)
+	}
+}
+
+func TestProductRuleRefAndExternalRuleRefAreNotInterchangeable(t *testing.T) {
+	// ProductRuleRef and ExternalRuleRef wrap the same underlying
+	// VocabularyValue shape but are distinct Go types with distinct field
+	// names; the following, if uncommented, must fail to compile:
+	//   var _ ProductRuleRef = ExternalRuleRef{}
+	//   _ = ProductRuleRef(ExternalRuleRef{})
+	v := mustVocabularyValue(t, "acme-corp", "same-looking-value")
+	product, err := NewProductRuleRef(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	external, err := NewExternalRuleRef(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if product.VocabularyValue() != external.VocabularyValue() {
+		t.Error("underlying VocabularyValue differs unexpectedly")
+	}
+}
+
+func TestCriterionRefProductAndExternalRules(t *testing.T) {
+	productRule, err := NewProductRuleRef(mustVocabularyValue(t, "acme-corp", "pricing-rule-7"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	c, err := CriterionRefFromProductRule(productRule)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if c.Kind() != CriterionKindProductRule {
+		t.Errorf("Kind() = %q, want %q", c.Kind(), CriterionKindProductRule)
+	}
 	got, ok := c.AsProductRule()
-	if !ok || !got.Equal(productRule) {
+	if !ok || got != productRule {
 		t.Errorf("AsProductRule() = (%v, %v), want (%v, true)", got, ok, productRule)
 	}
+	if _, ok := c.AsExternalRule(); ok {
+		t.Error("AsExternalRule() ok=true for a product_rule CriterionRef")
+	}
 
-	externalRule := mustVocabularyValue(t, "iso-25010", "maintainability")
+	data, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decodedC CriterionRef
+	if err := json.Unmarshal(data, &decodedC); err != nil {
+		t.Fatal(err)
+	}
+	gotDecoded, ok := decodedC.AsProductRule()
+	if !ok || gotDecoded != productRule {
+		t.Errorf("round trip AsProductRule() = (%v, %v), want (%v, true)", gotDecoded, ok, productRule)
+	}
+
+	externalRule, err := NewExternalRuleRef(mustVocabularyValue(t, "iso-25010", "maintainability"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	c2, err := CriterionRefFromExternalRule(externalRule)
 	if err != nil {
 		t.Fatal(err)
 	}
+	if c2.Kind() != CriterionKindExternalRule {
+		t.Errorf("Kind() = %q, want %q", c2.Kind(), CriterionKindExternalRule)
+	}
 	got2, ok := c2.AsExternalRule()
-	if !ok || !got2.Equal(externalRule) {
+	if !ok || got2 != externalRule {
 		t.Errorf("AsExternalRule() = (%v, %v), want (%v, true)", got2, ok, externalRule)
+	}
+	if _, ok := c2.AsProductRule(); ok {
+		t.Error("AsProductRule() ok=true for an external_rule CriterionRef")
+	}
+
+	data2, err := json.Marshal(c2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decodedC2 CriterionRef
+	if err := json.Unmarshal(data2, &decodedC2); err != nil {
+		t.Fatal(err)
+	}
+	gotDecoded2, ok := decodedC2.AsExternalRule()
+	if !ok || gotDecoded2 != externalRule {
+		t.Errorf("round trip AsExternalRule() = (%v, %v), want (%v, true)", gotDecoded2, ok, externalRule)
 	}
 }
 

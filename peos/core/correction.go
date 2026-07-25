@@ -202,6 +202,19 @@ func (r RecordRef) AsImmutableRecord() (ImmutableRecordID, bool) {
 
 // NewOpaqueRecordRef constructs a forward-compatible RecordRef for a
 // record kind this packet does not name an identity type for.
+//
+// Opaque preservation supports exactly one shape: a namespaced scalar
+// reference, carried as the pair (namespace, identifier). It does not
+// support composite references, for the same reason documented on
+// NewOpaqueEngineeringSubjectRef: a future record family needing more
+// than a single opaque identifier requires an additive, dedicated kind
+// (an identity type in identity.go, a struct field here, and matching
+// marshal/unmarshal branches), not just more data packed into
+// namespace/identifier.
+//
+// A malformed or unsupported composite payload fails explicitly during
+// decode rather than being silently truncated or partially accepted; see
+// RecordRef.UnmarshalJSON's default case. No silent data loss occurs.
 func NewOpaqueRecordRef(kind, namespace, identifier string) (RecordRef, error) {
 	k, err := normalizeIdentityValue(kind)
 	if err != nil {
@@ -342,12 +355,30 @@ func (r *RecordRef) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// zeroChecker is satisfied by every identity, reference, and vocabulary
-// type in this package; it is the minimal constraint RecordCorrectionRef
-// needs to validate its target without knowing the target's concrete
-// type.
-type zeroChecker interface {
+// correctionTarget is the constraint RecordCorrectionRef's type parameter
+// must satisfy. IsZero and json.Marshaler are both ordinary method-set
+// requirements Go can check statically against a value of type T.
+//
+// json.Unmarshaler is deliberately not part of this constraint. Every
+// concrete reference type in this package implements UnmarshalJSON on a
+// pointer receiver (*ValidationClaimRef, *RecordRef, and so on), and Go
+// generics has no way to express "*T implements json.Unmarshaler" as a
+// constraint on T alone without introducing a second, explicit type
+// parameter (the "T, PT *T" pattern) — which would force every call site
+// to spell out both type arguments and break the required
+// RecordCorrectionRef[ValidationClaimRef] / RecordCorrectionRef[RecordRef]
+// single-argument usage. Adding json.Unmarshaler to this constraint
+// anyway would not compile for any of this package's own value-receiver-
+// Marshal/pointer-receiver-Unmarshal types, and removing it silently
+// (accepting whatever encoding/json's default reflection does with an
+// unexported-field struct) would risk a silent, incorrect unmarshal
+// instead of a clear failure. RecordCorrectionRef.UnmarshalJSON below
+// therefore checks the *T-implements-json.Unmarshaler requirement
+// explicitly at the one point it is actually needed, and fails loudly,
+// with a typed error, if it does not hold — see the comment there.
+type correctionTarget interface {
 	IsZero() bool
+	json.Marshaler
 }
 
 // RecordCorrectionRef pairs a CorrectionKind with a strongly-typed
@@ -360,14 +391,14 @@ type zeroChecker interface {
 //
 // This type is never embedded automatically into a record; see the
 // package comment at the top of this file.
-type RecordCorrectionRef[T zeroChecker] struct {
+type RecordCorrectionRef[T correctionTarget] struct {
 	kind   CorrectionKind
 	target T
 }
 
 // NewRecordCorrectionRef validates kind and target and returns a
 // RecordCorrectionRef.
-func NewRecordCorrectionRef[T zeroChecker](kind CorrectionKind, target T) (RecordCorrectionRef[T], error) {
+func NewRecordCorrectionRef[T correctionTarget](kind CorrectionKind, target T) (RecordCorrectionRef[T], error) {
 	if kind.IsZero() {
 		return RecordCorrectionRef[T]{}, fmt.Errorf("core: NewRecordCorrectionRef: %w", ErrInvalidCorrectionReference)
 	}
@@ -381,21 +412,52 @@ func (r RecordCorrectionRef[T]) Kind() CorrectionKind { return r.kind }
 func (r RecordCorrectionRef[T]) Target() T            { return r.target }
 func (r RecordCorrectionRef[T]) IsZero() bool         { return r.kind.IsZero() }
 
-type recordCorrectionRefJSON[T zeroChecker] struct {
-	Kind   CorrectionKind `json:"kind"`
-	Target T              `json:"target"`
+type recordCorrectionRefEnvelope struct {
+	Kind   CorrectionKind  `json:"kind"`
+	Target json.RawMessage `json:"target"`
 }
 
+// MarshalJSON encodes r as {"kind": ..., "target": ...}, where "target"
+// is T's own JSON form. T's json.Marshaler implementation is guaranteed
+// by the correctionTarget constraint, so this call cannot fail due to a
+// missing method.
 func (r RecordCorrectionRef[T]) MarshalJSON() ([]byte, error) {
-	return json.Marshal(recordCorrectionRefJSON[T]{Kind: r.kind, Target: r.target})
+	targetBytes, err := r.target.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("core: marshal RecordCorrectionRef: %w", err)
+	}
+	return json.Marshal(recordCorrectionRefEnvelope{Kind: r.kind, Target: targetBytes})
 }
 
+// UnmarshalJSON decodes r from {"kind": ..., "target": ...}.
+//
+// Unlike MarshalJSON, this cannot rely purely on the correctionTarget
+// constraint, because json.Unmarshaler is implemented on *T by every
+// concrete type this package defines, and Go cannot express "*T
+// implements json.Unmarshaler" as a constraint on T without a second
+// type parameter (see the comment on correctionTarget). Instead, this
+// method asserts the requirement explicitly at the one point it matters:
+// if *T does not implement json.Unmarshaler, decoding fails immediately
+// with ErrInvalidCorrectionReference, rather than silently falling back
+// to encoding/json's default reflection-based decoding (which would
+// populate none of this package's unexported fields and produce a
+// silently-wrong zero-ish target instead of an error).
 func (r *RecordCorrectionRef[T]) UnmarshalJSON(data []byte) error {
-	var raw recordCorrectionRefJSON[T]
-	if err := json.Unmarshal(data, &raw); err != nil {
+	var env recordCorrectionRefEnvelope
+	if err := json.Unmarshal(data, &env); err != nil {
 		return fmt.Errorf("core: unmarshal RecordCorrectionRef: %w", err)
 	}
-	v, err := NewRecordCorrectionRef(raw.Kind, raw.Target)
+
+	var target T
+	unmarshaler, ok := any(&target).(json.Unmarshaler)
+	if !ok {
+		return fmt.Errorf("core: unmarshal RecordCorrectionRef: %T does not support JSON unmarshaling via a pointer receiver: %w", target, ErrInvalidCorrectionReference)
+	}
+	if err := unmarshaler.UnmarshalJSON(env.Target); err != nil {
+		return fmt.Errorf("core: unmarshal RecordCorrectionRef: target: %w", err)
+	}
+
+	v, err := NewRecordCorrectionRef(env.Kind, target)
 	if err != nil {
 		return err
 	}

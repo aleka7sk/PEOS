@@ -1178,6 +1178,28 @@ func (r EngineeringSubjectRef) AsEvidence() (EvidenceArtifactRevisionRef, bool) 
 // payload to. kind must be non-empty and must not collide with one of
 // this packet's known kinds (use the matching EngineeringSubjectRefFrom*
 // constructor for those).
+//
+// Opaque preservation supports exactly one shape: a namespaced scalar
+// reference, carried as the pair (namespace, identifier). It does not
+// support composite references — anything that would need more than
+// those two plain strings (for example, an Artifact ID paired with a
+// Revision ID, composite runtime coordinates, an external system plus an
+// identifier plus a revision, or a value scoped by a LocalKey against an
+// owning Artifact Revision, the exact shape CriterionRef's own
+// QualityElementCriterionRef/RuntimeRuleCriterionRef/
+// TemplateConstraintCriterionRef combinators use). A future PEOS subject
+// kind with a composite shape cannot be represented through this opaque
+// path at all; it requires additive support in this package itself (a
+// new known kind: a struct field, a marshal/unmarshal branch, and a
+// paired constructor/accessor), not just a caller supplying more data
+// through the existing (namespace, identifier) pair.
+//
+// A malformed or unsupported composite payload therefore fails
+// explicitly during decode (see EngineeringSubjectRef.UnmarshalJSON's
+// default case) rather than being accepted in a truncated or
+// partially-decoded form. No silent data loss occurs: either the
+// (namespace, identifier) shape round-trips exactly, or construction and
+// decoding both fail with a typed error.
 func NewOpaqueEngineeringSubjectRef(kind, namespace, identifier string) (EngineeringSubjectRef, error) {
 	k, err := normalizeIdentityValue(kind)
 	if err != nil {

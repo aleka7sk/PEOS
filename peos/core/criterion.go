@@ -167,6 +167,80 @@ func (r *TemplateConstraintCriterionRef) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// ProductRuleRef references a Product contract rule by its namespaced
+// vocabulary identifier. It carries no independent PEOS identity and no
+// lifecycle; it is a plain, immutable descriptor. ProductRuleRef and
+// ExternalRuleRef are deliberately distinct Go types, even though both
+// wrap a VocabularyValue, so that a caller cannot pass one where the
+// other is expected without an explicit, visible conversion at the call
+// site (there is none: each has its own field name, so neither is even
+// explicitly convertible to the other).
+type ProductRuleRef struct{ productRuleValue VocabularyValue }
+
+// NewProductRuleRef validates value and returns a ProductRuleRef.
+func NewProductRuleRef(value VocabularyValue) (ProductRuleRef, error) {
+	if value.IsZero() {
+		return ProductRuleRef{}, fmt.Errorf("core: NewProductRuleRef: %w", ErrEmptyIdentity)
+	}
+	return ProductRuleRef{productRuleValue: value}, nil
+}
+
+func (r ProductRuleRef) VocabularyValue() VocabularyValue { return r.productRuleValue }
+func (r ProductRuleRef) String() string                   { return r.productRuleValue.String() }
+func (r ProductRuleRef) IsZero() bool                     { return r.productRuleValue.IsZero() }
+
+func (r ProductRuleRef) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.productRuleValue)
+}
+
+func (r *ProductRuleRef) UnmarshalJSON(data []byte) error {
+	var v VocabularyValue
+	if err := json.Unmarshal(data, &v); err != nil {
+		return fmt.Errorf("core: unmarshal ProductRuleRef: %w", err)
+	}
+	parsed, err := NewProductRuleRef(v)
+	if err != nil {
+		return err
+	}
+	*r = parsed
+	return nil
+}
+
+// ExternalRuleRef references another explicitly defined, non-PEOS
+// evaluation rule (for example, an external standard's criterion) by its
+// namespaced vocabulary identifier. Same shape and guarantees as
+// ProductRuleRef; kept as a separate type for the same reason.
+type ExternalRuleRef struct{ externalRuleValue VocabularyValue }
+
+// NewExternalRuleRef validates value and returns an ExternalRuleRef.
+func NewExternalRuleRef(value VocabularyValue) (ExternalRuleRef, error) {
+	if value.IsZero() {
+		return ExternalRuleRef{}, fmt.Errorf("core: NewExternalRuleRef: %w", ErrEmptyIdentity)
+	}
+	return ExternalRuleRef{externalRuleValue: value}, nil
+}
+
+func (r ExternalRuleRef) VocabularyValue() VocabularyValue { return r.externalRuleValue }
+func (r ExternalRuleRef) String() string                   { return r.externalRuleValue.String() }
+func (r ExternalRuleRef) IsZero() bool                     { return r.externalRuleValue.IsZero() }
+
+func (r ExternalRuleRef) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.externalRuleValue)
+}
+
+func (r *ExternalRuleRef) UnmarshalJSON(data []byte) error {
+	var v VocabularyValue
+	if err := json.Unmarshal(data, &v); err != nil {
+		return fmt.Errorf("core: unmarshal ExternalRuleRef: %w", err)
+	}
+	parsed, err := NewExternalRuleRef(v)
+	if err != nil {
+		return err
+	}
+	*r = parsed
+	return nil
+}
+
 // Known discriminator values for CriterionRef.
 const (
 	CriterionKindRequirement           = "requirement"
@@ -227,8 +301,8 @@ type CriterionRef struct {
 	runtimeContractRule   RuntimeRuleCriterionRef
 	runtimeAssertion      RuntimeRuleCriterionRef
 	templateConstraint    TemplateConstraintCriterionRef
-	productRule           VocabularyValue
-	externalRule          VocabularyValue
+	productRule           ProductRuleRef
+	externalRule          ExternalRuleRef
 
 	opaque OpaqueCriterion
 }
@@ -363,36 +437,51 @@ func (c CriterionRef) AsTemplateConstraint() (TemplateConstraintCriterionRef, bo
 	return c.templateConstraint, true
 }
 
-func CriterionRefFromProductRule(rule VocabularyValue) (CriterionRef, error) {
+func CriterionRefFromProductRule(rule ProductRuleRef) (CriterionRef, error) {
 	if rule.IsZero() {
 		return CriterionRef{}, fmt.Errorf("core: CriterionRefFromProductRule: %w", ErrInvalidPayload)
 	}
 	return CriterionRef{kind: CriterionKindProductRule, known: true, productRule: rule}, nil
 }
 
-func (c CriterionRef) AsProductRule() (VocabularyValue, bool) {
+func (c CriterionRef) AsProductRule() (ProductRuleRef, bool) {
 	if c.kind != CriterionKindProductRule {
-		return VocabularyValue{}, false
+		return ProductRuleRef{}, false
 	}
 	return c.productRule, true
 }
 
-func CriterionRefFromExternalRule(rule VocabularyValue) (CriterionRef, error) {
+func CriterionRefFromExternalRule(rule ExternalRuleRef) (CriterionRef, error) {
 	if rule.IsZero() {
 		return CriterionRef{}, fmt.Errorf("core: CriterionRefFromExternalRule: %w", ErrInvalidPayload)
 	}
 	return CriterionRef{kind: CriterionKindExternalRule, known: true, externalRule: rule}, nil
 }
 
-func (c CriterionRef) AsExternalRule() (VocabularyValue, bool) {
+func (c CriterionRef) AsExternalRule() (ExternalRuleRef, bool) {
 	if c.kind != CriterionKindExternalRule {
-		return VocabularyValue{}, false
+		return ExternalRuleRef{}, false
 	}
 	return c.externalRule, true
 }
 
 // NewOpaqueCriterionRef constructs a forward-compatible CriterionRef for
 // a kind this packet does not give a typed payload to.
+//
+// Opaque preservation supports exactly one shape: a namespaced scalar
+// reference, carried as the pair (namespace, identifier). It does not
+// support composite references — the same limitation documented on
+// NewOpaqueEngineeringSubjectRef applies here. Notably, a future
+// criterion kind shaped like this package's own
+// QualityElementCriterionRef/RuntimeRuleCriterionRef/
+// TemplateConstraintCriterionRef (an owning Artifact Revision reference
+// plus a LocalKey) cannot round-trip through this opaque path; it
+// requires an additive, dedicated kind added to this file, not just a
+// caller passing more values into namespace/identifier.
+//
+// A malformed or unsupported composite payload fails explicitly during
+// decode rather than being silently truncated or partially accepted; see
+// CriterionRef.UnmarshalJSON's default case. No silent data loss occurs.
 func NewOpaqueCriterionRef(kind, namespace, identifier string) (CriterionRef, error) {
 	k, err := normalizeIdentityValue(kind)
 	if err != nil {
@@ -530,12 +619,12 @@ func (c *CriterionRef) UnmarshalJSON(data []byte) error {
 			result, err = CriterionRefFromTemplateConstraint(ref)
 		}
 	case CriterionKindProductRule:
-		var ref VocabularyValue
+		var ref ProductRuleRef
 		if err = json.Unmarshal(env.Ref, &ref); err == nil {
 			result, err = CriterionRefFromProductRule(ref)
 		}
 	case CriterionKindExternalRule:
-		var ref VocabularyValue
+		var ref ExternalRuleRef
 		if err = json.Unmarshal(env.Ref, &ref); err == nil {
 			result, err = CriterionRefFromExternalRule(ref)
 		}

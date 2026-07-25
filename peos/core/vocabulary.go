@@ -232,27 +232,6 @@ var (
 	ClaimOutcomeInconclusive = ClaimOutcome{value: VocabularyValue{namespace: PEOSNamespace, value: "inconclusive"}}
 )
 
-// ParticipantLevel distinguishes identity-level from Revision-level
-// participation (PEOS Reference Meta-Model Blueprint SS7). This family is
-// closed: PEOS-000-009 recognize exactly these two levels.
-type ParticipantLevel struct{ value VocabularyValue }
-
-func NewParticipantLevel(v VocabularyValue) ParticipantLevel { return ParticipantLevel{value: v} }
-func (l ParticipantLevel) Value() VocabularyValue            { return l.value }
-func (l ParticipantLevel) IsZero() bool                      { return l.value.IsZero() }
-func (l ParticipantLevel) String() string                    { return l.value.String() }
-func (l ParticipantLevel) MarshalJSON() ([]byte, error) {
-	return json.Marshal(l.value)
-}
-func (l *ParticipantLevel) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &l.value)
-}
-
-var (
-	ParticipantLevelIdentity = ParticipantLevel{value: VocabularyValue{namespace: PEOSNamespace, value: "identity"}}
-	ParticipantLevelRevision = ParticipantLevel{value: VocabularyValue{namespace: PEOSNamespace, value: "revision"}}
-)
-
 // CorrectionKind distinguishes correct / replace / invalidate (see
 // correction.go). PEOS-006's Claim Correction section and the PEOS
 // Reference Meta-Model Blueprint (SS10) name exactly these three kinds;
