@@ -888,10 +888,12 @@ func (o OpaqueEngineeringSubject) Identifier() string { return o.identifier }
 // EngineeringSubjectRef is the canonical tagged union used wherever a
 // PEOS construct needs exactly one engineering subject (a Validation,
 // Quality, Compliance, or Template Conformance Claim subject; a Lifecycle
-// Subject, via LifecycleSubjectRef). It is never constructed as an
-// untyped string: every known kind carries its own strongly-typed
-// payload, and every value is built through a constructor that validates
-// the payload before the value exists.
+// Subject, via LifecycleSubjectRef; a Requirement Subject per PEOS-005
+// §10, identifying the engineering matter a Requirement's required
+// intent applies to). It is never constructed as an untyped string:
+// every known kind carries its own strongly-typed payload, and every
+// value is built through a constructor that validates the payload
+// before the value exists.
 //
 // EngineeringSubjectRef is a distinct type from CriterionRef
 // (criterion.go) even though a few kinds overlap in shape (for example,
