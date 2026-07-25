@@ -55,4 +55,17 @@
 // Requirement satisfaction, current Runtime Binding, and so on). PEOS
 // does not define a universal rule for selecting one record from a
 // record's history, and no such rule is implemented here.
+//
+// # Artifact and Artifact Revision are independent records
+//
+// Artifact and ArtifactRevision are independent domain values connected
+// only by ArtifactID; Artifact does not contain, embed, or cache any
+// Revision, and has no "current Revision" field (PEOS-002 treats the
+// current or applicable Revision as derived or Product-selected, never a
+// stored field). Representation is Revision-owned content with no PEOS
+// identity of its own; its ownership by one ArtifactRevision is
+// established structurally, by being stored inside that Revision's
+// Representations, not by a reference field on Representation itself. A
+// combined "Artifact plus its Revisions" shape is an application-level
+// export or interchange envelope, not part of this domain model.
 package core

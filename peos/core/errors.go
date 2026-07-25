@@ -50,4 +50,38 @@ var (
 	// or CriterionRef) is decoded with a discriminator whose required
 	// payload fields are missing or inconsistent.
 	ErrInvalidPayload = errors.New("core: payload does not match discriminator")
+
+	// ErrInvalidArtifact is returned when an Artifact fails to satisfy its
+	// required fields. It is wrapped alongside a more specific sentinel
+	// (for example ErrEmptyIdentity) where one applies, so callers may
+	// check either the general or the specific condition.
+	ErrInvalidArtifact = errors.New("core: artifact is invalid")
+
+	// ErrInvalidArtifactRevision is returned when an Artifact Revision
+	// fails to satisfy its required fields.
+	ErrInvalidArtifactRevision = errors.New("core: artifact revision is invalid")
+
+	// ErrInvalidRepresentation is returned when a Representation fails to
+	// satisfy its required fields.
+	ErrInvalidRepresentation = errors.New("core: representation is invalid")
+
+	// ErrInvalidOrigin is returned when an Origin fails to satisfy its
+	// required fields.
+	ErrInvalidOrigin = errors.New("core: origin is invalid")
+
+	// ErrInvalidIntegrityIdentity is returned when an Integrity Identity
+	// fails to satisfy its required fields.
+	ErrInvalidIntegrityIdentity = errors.New("core: integrity identity is invalid")
+
+	// ErrDuplicateArtifactRole is returned when an Artifact's declared
+	// roles contain the same role more than once.
+	ErrDuplicateArtifactRole = errors.New("core: duplicate artifact role")
+
+	// ErrDuplicateRepresentationRole is returned when a Representation's
+	// classification contains the same role more than once.
+	ErrDuplicateRepresentationRole = errors.New("core: duplicate representation role")
+
+	// ErrMissingRepresentationContent is returned when a Representation
+	// Content constructor receives an empty or zero-value payload.
+	ErrMissingRepresentationContent = errors.New("core: representation content is missing")
 )
