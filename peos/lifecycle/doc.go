@@ -1,13 +1,14 @@
 // Package lifecycle implements the core, structural subset of PEOS-003's
 // Lifecycle Model on top of the stable peos/core package.
 //
-// This packet (Packet E) implements the identity, structural, and
-// immutable-record layer PEOS-003 requires: Lifecycle Definition,
-// Lifecycle Definition Version, Lifecycle State, Transition Definition,
-// State Assignment, and Transition Record. It deliberately does not
-// implement Guard evaluation, Effect execution, Transition Attempt
-// workflow, Current State/State History resolution, or Lifecycle
-// Migration -- see the "Deferred" section below.
+// This package implements the identity, structural, and immutable-record
+// layer PEOS-003 requires: Lifecycle Definition, Lifecycle Definition
+// Version, Lifecycle State, Transition Definition, State Assignment,
+// Transition Record, and Lifecycle Definition Version Supersession
+// (Packet E.1). It deliberately does not implement Guard evaluation,
+// Effect execution, Transition Attempt workflow, Current State/State
+// History resolution, or Lifecycle Migration -- see the "Deferred"
+// section below.
 //
 // # Lifecycle Definition is not obligatorily an Artifact
 //
@@ -16,10 +17,26 @@
 // model Definition or DefinitionVersion via core.Artifact or
 // core.ArtifactRevision. Both types carry their own generic normative
 // identity (core.LifecycleDefinitionID and
-// core.LifecycleDefinitionVersionID, defined in peos/core). An
-// Artifact-backed representation, for Products that want one, is left to
-// a future additive profile built on top of this package, not assumed
-// here.
+// core.LifecycleDefinitionVersionID, defined in peos/core) as their
+// canonical identity.
+//
+// Lifecycle identity is canonical. Artifact binding is optional. Since
+// Packet E.1, Definition and DefinitionVersion each expose an optional
+// Artifact correspondence (Definition.WithArtifact /
+// DefinitionVersion.WithArtifactRevision) for Products that do choose
+// Artifact representation. This binding exists specifically to satisfy
+// PEOS-003's conditional requirement: "When a Lifecycle Definition is
+// represented as an Artifact, its Definition Version MUST identify the
+// corresponding Artifact Revision." When Artifact-backed, DefinitionVersion
+// identifies the corresponding core.ArtifactRevisionRef through that
+// binding. The binding does not erase or replace Lifecycle identity: a
+// Definition or DefinitionVersion with no Artifact binding at all remains
+// fully valid, and core.LifecycleDefinitionID / core.LifecycleDefinitionVersionID
+// remain the identity these types use everywhere else in this package
+// (State Assignment, Transition Record) regardless of whether a binding
+// is present. See DefinitionVersion.ValidateArtifactBinding for the pure,
+// local consistency check between a Definition's and a DefinitionVersion's
+// bindings.
 //
 // # Transition Record is the one exception: it is a persistent Artifact
 //
@@ -86,11 +103,27 @@
 // API; it supplies only the immutable records (State Assignment,
 // Transition Record) those future resolvers will read.
 //
+// # Lifecycle Definition Version Supersession is distinct from Artifact Supersession and Migration
+//
+// LifecycleDefinitionVersionSupersession (supersession.go) records the
+// PEOS-003 "Supersession" fact -- that one Lifecycle Definition Version
+// supersedes another -- as its own immutable, independently identified
+// record. It is not Artifact Supersession (PEOS-002): PEOS-003 states
+// "Artifact or Artifact Revision supersession remains governed by PEOS-002
+// and applicable specialized lifecycles," and a Lifecycle Definition
+// Version is not an Artifact Revision in the first place. It is also not
+// Lifecycle Migration (see below): recording that a supersession occurred,
+// with its effective scope and normative consequences, is a materially
+// smaller and different concern than executing a migration.
+//
 // # Lifecycle Migration is deferred
 //
 // Every StateAssignment and TransitionRecordContent is pinned to an exact
 // core.LifecycleDefinitionVersionRef and never reinterpreted under a
-// different Definition Version by this package.
+// different Definition Version by this package. This package records the
+// Supersession fact (above) but does not execute Migration: it does not
+// remap State, does not reinterpret historical Transitions, and tracks no
+// migration progress.
 //
 // # Scope is owned by DefinitionVersion only
 //

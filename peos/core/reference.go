@@ -962,6 +962,51 @@ func (r *StateAssignmentRef) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// LifecycleDefinitionVersionSupersessionRef identifies a Lifecycle
+// Definition Version Supersession at the identity level (PEOS-003
+// "Supersession"). Like State Assignment, it is an immutable record, not
+// an Artifact.
+type LifecycleDefinitionVersionSupersessionRef struct {
+	lifecycleDefinitionVersionSupersessionRefID LifecycleDefinitionVersionSupersessionID
+}
+
+// NewLifecycleDefinitionVersionSupersessionRef validates id and returns a
+// LifecycleDefinitionVersionSupersessionRef.
+func NewLifecycleDefinitionVersionSupersessionRef(id LifecycleDefinitionVersionSupersessionID) (LifecycleDefinitionVersionSupersessionRef, error) {
+	if id.IsZero() {
+		return LifecycleDefinitionVersionSupersessionRef{}, fmt.Errorf("core: NewLifecycleDefinitionVersionSupersessionRef: %w", ErrEmptyIdentity)
+	}
+	return LifecycleDefinitionVersionSupersessionRef{lifecycleDefinitionVersionSupersessionRefID: id}, nil
+}
+
+func (r LifecycleDefinitionVersionSupersessionRef) SupersessionID() LifecycleDefinitionVersionSupersessionID {
+	return r.lifecycleDefinitionVersionSupersessionRefID
+}
+func (r LifecycleDefinitionVersionSupersessionRef) IsZero() bool {
+	return r.lifecycleDefinitionVersionSupersessionRefID.IsZero()
+}
+
+type lifecycleDefinitionVersionSupersessionRefJSON struct {
+	SupersessionID LifecycleDefinitionVersionSupersessionID `json:"lifecycle_definition_version_supersession_id"`
+}
+
+func (r LifecycleDefinitionVersionSupersessionRef) MarshalJSON() ([]byte, error) {
+	return json.Marshal(lifecycleDefinitionVersionSupersessionRefJSON{SupersessionID: r.lifecycleDefinitionVersionSupersessionRefID})
+}
+
+func (r *LifecycleDefinitionVersionSupersessionRef) UnmarshalJSON(data []byte) error {
+	var raw lifecycleDefinitionVersionSupersessionRefJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("core: unmarshal LifecycleDefinitionVersionSupersessionRef: %w", err)
+	}
+	v, err := NewLifecycleDefinitionVersionSupersessionRef(raw.SupersessionID)
+	if err != nil {
+		return err
+	}
+	*r = v
+	return nil
+}
+
 // Known discriminator values for EngineeringSubjectRef. These are plain
 // strings, not a closed Go enum: EngineeringSubjectRef accepts any
 // discriminator through its opaque construction path (see

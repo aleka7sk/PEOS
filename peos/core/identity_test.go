@@ -152,6 +152,9 @@ func TestRemainingIdentityConstructors(t *testing.T) {
 		{"LifecycleDefinitionID", func(v string) (interface{ IsZero() bool }, error) { return NewLifecycleDefinitionID(v) }},
 		{"LifecycleDefinitionVersionID", func(v string) (interface{ IsZero() bool }, error) { return NewLifecycleDefinitionVersionID(v) }},
 		{"StateAssignmentID", func(v string) (interface{ IsZero() bool }, error) { return NewStateAssignmentID(v) }},
+		{"LifecycleDefinitionVersionSupersessionID", func(v string) (interface{ IsZero() bool }, error) {
+			return NewLifecycleDefinitionVersionSupersessionID(v)
+		}},
 	}
 
 	for _, c := range constructors {
@@ -345,6 +348,78 @@ func TestLifecycleIdentityTypesAreNotInterchangeable(t *testing.T) {
 	//   var _ LifecycleDefinitionVersionID = assignmentID
 	//   var _ StateAssignmentID = LifecycleDefinitionID(defID)
 	if defID.String() == versionID.String() || versionID.String() == assignmentID.String() {
+		t.Skip("identical opaque values chosen; not a meaningful collision")
+	}
+}
+
+// --- Packet E.1: LifecycleDefinitionVersionSupersessionID ---
+
+func TestLifecycleDefinitionVersionSupersessionIDJSONRoundTrip(t *testing.T) {
+	original, err := NewLifecycleDefinitionVersionSupersessionID("SUP-1001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	if string(data) != `"SUP-1001"` {
+		t.Errorf("Marshal = %s, want %q", data, `"SUP-1001"`)
+	}
+	var decoded LifecycleDefinitionVersionSupersessionID
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if decoded != original {
+		t.Errorf("round trip mismatch: got %v, want %v", decoded, original)
+	}
+}
+
+func TestLifecycleDefinitionVersionSupersessionIDJSONRejectsEmpty(t *testing.T) {
+	var id LifecycleDefinitionVersionSupersessionID
+	if err := json.Unmarshal([]byte(`""`), &id); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("error = %v, want %v", err, ErrEmptyIdentity)
+	}
+}
+
+func TestLifecycleDefinitionVersionSupersessionIDMalformedJSONRejected(t *testing.T) {
+	var id LifecycleDefinitionVersionSupersessionID
+	if err := json.Unmarshal([]byte(`42`), &id); err == nil {
+		t.Fatal("malformed JSON accepted, want error")
+	}
+}
+
+func TestLifecycleDefinitionVersionSupersessionIDFailedUnmarshalPreservesReceiver(t *testing.T) {
+	original, err := NewLifecycleDefinitionVersionSupersessionID("SUP-1001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := original
+	if err := json.Unmarshal([]byte(`""`), &receiver); err == nil {
+		t.Fatal("empty value accepted, want error")
+	}
+	if receiver != original {
+		t.Errorf("failed Unmarshal changed receiver: got %v, want %v", receiver, original)
+	}
+}
+
+// TestLifecycleDefinitionVersionSupersessionIDNotInterchangeable documents
+// that the new Packet E.1 identity type is structurally distinct from its
+// siblings, following the same convention as
+// TestLifecycleIdentityTypesAreNotInterchangeable above.
+func TestLifecycleDefinitionVersionSupersessionIDNotInterchangeable(t *testing.T) {
+	supID, err := NewLifecycleDefinitionVersionSupersessionID("SUP-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignmentID, err := NewStateAssignmentID("SA-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The following, if uncommented, must fail to compile:
+	//   var _ LifecycleDefinitionVersionSupersessionID = assignmentID
+	//   var _ StateAssignmentID = supID
+	if supID.String() == assignmentID.String() {
 		t.Skip("identical opaque values chosen; not a meaningful collision")
 	}
 }

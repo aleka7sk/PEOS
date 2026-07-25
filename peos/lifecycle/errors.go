@@ -91,4 +91,16 @@ var (
 	// not match the ArtifactID of the specialized identity it is being
 	// paired with.
 	ErrArtifactIDMismatch = errors.New("lifecycle: artifact id mismatch")
+
+	// ErrArtifactBindingMismatch is returned by
+	// DefinitionVersion.ValidateArtifactBinding when a Definition's and a
+	// DefinitionVersion's optional Artifact bindings are inconsistent with
+	// each other, or when the DefinitionVersion's parent reference does not
+	// identify the given Definition.
+	ErrArtifactBindingMismatch = errors.New("lifecycle: artifact binding mismatch")
+
+	// ErrInvalidLifecycleSupersession is returned when a
+	// LifecycleDefinitionVersionSupersession fails to satisfy its required
+	// fields or internal consistency rules.
+	ErrInvalidLifecycleSupersession = errors.New("lifecycle: lifecycle definition version supersession is invalid")
 )

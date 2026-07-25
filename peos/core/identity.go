@@ -36,7 +36,12 @@ func normalizeIdentityValue(value string) (string, error) {
 // It is also the identity used by every Artifact subtype that does not
 // define its own identity class (Requirement, Validation Plan, Quality
 // Profile, Runtime Contract, Template, Generated Artifact, Decision
-// Record, Lifecycle Definition).
+// Record). Lifecycle Definition is not in this list: it has its own
+// canonical identity class (LifecycleDefinitionID, below) and MAY
+// optionally be represented by an Artifact (PEOS-003: "A Lifecycle
+// Definition MAY be represented as an Artifact") -- see
+// LifecycleDefinitionID's own doc comment and peos/lifecycle's optional
+// Artifact binding.
 type ArtifactID struct{ artifactID string }
 
 // ArtifactRevisionID is the PEOS Artifact Revision identity (PEOS-002
@@ -86,6 +91,21 @@ type LifecycleDefinitionVersionID struct{ lifecycleDefinitionVersionID string }
 // Assignment "an Artifact" or requires it to conform to PEOS-002, unlike
 // Transition Record (see ImmutableRecordID's own comment above).
 type StateAssignmentID struct{ stateAssignmentID string }
+
+// LifecycleDefinitionVersionSupersessionID is the identity of a Lifecycle
+// Definition Version Supersession (PEOS-003 "Supersession"): an immutable
+// record establishing that one Lifecycle Definition Version supersedes
+// another. It is not an Artifact and not an Artifact Revision, and it is
+// deliberately structurally distinct from ArtifactID, ArtifactRevisionID,
+// and StateAssignmentID (PEOS-002 gives an Artifact Relation no normative
+// identity at all, so there is no "Relation identity" for this type to be
+// confused with either). This Supersession is distinct from Artifact
+// Supersession (PEOS-002) and from Lifecycle Migration (PEOS-003): PEOS-003
+// itself states "Artifact or Artifact Revision supersession remains
+// governed by PEOS-002 and applicable specialized lifecycles."
+type LifecycleDefinitionVersionSupersessionID struct {
+	lifecycleDefinitionVersionSupersessionID string
+}
 
 // DecisionID is the PEOS Decision identity (PEOS-004). It is distinct
 // from the identity of the Decision Record Artifact that documents the
@@ -607,6 +627,40 @@ func (id *StateAssignmentID) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("core: unmarshal StateAssignmentID: %w", err)
 	}
 	v, err := NewStateAssignmentID(s)
+	if err != nil {
+		return err
+	}
+	*id = v
+	return nil
+}
+
+// NewLifecycleDefinitionVersionSupersessionID validates value and returns
+// a LifecycleDefinitionVersionSupersessionID.
+func NewLifecycleDefinitionVersionSupersessionID(value string) (LifecycleDefinitionVersionSupersessionID, error) {
+	v, err := normalizeIdentityValue(value)
+	if err != nil {
+		return LifecycleDefinitionVersionSupersessionID{}, fmt.Errorf("core: NewLifecycleDefinitionVersionSupersessionID: %w", err)
+	}
+	return LifecycleDefinitionVersionSupersessionID{lifecycleDefinitionVersionSupersessionID: v}, nil
+}
+
+func (id LifecycleDefinitionVersionSupersessionID) String() string {
+	return id.lifecycleDefinitionVersionSupersessionID
+}
+func (id LifecycleDefinitionVersionSupersessionID) IsZero() bool {
+	return id.lifecycleDefinitionVersionSupersessionID == ""
+}
+
+func (id LifecycleDefinitionVersionSupersessionID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(id.lifecycleDefinitionVersionSupersessionID)
+}
+
+func (id *LifecycleDefinitionVersionSupersessionID) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err != nil {
+		return fmt.Errorf("core: unmarshal LifecycleDefinitionVersionSupersessionID: %w", err)
+	}
+	v, err := NewLifecycleDefinitionVersionSupersessionID(s)
 	if err != nil {
 		return err
 	}

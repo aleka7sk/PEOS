@@ -11,16 +11,26 @@ import (
 // normative contract defining the permitted states and transitions of one
 // or more Lifecycle Subject Types. Per this package's own locked shape
 // (see doc.go), Definition carries its own generic normative identity
-// (core.LifecycleDefinitionID) rather than a core.Artifact identity.
-// Definition itself carries no other content: every substantive part of
-// the published lifecycle contract (States, Transitions, Scope, governed
-// Subject Types, initial-state policy, entry Transition) belongs to
-// DefinitionVersion, below.
+// (core.LifecycleDefinitionID) as its canonical identity, rather than a
+// core.Artifact identity. Definition itself carries no other required
+// content: every substantive part of the published lifecycle contract
+// (States, Transitions, Scope, governed Subject Types, initial-state
+// policy, entry Transition) belongs to DefinitionVersion, below.
+//
+// Definition MAY optionally carry a core.ArtifactRef (PEOS-003: "A
+// Lifecycle Definition MAY be represented as an Artifact"). That binding
+// is a correspondence to an Artifact identity that already exists
+// elsewhere -- it does not replace or supersede core.LifecycleDefinitionID
+// as this type's identity, and Definition remains fully usable, valid,
+// and IsZero()-false with no binding present at all.
 type Definition struct {
-	id core.LifecycleDefinitionID
+	id          core.LifecycleDefinitionID
+	hasArtifact bool
+	artifact    core.ArtifactRef
 }
 
-// NewDefinition validates id and returns a Definition.
+// NewDefinition validates id and returns a Definition with no Artifact
+// binding. Use WithArtifact to add one.
 func NewDefinition(id core.LifecycleDefinitionID) (Definition, error) {
 	if id.IsZero() {
 		return Definition{}, fmt.Errorf("lifecycle: NewDefinition: %w", ErrInvalidLifecycleDefinition)
@@ -29,6 +39,28 @@ func NewDefinition(id core.LifecycleDefinitionID) (Definition, error) {
 }
 
 func (d Definition) ID() core.LifecycleDefinitionID { return d.id }
+
+// WithArtifact returns a copy of d with its Artifact binding set. artifact
+// must be non-zero. d's own core.LifecycleDefinitionID is unchanged and
+// remains d's identity; artifact only records that d also corresponds to
+// the given Artifact. Use WithoutArtifact to clear a previously set
+// binding.
+func (d Definition) WithArtifact(artifact core.ArtifactRef) (Definition, error) {
+	if artifact.IsZero() {
+		return Definition{}, fmt.Errorf("lifecycle: Definition.WithArtifact: %w: artifact must not be zero", ErrInvalidLifecycleDefinition)
+	}
+	d.artifact, d.hasArtifact = artifact, true
+	return d, nil
+}
+
+// WithoutArtifact returns a copy of d with its Artifact binding cleared.
+func (d Definition) WithoutArtifact() Definition {
+	d.artifact, d.hasArtifact = core.ArtifactRef{}, false
+	return d
+}
+
+// Artifact returns d's bound core.ArtifactRef, and whether one is set.
+func (d Definition) Artifact() (core.ArtifactRef, bool) { return d.artifact, d.hasArtifact }
 
 // IsZero reports whether d is the zero value.
 func (d Definition) IsZero() bool { return d.id.IsZero() }
@@ -39,27 +71,58 @@ func (d Definition) Ref() (core.LifecycleDefinitionRef, error) {
 }
 
 type definitionJSON struct {
-	ID core.LifecycleDefinitionID `json:"id"`
+	ID       core.LifecycleDefinitionID `json:"id"`
+	Artifact *core.ArtifactRef          `json:"artifact,omitempty"`
 }
 
-// MarshalJSON encodes d as {"id": ...}.
+// definitionUnmarshalJSON mirrors definitionJSON for decoding only, with
+// one difference: Artifact is captured as raw, undecoded bytes rather than
+// *core.ArtifactRef, so an explicit JSON null can be distinguished from an
+// absent key and rejected -- the same technique Packet D.1 established
+// for Relation.Scope in peos/relation, and already used elsewhere in this
+// package (see assignment.go, record.go).
+type definitionUnmarshalJSON struct {
+	ID       core.LifecycleDefinitionID `json:"id"`
+	Artifact json.RawMessage            `json:"artifact"`
+}
+
+// MarshalJSON encodes d as {"id": ..., "artifact": ...}, omitting artifact
+// when not set.
 func (d Definition) MarshalJSON() ([]byte, error) {
 	if d.IsZero() {
 		return nil, fmt.Errorf("lifecycle: marshal Definition: %w", ErrInvalidLifecycleDefinition)
 	}
-	return json.Marshal(definitionJSON{ID: d.id})
+	raw := definitionJSON{ID: d.id}
+	if d.hasArtifact {
+		raw.Artifact = &d.artifact
+	}
+	return json.Marshal(raw)
 }
 
 // UnmarshalJSON decodes d from its JSON form, applying the same
-// validation as NewDefinition.
+// validation as NewDefinition and WithArtifact. An explicit JSON null for
+// "artifact" is rejected rather than silently treated as "no binding."
 func (d *Definition) UnmarshalJSON(data []byte) error {
-	var raw definitionJSON
+	var raw definitionUnmarshalJSON
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("lifecycle: unmarshal Definition: %w", err)
 	}
 	result, err := NewDefinition(raw.ID)
 	if err != nil {
 		return err
+	}
+	if len(raw.Artifact) > 0 {
+		if string(raw.Artifact) == "null" {
+			return fmt.Errorf("lifecycle: unmarshal Definition: %w: artifact must not be null", ErrInvalidLifecycleDefinition)
+		}
+		var artifact core.ArtifactRef
+		if err := json.Unmarshal(raw.Artifact, &artifact); err != nil {
+			return fmt.Errorf("lifecycle: unmarshal Definition: %w", err)
+		}
+		result, err = result.WithArtifact(artifact)
+		if err != nil {
+			return err
+		}
 	}
 	*d = result
 	return nil
@@ -79,6 +142,15 @@ func (d *Definition) UnmarshalJSON(data []byte) error {
 // core.ArtifactRevisionID already serves that role for Artifact Revisions
 // without this package assuming any inherent sort order across values.
 // No additional ordinal field is added.
+//
+// DefinitionVersion MAY optionally carry a core.ArtifactRevisionRef
+// (PEOS-003: "When a Lifecycle Definition is represented as an Artifact,
+// its Definition Version MUST identify the corresponding Artifact
+// Revision"). That reference is a correspondence, not a replacement:
+// core.LifecycleDefinitionVersionID remains v's canonical identity
+// whether or not a binding is present. See ValidateArtifactBinding for
+// the (optional, caller-invoked) local consistency check between a
+// Definition's and a DefinitionVersion's bindings.
 type DefinitionVersion struct {
 	id              core.LifecycleDefinitionVersionID
 	definition      core.LifecycleDefinitionRef
@@ -90,6 +162,9 @@ type DefinitionVersion struct {
 	entryTransition TransitionID
 	provenance      core.Provenance
 	extension       core.Extension
+
+	hasArtifactRevision bool
+	artifactRevision    core.ArtifactRevisionRef
 }
 
 // NewDefinitionVersion validates every argument -- including cross-field
@@ -214,6 +289,32 @@ func (v DefinitionVersion) WithExtension(e core.Extension) DefinitionVersion {
 	return v
 }
 
+// WithArtifactRevision returns a copy of v with its Artifact Revision
+// binding set. ref must be non-zero. v's own core.LifecycleDefinitionVersionID
+// and every other field are unchanged; ref only records that v also
+// corresponds to the given Artifact Revision. Use WithoutArtifactRevision
+// to clear a previously set binding.
+func (v DefinitionVersion) WithArtifactRevision(ref core.ArtifactRevisionRef) (DefinitionVersion, error) {
+	if ref.IsZero() {
+		return DefinitionVersion{}, fmt.Errorf("lifecycle: DefinitionVersion.WithArtifactRevision: %w: artifact revision must not be zero", ErrInvalidLifecycleDefinitionVersion)
+	}
+	v.artifactRevision, v.hasArtifactRevision = ref, true
+	return v, nil
+}
+
+// WithoutArtifactRevision returns a copy of v with its Artifact Revision
+// binding cleared.
+func (v DefinitionVersion) WithoutArtifactRevision() DefinitionVersion {
+	v.artifactRevision, v.hasArtifactRevision = core.ArtifactRevisionRef{}, false
+	return v
+}
+
+// ArtifactRevision returns v's bound core.ArtifactRevisionRef, and
+// whether one is set.
+func (v DefinitionVersion) ArtifactRevision() (core.ArtifactRevisionRef, bool) {
+	return v.artifactRevision, v.hasArtifactRevision
+}
+
 func (v DefinitionVersion) ID() core.LifecycleDefinitionVersionID   { return v.id }
 func (v DefinitionVersion) Definition() core.LifecycleDefinitionRef { return v.definition }
 func (v DefinitionVersion) Scope() core.Scope                       { return v.scope }
@@ -276,20 +377,43 @@ func (v DefinitionVersion) Ref() (core.LifecycleDefinitionVersionRef, error) {
 }
 
 type definitionVersionJSON struct {
-	ID              core.LifecycleDefinitionVersionID `json:"id"`
-	Definition      core.LifecycleDefinitionRef       `json:"definition"`
-	Scope           core.Scope                        `json:"scope"`
-	SubjectTypes    []core.VocabularyValue            `json:"subject_types"`
-	States          []State                           `json:"states"`
-	InitialStates   []StateID                         `json:"initial_states"`
-	Transitions     []TransitionDefinition            `json:"transitions"`
-	EntryTransition TransitionID                      `json:"entry_transition"`
-	Provenance      core.Provenance                   `json:"provenance"`
-	Extension       *core.Extension                   `json:"extension,omitempty"`
+	ID               core.LifecycleDefinitionVersionID `json:"id"`
+	Definition       core.LifecycleDefinitionRef       `json:"definition"`
+	Scope            core.Scope                        `json:"scope"`
+	SubjectTypes     []core.VocabularyValue            `json:"subject_types"`
+	States           []State                           `json:"states"`
+	InitialStates    []StateID                         `json:"initial_states"`
+	Transitions      []TransitionDefinition            `json:"transitions"`
+	EntryTransition  TransitionID                      `json:"entry_transition"`
+	Provenance       core.Provenance                   `json:"provenance"`
+	ArtifactRevision *core.ArtifactRevisionRef         `json:"artifact_revision,omitempty"`
+	Extension        *core.Extension                   `json:"extension,omitempty"`
+}
+
+// definitionVersionUnmarshalJSON mirrors definitionVersionJSON for
+// decoding only, with one difference: ArtifactRevision is captured as
+// raw, undecoded bytes rather than *core.ArtifactRevisionRef, so an
+// explicit JSON null can be distinguished from an absent key and rejected
+// -- the same technique used by Definition's own UnmarshalJSON above.
+type definitionVersionUnmarshalJSON struct {
+	ID               core.LifecycleDefinitionVersionID `json:"id"`
+	Definition       core.LifecycleDefinitionRef       `json:"definition"`
+	Scope            core.Scope                        `json:"scope"`
+	SubjectTypes     []core.VocabularyValue            `json:"subject_types"`
+	States           []State                           `json:"states"`
+	InitialStates    []StateID                         `json:"initial_states"`
+	Transitions      []TransitionDefinition            `json:"transitions"`
+	EntryTransition  TransitionID                      `json:"entry_transition"`
+	Provenance       core.Provenance                   `json:"provenance"`
+	ArtifactRevision json.RawMessage                   `json:"artifact_revision"`
+	Extension        *core.Extension                   `json:"extension,omitempty"`
 }
 
 // MarshalJSON encodes v as a flat JSON object containing every field
-// listed in definitionVersionJSON, omitting extension when not set.
+// listed in definitionVersionJSON, omitting artifact_revision and
+// extension when not set. A DefinitionVersion with no Artifact Revision
+// binding marshals identically to the pre-Packet-E.1 wire form: no
+// artifact_revision key is ever written unless a binding is present.
 func (v DefinitionVersion) MarshalJSON() ([]byte, error) {
 	if v.IsZero() {
 		return nil, fmt.Errorf("lifecycle: marshal DefinitionVersion: %w", ErrInvalidLifecycleDefinitionVersion)
@@ -299,6 +423,9 @@ func (v DefinitionVersion) MarshalJSON() ([]byte, error) {
 		States: v.states, InitialStates: v.initialStates, Transitions: v.transitions,
 		EntryTransition: v.entryTransition, Provenance: v.provenance,
 	}
+	if v.hasArtifactRevision {
+		raw.ArtifactRevision = &v.artifactRevision
+	}
 	if !v.extension.IsZero() {
 		raw.Extension = &v.extension
 	}
@@ -306,10 +433,13 @@ func (v DefinitionVersion) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON decodes v from its JSON form, applying the same
-// validation as NewDefinitionVersion. Unknown ordinary JSON fields are
-// ignored.
+// validation as NewDefinitionVersion and WithArtifactRevision. Unknown
+// ordinary JSON fields are ignored. An explicit JSON null for
+// "artifact_revision" is rejected rather than silently treated as "no
+// binding." JSON produced before this binding existed (no
+// artifact_revision key at all) decodes exactly as before.
 func (v *DefinitionVersion) UnmarshalJSON(data []byte) error {
-	var raw definitionVersionJSON
+	var raw definitionVersionUnmarshalJSON
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("lifecycle: unmarshal DefinitionVersion: %w", err)
 	}
@@ -320,9 +450,62 @@ func (v *DefinitionVersion) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
+	if len(raw.ArtifactRevision) > 0 {
+		if string(raw.ArtifactRevision) == "null" {
+			return fmt.Errorf("lifecycle: unmarshal DefinitionVersion: %w: artifact_revision must not be null", ErrInvalidLifecycleDefinitionVersion)
+		}
+		var ref core.ArtifactRevisionRef
+		if err := json.Unmarshal(raw.ArtifactRevision, &ref); err != nil {
+			return fmt.Errorf("lifecycle: unmarshal DefinitionVersion: %w", err)
+		}
+		result, err = result.WithArtifactRevision(ref)
+		if err != nil {
+			return err
+		}
+	}
 	if raw.Extension != nil {
 		result = result.WithExtension(*raw.Extension)
 	}
 	*v = result
 	return nil
+}
+
+// ValidateArtifactBinding performs a pure, local consistency check
+// between v's own optional Artifact Revision binding and def's optional
+// Artifact binding. It validates only the supplied values: it does not
+// look up, fetch, or otherwise verify that either binding corresponds to
+// a real, existing Artifact -- that remains a repository or Product
+// concern.
+//
+// It first requires that v's parent Lifecycle Definition reference
+// identifies def (v.Definition().LifecycleDefinitionID() ==
+// def.ID()) -- this holds regardless of whether either side has an
+// Artifact binding. It then requires that v and def agree on whether an
+// Artifact-backed representation is in use at all: neither bound is
+// valid, and both bound is valid only when the bound
+// ArtifactRevisionRef's ArtifactID matches the bound ArtifactRef's
+// ArtifactID (PEOS-003: "its Definition Version MUST identify the
+// corresponding Artifact Revision"). Exactly one side bound is always
+// invalid.
+func (v DefinitionVersion) ValidateArtifactBinding(def Definition) error {
+	if v.definition.LifecycleDefinitionID() != def.ID() {
+		return fmt.Errorf("lifecycle: DefinitionVersion.ValidateArtifactBinding: %w: definition version's parent does not match the given Definition", ErrArtifactBindingMismatch)
+	}
+
+	versionArtifactRevision, versionHasBinding := v.ArtifactRevision()
+	defArtifact, defHasBinding := def.Artifact()
+
+	switch {
+	case !versionHasBinding && !defHasBinding:
+		return nil
+	case versionHasBinding && !defHasBinding:
+		return fmt.Errorf("lifecycle: DefinitionVersion.ValidateArtifactBinding: %w: version is Artifact-backed but definition is not", ErrArtifactBindingMismatch)
+	case !versionHasBinding && defHasBinding:
+		return fmt.Errorf("lifecycle: DefinitionVersion.ValidateArtifactBinding: %w: definition is Artifact-backed but version is not", ErrArtifactBindingMismatch)
+	default:
+		if versionArtifactRevision.ArtifactID() != defArtifact.ArtifactID() {
+			return fmt.Errorf("lifecycle: DefinitionVersion.ValidateArtifactBinding: %w: version's artifact revision does not belong to definition's artifact", ErrArtifactBindingMismatch)
+		}
+		return nil
+	}
 }

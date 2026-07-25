@@ -557,6 +557,72 @@ func TestLifecycleReferenceTypesAreNotInterchangeable(t *testing.T) {
 	}
 }
 
+// --- Packet E.1: LifecycleDefinitionVersionSupersessionRef ---
+
+func TestLifecycleDefinitionVersionSupersessionRef(t *testing.T) {
+	supID, err := NewLifecycleDefinitionVersionSupersessionID("SUP-1001")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ref, err := NewLifecycleDefinitionVersionSupersessionRef(supID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.SupersessionID() != supID {
+		t.Error("component mismatch")
+	}
+	if ref.IsZero() {
+		t.Error("valid LifecycleDefinitionVersionSupersessionRef reports IsZero() = true")
+	}
+
+	if _, err := NewLifecycleDefinitionVersionSupersessionRef(LifecycleDefinitionVersionSupersessionID{}); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("error = %v, want %v", err, ErrEmptyIdentity)
+	}
+
+	var zero LifecycleDefinitionVersionSupersessionRef
+	if !zero.IsZero() {
+		t.Error("zero-value LifecycleDefinitionVersionSupersessionRef.IsZero() = false, want true")
+	}
+
+	roundTripJSON(t, &ref, &LifecycleDefinitionVersionSupersessionRef{})
+
+	receiver := ref
+	if err := json.Unmarshal([]byte(`{"lifecycle_definition_version_supersession_id": ""}`), &receiver); err == nil {
+		t.Fatal("malformed JSON accepted, want error")
+	}
+	if receiver != ref {
+		t.Errorf("failed Unmarshal changed receiver: got %v, want %v", receiver, ref)
+	}
+}
+
+func TestLifecycleDefinitionVersionSupersessionRefNotInterchangeable(t *testing.T) {
+	supID, err := NewLifecycleDefinitionVersionSupersessionID("SUP-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	supRef, err := NewLifecycleDefinitionVersionSupersessionRef(supID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignmentRef, err := NewStateAssignmentRef(func() StateAssignmentID {
+		id, err := NewStateAssignmentID("SA-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The following, if uncommented, must fail to compile:
+	//   var _ LifecycleDefinitionVersionSupersessionRef = assignmentRef
+	//   var _ StateAssignmentRef = supRef
+	if supRef.SupersessionID().String() == assignmentRef.StateAssignmentID().String() {
+		t.Skip("identical opaque values chosen; not a meaningful collision")
+	}
+}
+
 // roundTripJSON marshals src, unmarshals into dst, and fails the test if
 // the two do not marshal to the same bytes (used for types without a
 // convenient equality check exposed).
