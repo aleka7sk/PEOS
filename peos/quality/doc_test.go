@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -62,10 +63,12 @@ func parsePackageImports(t *testing.T, dir string, includeTests bool) map[string
 // production sources may import only the standard library, peos/core, and
 // peos/validation.
 //
-// peos/validation is permitted because PEOS-007's two specializations compose
-// PEOS-006 types (Packet I.2). Packet I.1's sources do not actually import it
-// yet, and this test deliberately does not require them to -- an unused
-// dependency is not added to match a future graph.
+// peos/validation is permitted, and as of Packet I.2 it is actually required:
+// MeasurementRecord composes validation.ExecutionRecord and Claim composes
+// validation.Claim, both by named field, because PEOS-007 specializes PEOS-006's
+// mechanisms rather than redefining them. The test now asserts that at least one
+// production file imports it, so the composition cannot be quietly replaced by a
+// re-declared local type.
 //
 // peos/relation is excluded because PEOS-007 defines no Artifact Relation.
 // peos/lifecycle is excluded because "A Quality Claim does not itself assign a
@@ -89,6 +92,7 @@ func TestProductionImportBoundary(t *testing.T) {
 
 	byFile := parsePackageImports(t, ".", false)
 	sawCore := false
+	sawValidation := false
 	for name, paths := range byFile {
 		for _, path := range paths {
 			if !strings.HasPrefix(path, peosModulePrefix) {
@@ -96,8 +100,11 @@ func TestProductionImportBoundary(t *testing.T) {
 				continue
 			}
 			if allowed[path] {
-				if path == peosModulePrefix+"core" {
+				switch path {
+				case peosModulePrefix + "core":
 					sawCore = true
+				case peosModulePrefix + "validation":
+					sawValidation = true
 				}
 				continue
 			}
@@ -113,6 +120,9 @@ func TestProductionImportBoundary(t *testing.T) {
 	}
 	if !sawCore {
 		t.Errorf("no production file imports %q; the helper may be parsing the wrong directory", peosModulePrefix+"core")
+	}
+	if !sawValidation {
+		t.Errorf("no production file imports %q; PEOS-007's Measurement Record and Quality Claim must compose the PEOS-006 mechanisms, not re-declare them", peosModulePrefix+"validation")
 	}
 }
 
@@ -196,6 +206,16 @@ var forbiddenTypeNames = []string{
 	"StateAssignment",
 	"Relation",
 	"QualityRelation",
+	// Added by Packet I.2: a Measurement Record and a Quality Claim record
+	// what was observed and determined. Neither introduces a runtime or
+	// findings vocabulary -- that is PEOS-008's, and PEOS-007 states it
+	// "does not define Runtime Contracts or runtime enforcement."
+	"Result",
+	"Finding",
+	"Violation",
+	"Observation",
+	"Verdict",
+	"MeasurementRecordType",
 }
 
 // TestNoForbiddenTypeDeclared parses this package's production sources and
@@ -356,16 +376,151 @@ func TestProfileAndRevisionExposeNoVersionOrLifecycle(t *testing.T) {
 	}
 }
 
-// TestPacketI2TypesNotYetDeclared records the packet boundary: Packet I.1
-// implements the Quality Profile side only, and neither PEOS-007
-// specialization of a PEOS-006 mechanism exists yet. This test is expected to
-// be removed by Packet I.2 when it adds them -- its presence is what stops a
-// later reader from assuming I.1 shipped them.
-func TestPacketI2TypesNotYetDeclared(t *testing.T) {
+// --- Packet I.2 wrapper API absence -----------------------------------------
+//
+// Packet I.1 carried a temporary test asserting MeasurementRecord and Claim did
+// not yet exist. Packet I.2 implements both, so that assertion is replaced by
+// the precise API-absence tests below: the two types must now exist, and must
+// expose nothing that would make them a parallel mechanism, an Artifact, a
+// lifecycle-bearing entity, or a bypass around their own invariants.
+
+// TestMeasurementRecordExposesNoForbiddenMethod audits MeasurementRecord over
+// its public API. It must add no identity or Artifact accessor of its own (its
+// identity is the composed record's), no lifecycle, no relation, no stored
+// derived state, and -- critically -- no modifier able to alter the composed
+// record's criteria, subject, method, or outcome, any of which could produce a
+// represented record violating PEOS-007's SHALL-identify list.
+func TestMeasurementRecordExposesNoForbiddenMethod(t *testing.T) {
+	forbidden := []string{
+		// Artifact identity: a Measurement Record "is not an Artifact".
+		"ArtifactID", "RevisionID", "Revision", "Core",
+		// Lifecycle: "It has no revisions and no lifecycle."
+		"Lifecycle", "State", "Status", "StateAssignment",
+		// Artifact Relation: PEOS-007 defines none.
+		"Relation", "RelationType", "Source", "Target",
+		// Stored derived state.
+		"Current", "Latest", "Effective", "Aggregate", "Score", "QualityScore",
+		"NormalizedValue", "Result", "Verdict", "Finding", "Violation",
+		// Mandatory-state modifiers: none may exist.
+		"WithRecord", "WithoutRecord",
+		"WithObservedValue", "WithoutObservedValue",
+		"WithUnit", "WithoutUnit", "WithScale", "WithoutScale",
+		"WithCriteria", "WithoutCriteria",
+		"WithSubject", "WithMethod", "WithOutcome", "WithExecutionOutcome",
+		"WithActivity", "WithProvenance", "WithID", "WithCorrection",
+		"WithProducedEvidence", "WithReliedUponEvidence",
+	}
+	assertNoMethods(t, "MeasurementRecord", reflect.TypeOf(MeasurementRecord{}), forbidden)
+
+	// The two modifiers it does expose, and nothing else beyond accessors.
+	typ := reflect.TypeOf(MeasurementRecord{})
+	var modifiers []string
+	for i := range typ.NumMethod() {
+		name := typ.Method(i).Name
+		if strings.HasPrefix(name, "With") {
+			modifiers = append(modifiers, name)
+		}
+	}
+	slices.Sort(modifiers)
+	want := []string{"WithExtension", "WithoutExtension"}
+	if !slices.Equal(modifiers, want) {
+		t.Errorf("MeasurementRecord modifiers = %v, want exactly %v", modifiers, want)
+	}
+}
+
+// TestQualityClaimExposesNoForbiddenMethod audits Claim over its public API.
+// The Claim Type must be unreachable by any modifier, no mandatory field may be
+// settable, and there must be no WithoutCriteria (WithCriteria(nil) already
+// expresses removal, and a second method would be a second validation path).
+func TestQualityClaimExposesNoForbiddenMethod(t *testing.T) {
+	forbidden := []string{
+		// Artifact identity: a Quality Claim "is not an Artifact".
+		"ArtifactID", "RevisionID", "Revision", "Core",
+		// Lifecycle: "A Quality Claim does not itself assign a Lifecycle State
+		// or State Assignment."
+		"Lifecycle", "State", "Status", "StateAssignment",
+		// Artifact Relation.
+		"Relation", "RelationType", "Source", "Target",
+		// The Claim Type must be unchangeable.
+		"WithClaimType", "WithoutClaimType",
+		// No mandatory-state modifier.
+		"WithoutCriteria",
+		"WithSubject", "WithScope", "WithOutcome", "WithMethod",
+		"WithEvidence", "WithTimestamp", "WithProvenance", "WithID",
+		"WithoutScope", "WithoutSubject", "WithoutOutcome", "WithoutMethod",
+		"WithoutEvidence", "WithoutTimestamp", "WithoutProvenance", "WithoutID",
+		// Stored derived state.
+		"Current", "Latest", "Effective", "Aggregate", "Score", "QualityScore",
+		"Verdict", "Basis", "Satisfied", "Certified", "Accepted",
+	}
+	assertNoMethods(t, "Claim", reflect.TypeOf(Claim{}), forbidden)
+
+	// Exactly the ten accepted modifiers, no more and no fewer.
+	typ := reflect.TypeOf(Claim{})
+	var modifiers []string
+	for i := range typ.NumMethod() {
+		name := typ.Method(i).Name
+		if strings.HasPrefix(name, "With") {
+			modifiers = append(modifiers, name)
+		}
+	}
+	slices.Sort(modifiers)
+	want := []string{
+		"WithAuthority", "WithCorrection", "WithCriteria", "WithExecutionRecords",
+		"WithExtension", "WithReasoning", "WithoutAuthority", "WithoutCorrection",
+		"WithoutExtension", "WithoutReasoning",
+	}
+	if !slices.Equal(modifiers, want) {
+		t.Errorf("Claim modifiers = %v, want exactly %v", modifiers, want)
+	}
+
+	// Every one of the ten returns (Claim, error): the uniform fallible shape
+	// is what lets a future PEOS-007 invariant be added without a breaking
+	// signature change.
+	for _, name := range want {
+		method, ok := typ.MethodByName(name)
+		if !ok {
+			t.Fatalf("%s missing", name)
+		}
+		mt := method.Type
+		if mt.NumOut() != 2 {
+			t.Errorf("%s returns %d values, want 2", name, mt.NumOut())
+			continue
+		}
+		if mt.Out(0) != typ {
+			t.Errorf("%s first result = %v, want Claim", name, mt.Out(0))
+		}
+		if mt.Out(1) != reflect.TypeOf((*error)(nil)).Elem() {
+			t.Errorf("%s second result = %v, want error", name, mt.Out(1))
+		}
+	}
+}
+
+// assertNoMethods checks both the value and pointer method sets of typ for any
+// of the forbidden names. A forbidden method declared with a pointer receiver
+// would be just as much of a violation as one on the value.
+func assertNoMethods(t *testing.T, typeName string, typ reflect.Type, forbidden []string) {
+	t.Helper()
+	for _, candidate := range []reflect.Type{typ, reflect.PointerTo(typ)} {
+		for _, name := range forbidden {
+			if _, ok := candidate.MethodByName(name); ok {
+				t.Errorf("%s exposes forbidden method %s", typeName, name)
+			}
+		}
+	}
+}
+
+// TestPacketI2TypesNowDeclared is the positive counterpart: both wrappers, and
+// both of their constructors, must exist after Packet I.2. It also re-asserts
+// that the permitted Claim type name is exactly "Claim" -- "QualityClaim"
+// remains in forbiddenTypeNames above, because a QualityClaim type would read
+// as a second Claim base model.
+func TestPacketI2TypesNowDeclared(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
 	}
+	declared := make(map[string]bool)
 	fset := token.NewFileSet()
 	for _, entry := range entries {
 		name := entry.Name()
@@ -377,10 +532,15 @@ func TestPacketI2TypesNotYetDeclared(t *testing.T) {
 			t.Fatalf("parse %s: %v", name, err)
 		}
 		for declName := range file.Scope.Objects {
-			switch declName {
-			case "MeasurementRecord", "Claim", "NewMeasurementRecord", "NewClaim":
-				t.Errorf("%s declares %q; Packet I.1 implements the Quality Profile side only, and Measurement Record and Quality Claim belong to Packet I.2", name, declName)
-			}
+			declared[declName] = true
+		}
+	}
+	for _, name := range []string{
+		"MeasurementRecord", "NewMeasurementRecord",
+		"Claim", "NewClaim", "NewClaimFromValidationClaim",
+	} {
+		if !declared[name] {
+			t.Errorf("%q is not declared; Packet I.2 must implement it", name)
 		}
 	}
 }

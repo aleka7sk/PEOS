@@ -26,8 +26,8 @@
 //	      NormalizationRule  Revision-owned value
 //	      AggregationRule    Revision-owned value
 //
-//	MeasurementRecord        specializes validation.ExecutionRecord   (Packet I.2)
-//	Claim                    specializes validation.Claim             (Packet I.2)
+//	MeasurementRecord        specializes validation.ExecutionRecord
+//	Claim                    specializes validation.Claim
 //
 // Profile is the only type here with a PEOS identity, and that identity is an
 // ordinary core.ArtifactID -- there is no Quality Profile identity space, no
@@ -103,6 +103,100 @@
 // references, and none is enforced, exactly as validation.NewPlanContent
 // declines to reject Planned Activity dependency cycles. This package provides
 // no graph or cycle API.
+//
+// # Measurement Record
+//
+// MeasurementRecord is a PEOS-007 Measurement Record: it "specializes the
+// Validation Execution Record defined by PEOS-006", is "an immutable record",
+// "is not an Artifact", and "has no revisions and no lifecycle."
+//
+// It composes validation.ExecutionRecord by named field and adds exactly the
+// three fields PEOS-007 mandates and PEOS-006 has no field for -- the observed
+// value, the unit, and the scale -- plus an optional quality-specific
+// extension. It duplicates nothing the composed record already owns:
+//
+//   - identity is inherited. A Measurement Record's ID is the composed
+//     record's own core.ValidationExecutionRecordID; this type declares no ID
+//     field and mints no identity;
+//   - subject, activity reference, method, execution outcome, timestamps,
+//     actor, provenance, criteria, and Evidence are all the composed record's;
+//   - correction is the composed record's. "Correction of a Measurement Record
+//     creates a new Measurement Record, in accordance with PEOS-006's
+//     Validation Execution Record correction rules" -- there is no PEOS-007
+//     correction mechanism, and correction is never Artifact Supersession.
+//
+// PEOS-007 adds one invariant of its own: the composed record must cite at
+// least one quality_characteristic criterion and at least one quality_measure
+// criterion, in any order, because a Measurement Record SHALL identify "the
+// exact Quality Characteristic and Quality Measure references applied".
+// Additional criteria of any other kind -- Threshold, Target, Constraint,
+// Requirement, Product or external rule -- are permitted; the specification
+// states no exclusivity and no maximum. Criteria are not deduplicated, because
+// PEOS-007 states no uniqueness rule for them.
+//
+// A Measurement Record is immutable raw history, never current state. It stores
+// no score, no normalized value, no aggregate, and no "current" or "latest"
+// marker. PEOS-007 permits a quality score to appear "as a value recorded on a
+// Measurement Record" -- ObservedValue is that -- while forbidding one stored
+// "as globally current mutable state". Normalization is not applied here
+// either: a Normalization Rule is a description this package never executes.
+//
+// The observed value is an opaque string, for the same reason a Threshold's
+// boundary value is: PEOS-007 defines no value type, and a float would exclude
+// ordinal and categorical measures while a typed quantity would require the
+// units framework the specification declines to define.
+//
+// # Quality Claim
+//
+// Claim is a PEOS-007 Quality Claim: "a specialization of Validation Claim, as
+// defined by PEOS-006", which "exists exclusively as an instance of the
+// PEOS-006 Validation Claim mechanism". The type name is Claim, not
+// QualityClaim -- within this package the qualifier is already carried by the
+// package name, and a QualityClaim type would read as the second Claim base
+// model the non-conforming pattern "Parallel Quality Claim Base" forbids.
+//
+// It composes validation.Claim by named field and adds no stored field at all.
+// Its Claim Type is fixed to core.ClaimTypeQuality: NewClaim supplies it, there
+// is no claimType parameter and no WithClaimType, and every construction,
+// adoption, modification, and decode re-verifies it. Identity, immutability,
+// the absence of revisions and lifecycle, the exactly-one-Subject rule, the
+// separation of criteria from subject, Evidence citation rules, the
+// correction and replacement model, historical preservation, and
+// derived-current-effect semantics are all inherited without redefinition,
+// exactly as PEOS-007 enumerates them. Its wire form is byte-for-byte
+// validation.Claim's -- no envelope, no added key, no discriminator -- so a
+// quality Claim's document is readable by any PEOS-006 consumer.
+//
+// PEOS-007 adds one invariant: where the subject is a Requirement or a
+// Requirement Artifact Revision, no criterion may name that same Requirement.
+// "The criterion SHALL be a Quality Characteristic, Measure, Threshold, Profile
+// rule, or other rule distinct from the Requirement subject itself; the
+// Requirement SHALL NOT be its own criterion." The comparison is by Requirement
+// core.ArtifactID and is cross-level, because "the same Requirement" is
+// identity-level language. PEOS-007 adds no minimum criteria count, so zero
+// criteria are accepted.
+//
+// The wrapper exists rather than a bare constructor because peos/validation is
+// PEOS-006-correct in permitting that reflexive shape for every
+// non-Satisfaction Claim Type, so validation.Claim.WithCriteria enforces
+// PEOS-006's rules and not PEOS-007's. A construct-then-WithCriteria sequence
+// could otherwise produce a represented, PEOS-007-invalid quality Claim with no
+// error anywhere. Every path that can change a field the rule depends on --
+// construction, adoption of a raw Claim, all ten modifiers, and JSON decoding --
+// routes through one shared validator before any value is assigned.
+//
+// # Extract, modify, re-wrap
+//
+// MeasurementRecord.Record and Claim.ValidationClaim both return value copies.
+// Modifying such a copy cannot mutate the wrapper it came from, but the
+// modified raw value is no longer represented as a validated PEOS-007 value --
+// nothing about a bare validation.ExecutionRecord asserts that it still cites a
+// Characteristic and a Measure, and nothing about a bare validation.Claim
+// asserts PEOS-007's Requirement rule. Re-entry requires
+// NewMeasurementRecord or NewClaimFromValidationClaim, each of which re-applies
+// every check. This is why neither wrapper exposes a delegating modifier for
+// the composed value's criteria, subject, method, or outcome: such a modifier
+// could produce a represented value that violates PEOS-007.
 //
 // # Citing an owned value as a Quality Claim criterion
 //
@@ -201,10 +295,12 @@
 // # Package dependency boundary
 //
 // Production sources may import only the standard library, peos/core, and
-// peos/validation. peos/validation is needed by Packet I.2, where
+// peos/validation. peos/validation is required, not merely permitted:
 // MeasurementRecord composes validation.ExecutionRecord and Claim composes
-// validation.Claim; Packet I.1's own sources do not import it, and an unused
-// dependency is not added merely to match the eventual graph.
+// validation.Claim, both by named field, because PEOS-007 specializes PEOS-006's
+// mechanisms rather than redefining them. The direction matches the
+// specification exactly -- PEOS-007 depends on PEOS-006, never the reverse --
+// and peos/validation needs no change for PEOS-007 to specialize it.
 //
 // peos/relation, peos/lifecycle, peos/requirement, and peos/decision are all
 // excluded, each for a reason stated above. Nothing imports peos/quality: it
@@ -232,21 +328,22 @@
 //
 // # Packet scope
 //
-// Packet I.1 implements the Quality Profile side: the Artifact Type, Profile,
+// Packet I.1 implemented the Quality Profile side: the Artifact Type, Profile,
 // ProfileRevision, ProfileApplicability, ProfileContent, the seven owned value
 // structures, and the three quality-local vocabulary wrappers, plus the three
 // additive core.CriterionRef arms.
 //
-// Packet I.2 will add MeasurementRecord -- composing validation.ExecutionRecord
-// and adding the observed value, unit, and scale PEOS-007 mandates and PEOS-006
-// has no field for -- and Claim, a thin wrapper over validation.Claim that fixes
-// the Claim Type to core.ClaimTypeQuality and enforces PEOS-007's rule that a
-// Requirement-subject Quality Claim may not cite that same Requirement as its
-// own criterion. Their two sentinels, ErrInvalidMeasurementRecord and
-// ErrInvalidQualityClaim, are already declared in errors.go so that I.2 need
-// not reopen it.
+// Packet I.2 added the two specializations of PEOS-006 mechanisms:
+// MeasurementRecord and Claim, with their sentinels
+// ErrInvalidMeasurementRecord and ErrInvalidQualityClaim, both of which I.1 had
+// already declared as reserved so that I.2 needed no change to errors.go.
 //
-// Neither is implemented yet. peos/validation is PEOS-006-correct in accepting
-// a reflexive Requirement on a non-Satisfaction Claim, and Packet I.2 must not
-// change it: the stricter PEOS-007 rule belongs here.
+// No PEOS-007 packet has modified peos/validation, and none needs to.
+// peos/validation deliberately accepts a reflexive Requirement on a
+// non-Satisfaction Claim -- PEOS-006 carves that case out explicitly -- and its
+// own test asserting so is correct and untouched. The stricter PEOS-007 rule
+// lives here, which is the whole point of the wrapper.
+//
+// PEOS-007 is not yet closed: Packet I.3 is the consolidated audit and Packet
+// I.4 the closure. Nothing in this package has an accepted audit verdict.
 package quality
