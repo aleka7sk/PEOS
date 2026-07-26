@@ -232,6 +232,77 @@ var (
 	ClaimOutcomeInconclusive = ClaimOutcome{value: VocabularyValue{namespace: PEOSNamespace, value: "inconclusive"}}
 )
 
+// ExecutionOutcome is a namespaced Validation Execution Record outcome
+// vocabulary value (PEOS-006 "Execution Outcome and Event History"). The
+// minimum set (completed / failed / interrupted / indeterminate) is fixed
+// by PEOS-006, which describes the vocabulary as extensible, so a Product
+// MAY declare further values.
+//
+// An ExecutionOutcome describes whether, and how, one attempted execution
+// of a Validation Activity concluded. It is deliberately distinct from
+// ClaimOutcome above, which describes what was determined about an
+// evaluated Subject: a completed execution may still carry a not-satisfied
+// Claim, and the two vocabularies never share values. It is also, per
+// PEOS-006, none of the following: a Lifecycle State, a State Assignment
+// (outcomes "are not Lifecycle States, and they SHALL NOT be represented
+// as Lifecycle States or through a State Assignment"), or a governance
+// outcome (certification and acceptance are PEOS-004 Decision Outcomes).
+//
+// PEOS-006 also requires that "An indeterminate or interrupted outcome
+// SHALL NOT be silently treated as completed." That is an obligation on
+// the consumer interpreting a recorded outcome, not a structural property
+// this type can enforce; it is documented for the layer that owns it.
+//
+// Unlike its four sibling vocabulary wrappers in this file,
+// NewExecutionOutcome rejects a zero VocabularyValue rather than wrapping
+// it silently. MarshalJSON and UnmarshalJSON still delegate to the inner
+// value exactly as the siblings do, so a zero ExecutionOutcome marshals to
+// the inner zero VocabularyValue's own form and does not round-trip -- the
+// same behavior ClaimOutcome, ClaimType, ValidationMethod, and
+// CorrectionKind already have.
+type ExecutionOutcome struct{ value VocabularyValue }
+
+// NewExecutionOutcome validates value and returns an ExecutionOutcome.
+// value must be a non-zero VocabularyValue; the vocabulary itself remains
+// open, so any namespaced value is accepted, including one this package
+// does not predeclare.
+func NewExecutionOutcome(value VocabularyValue) (ExecutionOutcome, error) {
+	if value.IsZero() {
+		return ExecutionOutcome{}, fmt.Errorf("core: NewExecutionOutcome: %w", ErrInvalidVocabularyValue)
+	}
+	return ExecutionOutcome{value: value}, nil
+}
+
+func (o ExecutionOutcome) Value() VocabularyValue { return o.value }
+func (o ExecutionOutcome) IsZero() bool           { return o.value.IsZero() }
+func (o ExecutionOutcome) String() string         { return o.value.String() }
+
+// Equal reports whether o and other name the same outcome value.
+func (o ExecutionOutcome) Equal(other ExecutionOutcome) bool { return o.value.Equal(other.value) }
+
+func (o ExecutionOutcome) MarshalJSON() ([]byte, error) {
+	return json.Marshal(o.value)
+}
+func (o *ExecutionOutcome) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &o.value)
+}
+
+var (
+	// ExecutionOutcomeCompleted marks an execution that ran to completion.
+	ExecutionOutcomeCompleted = ExecutionOutcome{value: VocabularyValue{namespace: PEOSNamespace, value: "completed"}}
+
+	// ExecutionOutcomeFailed marks an execution that failed.
+	ExecutionOutcomeFailed = ExecutionOutcome{value: VocabularyValue{namespace: PEOSNamespace, value: "failed"}}
+
+	// ExecutionOutcomeInterrupted marks an execution that was interrupted
+	// before concluding.
+	ExecutionOutcomeInterrupted = ExecutionOutcome{value: VocabularyValue{namespace: PEOSNamespace, value: "interrupted"}}
+
+	// ExecutionOutcomeIndeterminate marks an execution whose result could
+	// not be determined.
+	ExecutionOutcomeIndeterminate = ExecutionOutcome{value: VocabularyValue{namespace: PEOSNamespace, value: "indeterminate"}}
+)
+
 // CorrectionKind distinguishes correct / replace / invalidate (see
 // correction.go). PEOS-006's Claim Correction section and the PEOS
 // Reference Meta-Model Blueprint (SS10) name exactly these three kinds;

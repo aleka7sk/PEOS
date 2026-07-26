@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 )
 
@@ -297,4 +298,213 @@ func mustVocabularyValue(t *testing.T, namespace, value string) VocabularyValue 
 		t.Fatal(err)
 	}
 	return v
+}
+
+// --- ExecutionOutcome (PEOS-006) ---------------------------------------------
+
+func TestNewExecutionOutcomeValid(t *testing.T) {
+	v := mustVocabularyValue(t, "product-x", "partially-completed")
+	o, err := NewExecutionOutcome(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o.IsZero() {
+		t.Fatal("valid ExecutionOutcome reports IsZero")
+	}
+	if !o.Value().Equal(v) {
+		t.Errorf("Value() = %v, want %v", o.Value(), v)
+	}
+	if got := o.String(); got != "product-x:partially-completed" {
+		t.Errorf("String() = %q", got)
+	}
+}
+
+// TestNewExecutionOutcomeZeroRejected records the one deliberate divergence
+// from this file's four sibling vocabulary wrappers: unlike
+// NewClaimOutcome, NewClaimType, NewValidationMethod, and NewCorrectionKind,
+// NewExecutionOutcome validates its input and rejects a zero
+// VocabularyValue.
+func TestNewExecutionOutcomeZeroRejected(t *testing.T) {
+	_, err := NewExecutionOutcome(VocabularyValue{})
+	if !errors.Is(err, ErrInvalidVocabularyValue) {
+		t.Errorf("error = %v, want %v", err, ErrInvalidVocabularyValue)
+	}
+}
+
+func TestExecutionOutcomeZeroValue(t *testing.T) {
+	var o ExecutionOutcome
+	if !o.IsZero() {
+		t.Error("zero ExecutionOutcome does not report IsZero")
+	}
+	if got := o.String(); got != ":" {
+		t.Errorf("zero String() = %q, want %q (the inner zero VocabularyValue's form)", got, ":")
+	}
+}
+
+func TestExecutionOutcomePredeclaredConstants(t *testing.T) {
+	cases := map[string]ExecutionOutcome{
+		"peos:completed":     ExecutionOutcomeCompleted,
+		"peos:failed":        ExecutionOutcomeFailed,
+		"peos:interrupted":   ExecutionOutcomeInterrupted,
+		"peos:indeterminate": ExecutionOutcomeIndeterminate,
+	}
+	for want, outcome := range cases {
+		if got := outcome.String(); got != want {
+			t.Errorf("String() = %q, want %q", got, want)
+		}
+		if outcome.IsZero() {
+			t.Errorf("%s reports IsZero", want)
+		}
+		if outcome.Value().Namespace() != PEOSNamespace {
+			t.Errorf("%s namespace = %q, want %q", want, outcome.Value().Namespace(), PEOSNamespace)
+		}
+	}
+	if len(cases) != 4 {
+		t.Fatalf("expected exactly the 4 PEOS-006 minimum outcomes, have %d", len(cases))
+	}
+}
+
+// TestExecutionOutcomeDoesNotPredeclareGovernanceOrClaimValues guards
+// against a future contributor adding values PEOS-006 does not mandate for
+// this vocabulary. success/passed are not PEOS-006 execution outcomes;
+// satisfied belongs to ClaimOutcome; accepted/certified are PEOS-004
+// governance outcomes.
+func TestExecutionOutcomeDoesNotPredeclareGovernanceOrClaimValues(t *testing.T) {
+	declared := []ExecutionOutcome{
+		ExecutionOutcomeCompleted,
+		ExecutionOutcomeFailed,
+		ExecutionOutcomeInterrupted,
+		ExecutionOutcomeIndeterminate,
+	}
+	forbidden := []string{"success", "succeeded", "passed", "accepted", "certified", "satisfied", "not-satisfied", "inconclusive"}
+	for _, o := range declared {
+		for _, bad := range forbidden {
+			if o.Value().Value() == bad {
+				t.Errorf("ExecutionOutcome predeclares %q, which PEOS-006 does not mandate for this vocabulary", bad)
+			}
+		}
+	}
+}
+
+func TestExecutionOutcomeEqual(t *testing.T) {
+	if !ExecutionOutcomeCompleted.Equal(ExecutionOutcomeCompleted) {
+		t.Error("Equal is not reflexive")
+	}
+	if ExecutionOutcomeCompleted.Equal(ExecutionOutcomeFailed) {
+		t.Error("distinct outcomes report Equal")
+	}
+	rebuilt, err := NewExecutionOutcome(mustVocabularyValue(t, PEOSNamespace, "completed"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rebuilt.Equal(ExecutionOutcomeCompleted) {
+		t.Error("an independently constructed equal value does not report Equal")
+	}
+	var zero ExecutionOutcome
+	if zero.Equal(ExecutionOutcomeCompleted) {
+		t.Error("zero reports Equal to a non-zero outcome")
+	}
+}
+
+// TestExecutionOutcomeDistinctFromClaimOutcome proves the two PEOS-006
+// vocabularies are separate Go types over disjoint value sets, so a
+// completed execution can carry a not-satisfied Claim and neither value can
+// be passed where the other is expected.
+func TestExecutionOutcomeDistinctFromClaimOutcome(t *testing.T) {
+	execution := []ExecutionOutcome{
+		ExecutionOutcomeCompleted, ExecutionOutcomeFailed,
+		ExecutionOutcomeInterrupted, ExecutionOutcomeIndeterminate,
+	}
+	claim := []ClaimOutcome{
+		ClaimOutcomeSatisfied, ClaimOutcomeNotSatisfied, ClaimOutcomeInconclusive,
+	}
+	for _, e := range execution {
+		for _, c := range claim {
+			if e.String() == c.String() {
+				t.Errorf("ExecutionOutcome and ClaimOutcome share the value %q", e.String())
+			}
+		}
+	}
+	if reflect.TypeOf(ExecutionOutcomeCompleted) == reflect.TypeOf(ClaimOutcomeSatisfied) {
+		t.Error("ExecutionOutcome and ClaimOutcome are the same Go type")
+	}
+}
+
+func TestExecutionOutcomeJSONRoundTrip(t *testing.T) {
+	for _, original := range []ExecutionOutcome{
+		ExecutionOutcomeCompleted, ExecutionOutcomeFailed,
+		ExecutionOutcomeInterrupted, ExecutionOutcomeIndeterminate,
+	} {
+		data, err := json.Marshal(original)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(data) != `"`+original.String()+`"` {
+			t.Errorf("wire form = %s, want %q", data, original.String())
+		}
+		var decoded ExecutionOutcome
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if !decoded.Equal(original) {
+			t.Errorf("round trip mismatch: got %v, want %v", decoded, original)
+		}
+	}
+}
+
+func TestExecutionOutcomeJSONProductValuePreserved(t *testing.T) {
+	original, err := NewExecutionOutcome(mustVocabularyValue(t, "acme", "aborted-by-operator"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded ExecutionOutcome
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !decoded.Equal(original) {
+		t.Error("Product-declared execution outcome not preserved through JSON")
+	}
+}
+
+func TestExecutionOutcomeJSONInvalidRejected(t *testing.T) {
+	for _, payload := range []string{`"no-colon"`, `""`, `123`, `{}`, `":"`} {
+		var o ExecutionOutcome
+		if err := json.Unmarshal([]byte(payload), &o); err == nil {
+			t.Errorf("payload %s accepted, want error", payload)
+		}
+	}
+}
+
+// TestExecutionOutcomeZeroMarshalDoesNotRoundTrip documents the actual
+// behavior of marshaling a zero value: MarshalJSON delegates to the inner
+// VocabularyValue exactly as the four sibling wrappers do, so it emits ":"
+// rather than failing, and that output then fails to decode. A zero outcome
+// cannot reach the wire through an ExecutionRecord, which rejects one.
+func TestExecutionOutcomeZeroMarshalDoesNotRoundTrip(t *testing.T) {
+	var zero ExecutionOutcome
+	data, err := json.Marshal(zero)
+	if err != nil {
+		t.Fatalf("zero marshal failed; the sibling wrappers do not fail here: %v", err)
+	}
+	if string(data) != `":"` {
+		t.Errorf("zero wire form = %s, want %q", data, ":")
+	}
+	var decoded ExecutionOutcome
+	if err := json.Unmarshal(data, &decoded); err == nil {
+		t.Error("zero wire form round-tripped, but ':' is not a valid vocabulary value")
+	}
+}
+
+func TestExecutionOutcomeFailedUnmarshalPreservesReceiver(t *testing.T) {
+	receiver := ExecutionOutcomeCompleted
+	if err := json.Unmarshal([]byte(`"no-colon"`), &receiver); err == nil {
+		t.Fatal("expected failure")
+	}
+	if !receiver.Equal(ExecutionOutcomeCompleted) {
+		t.Errorf("failed Unmarshal disturbed the receiver: got %v", receiver)
+	}
 }

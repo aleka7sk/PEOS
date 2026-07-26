@@ -9,22 +9,29 @@
 //
 // # Scope of this package today
 //
-// [DEFERRED] This package currently implements the Validation Plan side of
-// PEOS-006 only, delivered as Packet H.1: Plan, PlanRevision, PlanContent,
-// PlanApplicability, and PlannedActivity.
-//
-// It does NOT yet implement Validation Execution Record, Validation Claim
-// (including Satisfaction Claim and Conformance Claim), Execution Outcome,
-// ActivityReference, or Claim/Execution correction records. Those are
-// Packet H.2, whose architecture is already accepted; errors.go declares
-// their sentinels in advance and marks each one reserved. Nothing in this
-// package should be read as implementing, or as a substitute for, a
-// recorded Validation Claim.
+// This package implements the PEOS-006 constructs the specification defines:
+// Plan, PlanRevision, PlanContent, PlanApplicability, and PlannedActivity
+// (Packet H.1), plus ActivityReference, ExecutionEvent, ExecutionRecord, and
+// Claim (Packet H.2). core.ExecutionOutcome, added by H.2, lives in peos/core
+// alongside its four sibling PEOS-006 vocabularies.
 //
 // [NORMATIVE] PEOS-006 keeps four concepts strictly distinct: "A Validation
 // Plan, a Planned Validation Activity, an Execution Record, and a
 // Validation Claim are four distinct concepts. None is a substitute for
-// another." H.1 implements the first two.
+// another." All four are present here as separate types, and no one of them
+// can stand in for another.
+//
+// [DEFERRED] Not implemented here, by design: PEOS-007's Quality Claim
+// specialization and Measurement Record, PEOS-008's Compliance Claim and all
+// runtime interpretation, and PEOS-009's Template Conformance Claim. Each of
+// those specializes mechanisms this package owns rather than adding its own
+// -- PEOS-006 states that "PEOS-007 does not define an independent Activity,
+// Evidence, or Claim mechanism of its own" -- so the Claim Type values exist
+// in peos/core already, while any additional rules those specifications
+// impose belong to their own packets and are deliberately not inferred here.
+// Also deferred: the criterion-level Waiver question and Waiver attached
+// conditions, both of which are PEOS-005 concerns (see "Waiver never rewrites
+// a record" below).
 //
 // # Validation Plan is an Artifact; it has no Version system
 //
@@ -225,9 +232,9 @@
 // [IMPLEMENTATION] For those four optional collections, an absent JSON key,
 // an explicit null, and an empty array are treated as equivalent, because
 // all three denote the same valid state. This is deliberately not how a
-// Validation Claim's criteria will behave in Packet H.2, where a Claim Type
-// may forbid the empty case and the three inputs therefore carry different
-// meanings and must be told apart. Optional single-value keys here
+// Validation Claim's criteria behave, because a Claim Type may forbid the
+// empty case and the three inputs therefore carry different meanings and are
+// told apart -- see claim.go. Optional single-value keys here
 // (responsible_role, required_authority, method_definition,
 // acceptance_rules) do reject an explicit null, following
 // lifecycle.StateAssignment's treatment of its optional Authority; the one
@@ -274,13 +281,250 @@
 // repository- or Product-owned. This package provides no graph traversal
 // and no cycle-detection API.
 //
+// # Execution Record and Claim are immutable records with their own identity
+//
+// [NORMATIVE] "A Validation Execution Record is an immutable record... is
+// independently identifiable... is not an Artifact. It is not revisioned. It
+// is not lifecycle-bearing." The same four properties hold for a Validation
+// Claim, which additionally "is never represented as an Artifact, an Artifact
+// Revision, a Requirement, or a State Assignment" and "preserves its
+// historical assertion permanently."
+//
+// ExecutionRecord and Claim therefore carry core.ValidationExecutionRecordID
+// and core.ValidationClaimID as their own identities, compose no
+// core.Artifact and no core.ArtifactRevision, expose no Core accessor, and
+// carry no revision, lifecycle, or status field. Immutability is structural
+// rather than conventional: every field is unexported, every modifier returns
+// a copy, and no modifier touches a mandatory field.
+//
+// [NORMATIVE] A Claim "has exactly one engineering subject and zero or more
+// criteria", and "SHALL NOT identify more than one Subject." The subject field
+// is a single value, not a slice, so the non-conforming "Composite Claim
+// Subject" pattern is unrepresentable. Where an evaluation concerns several
+// entities jointly, PEOS-006 requires multiple Claims, each with one Subject.
+//
+// [NORMATIVE] Criteria are never additional subjects (Claim Criterion
+// Separation Invariant). This is enforced by the type system: core.CriterionRef
+// and core.EngineeringSubjectRef are distinct types with no conversion path in
+// either direction, so a criterion cannot be placed in a subject field.
+//
+// [NORMATIVE] A Claim "cites one or more Evidence Artifact Revisions", so
+// evidence is mandatory with at least one citation -- a deliberate contrast
+// with "zero or more Criteria" in the same normative block. Every citation is
+// a core.EvidenceArtifactRevisionRef, which exists only at exact Revision
+// level, so the "Evidence Without Exact Revision" pattern is unrepresentable.
+//
+// # Execution outcome and Claim outcome are different things
+//
+// [NORMATIVE] An ExecutionRecord's core.ExecutionOutcome (completed / failed /
+// interrupted / indeterminate) says whether the activity ran. A Claim's
+// core.ClaimOutcome (satisfied / not satisfied / inconclusive) says what was
+// determined about the Subject. They are separate vocabularies over disjoint
+// value sets and separate Go types; a completed execution may back a
+// not-satisfied Claim, and PEOS-006 requires neither record to imply the
+// other's existence at all.
+//
+// [NORMATIVE] Neither outcome is a Lifecycle State: execution outcomes "are
+// not Lifecycle States, and they SHALL NOT be represented as Lifecycle States
+// or through a State Assignment" (non-conforming pattern "Execution Outcome as
+// Lifecycle State").
+//
+// [NORMATIVE] There is no separate Verdict entity, and no verdict field:
+// "The outcome recorded on a Validation Claim is the complete and only
+// representation of what was determined; it is not restated or re-derived
+// through a second construct."
+//
+// [NORMATIVE] There is no basis field. "Claim Basis is not an independent
+// opaque field distinct from the fields it groups. This specification does not
+// require an additional required field named 'basis' beyond the individually
+// identified method, criteria, Evidence, Execution Records, and reasoning."
+// All five are present individually; "Claim Basis" remains a collective name.
+//
+// [NORMATIVE] No Observation, Result, Finding, or Violation entity is
+// introduced. "An Observation or a Result is not a separate identity-bearing
+// category distinct from Evidence. A recorded observation or measurement
+// either is represented as an Evidence Artifact, or it is represented as
+// content within an immutable Validation Execution Record. No third category
+// is introduced." Finding and Violation appear nowhere in PEOS-006; Violation
+// belongs to PEOS-008.
+//
+// # Satisfaction and Conformance are Claim Type values, not types
+//
+// [NORMATIVE] PEOS-006 defines a Satisfaction Claim as "a Validation Claim
+// whose criteria identify one or more Requirements" and a Conformance Claim as
+// "a Validation Claim whose criteria identify one or more" conformance rules.
+// Both are the same record under a constraint, so one Go type (Claim) covers
+// every specialization, discriminated by core.ClaimType. peos/core declares a
+// single identity space for all of them.
+//
+// [IMPLEMENTATION] The Claim-Type-conditional criteria rules live in one
+// internal validation path shared by NewClaim, WithCriteria, and (through
+// NewClaim) UnmarshalJSON. A second copy could drift, and the rules couple two
+// fields, so they are re-checked whenever either changes. This is also why
+// criteria is a NewClaim argument rather than a later With* call: a
+// Satisfaction Claim needs a Requirement criterion to be valid at all, so a
+// Claim completed afterward would necessarily pass through an invalid state.
+//
+// The enforced rules, per Claim Type:
+//
+//   - satisfaction: at least one criterion identifying a Requirement or a
+//     Requirement Artifact Revision, and -- if the Subject itself identifies a
+//     Requirement or Requirement Artifact Revision -- a Requirement identity
+//     differing from that of every Requirement-kind criterion. "A Requirement
+//     SHALL NOT become both the Claim subject and the same Claim's criterion."
+//   - conformance: at least one criterion, of any kind.
+//   - quality, compliance, template-conformance, and any Product-defined Claim
+//     Type: no additional rule; zero criteria are accepted.
+//
+// [IMPLEMENTATION] The Satisfaction identity comparison is at
+// core.ArtifactID and is cross-level, because "the same Requirement" is
+// identity-level language: an identity-level subject conflicts with a
+// revision-level criterion of that Requirement, a revision-level subject
+// conflicts with an identity-level criterion of it, and two different
+// Revisions of one Requirement still conflict.
+//
+// [NORMATIVE] PEOS-006 carves out the converse explicitly: "This does not
+// prohibit every Claim whose subject is a Requirement. A general Validation
+// Claim MAY evaluate a Requirement as an engineering subject for other
+// purposes, such as statement quality, completeness, consistency, or
+// conformance to a Requirement-writing profile." A non-Satisfaction Claim may
+// therefore name the same Requirement as both subject and criterion.
+//
+// [IMPLEMENTATION] There is no WithoutCriteria. WithCriteria(nil) already
+// expresses removal, and a separate method would either duplicate the
+// Claim-Type validation or bypass it. Removal is invalid for Satisfaction and
+// Conformance, so a Without* method would be one that sometimes fails --
+// which is why this package omits it, exactly as peos/requirement omits
+// WithoutScope wherever scope can never legitimately be absent.
+//
+// # Correction is a new record, never a mutation or a Supersession
+//
+// [NORMATIVE] "Correction of a Validation Execution Record creates a new
+// Validation Execution Record. A Validation Execution Record SHALL NOT be
+// mutated once recorded." Likewise, "Correction, replacement, and invalidation
+// of a Validation Claim are each represented by recording a new Validation
+// Claim," and "A Validation Claim SHALL NOT be mutated once recorded."
+//
+// Both record families carry an optional core.RecordCorrectionRef whose
+// target is the exact earlier record's typed reference. The reference lives on
+// the *new* record and points backward, so no already-written record is ever
+// rewritten to note that it was corrected -- "The earlier record remains
+// historically preserved; it is not erased or overwritten."
+//
+// [NORMATIVE] This is not Artifact Supersession and not an Artifact Relation.
+// PEOS-006 states the correction reference "is not an Artifact Relation", "is
+// not Artifact Supersession as defined by PEOS-002", and "has no separate
+// entity identity of its own", and forbids the vocabulary outright: the terms
+// supersede / supersedes / superseded / Supersession "SHALL NOT be used to
+// describe Claim replacement". core.CorrectionKind offers exactly correct,
+// replace, and invalidate for that reason, and this package uses no other
+// word (non-conforming pattern "Claim Replacement Called Artifact
+// Supersession").
+//
+// [PRODUCT] Whether a correction target exists, whether the chronology is
+// coherent, whether a correction chain is consistent, how conflicting records
+// are resolved, and which record is currently applicable are all repository or
+// Product concerns. This value layer holds one record and cannot see another.
+// PEOS-006 is explicit that the currently applicable Claim "is derived by
+// identifying the most recent Claim that has not been replaced or invalidated
+// by a later Claim. This determination is a derived view; it is never stored
+// as a field."
+//
+// # ExecutionEvent is content, not an Observation entity
+//
+// [IMPLEMENTATION] PEOS-006 says only that event history, "when required by
+// the applicable Product contract, is an ordered sequence of observations
+// recorded within the same immutable Execution Record". It enumerates no
+// fields, so ExecutionEvent's shape -- a mandatory timestamp, a mandatory
+// trimmed note, and an optional extension -- is an implementation choice, not
+// a normative field set. Event order is the slice order, preserved verbatim,
+// with no sequence number that could disagree with it.
+//
+// [NORMATIVE] An ExecutionEvent is the "content within an immutable
+// Validation Execution Record" branch of PEOS-006's two permitted ways to
+// record an observation. It is therefore not an entity: no identity, no
+// reference type, no revision, no lifecycle -- and no severity, criterion,
+// outcome, or actor, none of which PEOS-006 defines for event history.
+//
+// [PRODUCT] "An indeterminate or interrupted outcome SHALL NOT be silently
+// treated as completed." That is an obligation on whoever interprets a
+// recorded outcome, not a structural property this layer can enforce.
+//
+// # ActivityReference is a locator, not an entity
+//
+// [NORMATIVE] Every Execution Record identifies "its exact Planned Activity
+// reference (Plan Revision and plan-local key), or an explicit ad hoc
+// designation". ActivityReference is the closed two-arm union expressing that
+// choice, with an invalid zero value so "unset" differs from either arm.
+//
+// [IMPLEMENTATION] It carries no identity, and there is deliberately no
+// ActivityReferenceID or Ref type: a plan-local key "does not survive as an
+// independent identity outside that exact Plan Revision", so only the pair
+// (Plan Revision reference, key) resolves anything, and the ad hoc arm names
+// an execution that was never planned.
+//
+// # Optional collection null behavior differs between the record families
+//
+// [IMPLEMENTATION] For PlannedActivity's and ExecutionRecord's optional
+// collections, an absent JSON key, an explicit null, and an empty array are
+// equivalent -- all mean "none declared" -- because PEOS-006 permits zero
+// cardinality for each, so distinguishing them would carry no meaning.
+//
+// A Claim's criteria deliberately does not follow that rule. Absent means
+// "zero criteria declared", which is valid for a general Claim Type and
+// invalid for Satisfaction and Conformance; an explicit null is rejected
+// outright, because a caller writing null has said something different from
+// writing nothing. A json.RawMessage probe keeps the two distinguishable.
+//
+// A Claim's evidence keeps a plain typed field: absent, null, and empty array
+// all yield an empty slice and all must fail the same one-or-more invariant,
+// so the cases converge and need not be told apart.
+//
+// Optional single-value keys reject an explicit null throughout, following
+// lifecycle.StateAssignment's treatment of its optional Authority; the one
+// exception is extension, where core.Extension's documented contract makes
+// null equivalent to absent. Each UnmarshalJSON doc comment states its actual
+// missing-versus-null behavior field by field rather than asserting the two
+// are identical.
+//
+// # A Claim records an assertion; it does not authorize anything
+//
+// [NORMATIVE] "Certification, acceptance, approval, rejection, and
+// authorization are governance outcomes governed by PEOS-004, expressed
+// through a Decision Outcome." A Decision Outcome "MAY rely on one or more
+// Validation Claims as part of its Decision Basis", but "A Validation Claim
+// does not replace a Decision Outcome where authority or governance judgment
+// is required... it does not itself authorize, approve, or accept anything on
+// behalf of an organization."
+//
+// Neither Claim nor ExecutionRecord carries a Decision Outcome reference or a
+// governance action, so neither can express authorization; each carries only
+// an optional core.AuthorityRef recording who had the right to establish it
+// (non-conforming pattern "Validation Outcome Used as Governance Authority").
+//
+// [NORMATIVE] Waiver never rewrites a record. PEOS-006 defines no Waiver
+// interaction at all, and no type here references requirement.Waiver. A
+// Waiver's effect is on a *derived* conformance interpretation at runtime
+// (PEOS-008), never on a recorded Claim or Execution Record. [DEFERRED] The
+// criterion-level Waiver question and Waiver attached conditions are PEOS-005
+// concerns.
+//
+// [PRODUCT] Also Product- or repository-owned, and deliberately unchecked
+// here: verifying that a cited Evidence Artifact actually carries
+// core.ArtifactRoleEvidence (a Ref carries no roles); Evidence relevance and
+// temporal applicability; what a criterion means; aggregation of Claims into a
+// derived satisfaction or conformance view; whether an authority is
+// sufficient; and whether an Execution Record is compatible with the Plan
+// Revision and plan-local key it names.
+//
 // # No relationships, no lifecycle, no derived state
 //
 // [NORMATIVE] PEOS-006 defines no Artifact Relation. No type here composes
 // peos/relation.Relation, no wire form has a "relation" key, and
-// peos/relation is not imported. Claim correction, when Packet H.2 adds it,
-// is a record-to-record reference that "is not an Artifact Relation" and
-// "is not Artifact Supersession as defined by PEOS-002".
+// peos/relation is not imported. Claim and Execution Record correction is a
+// record-to-record reference that "is not an Artifact Relation" and "is not
+// Artifact Supersession as defined by PEOS-002" -- see "Correction is a new
+// record, never a mutation or a Supersession" above.
 //
 // [NORMATIVE] "A Validation Claim and a Validation Execution Record do not,
 // by themselves, assign a Lifecycle State or a State Assignment," and an
@@ -336,11 +580,19 @@
 // inexpressible. A test in this package parses its own source and fails if
 // the boundary is crossed.
 //
-// [IMPLEMENTATION] Packet A had already placed the PEOS-006 reference and
-// vocabulary layer in peos/core -- ValidationPlanRef,
+// [IMPLEMENTATION] Packet A had already placed almost the whole PEOS-006
+// reference and vocabulary layer in peos/core -- ValidationPlanRef,
 // ValidationPlanRevisionRef, EvidenceArtifactRevisionRef, ValidationClaimID
 // and Ref, ValidationExecutionRecordID and Ref, CriterionRef, LocalKey,
 // RecordRef, RecordCorrectionRef, CorrectionKind, ValidationMethod,
-// ClaimType, ClaimOutcome, and ArtifactRoleEvidence. This package adds only
-// the aggregates on top of them and required no change to peos/core.
+// ClaimType, ClaimOutcome, and ArtifactRoleEvidence. This package adds the
+// aggregates on top of them.
+//
+// Packet H.1 required no change to peos/core at all. Packet H.2 added exactly
+// one thing there: core.ExecutionOutcome, the fifth PEOS-006 vocabulary, which
+// Packet A had left out while declaring its four siblings. It belongs beside
+// them rather than here because PEOS-007 specializes the Execution Record as a
+// Measurement Record and would otherwise need to reach into this package for
+// the vocabulary. The addition is purely additive: no existing signature,
+// field, or wire form changed.
 package validation
