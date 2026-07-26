@@ -30,12 +30,36 @@ import (
 // types already defined in reference.go, rather than inventing a
 // standalone entity type for the element itself.
 
-// QualityElementCriterionRef references a Quality Characteristic or a
-// Quality Measure by naming its owning Quality Profile Revision and its
-// local key within that Revision. Quality Profile is an Artifact
-// (PEOS-007); this packet does not define a dedicated
-// QualityProfileRevisionRef type, so the owning Revision is referenced
-// with the general-purpose ArtifactRevisionRef.
+// QualityElementCriterionRef references a Quality Profile Revision-owned
+// element by naming its owning Quality Profile Revision and its local key
+// within that Revision. Quality Profile is an Artifact (PEOS-007); this
+// package does not define a dedicated QualityProfileRevisionRef type, so
+// the owning Revision is referenced with the general-purpose
+// ArtifactRevisionRef.
+//
+// The element it identifies may be any of the five Profile Revision-owned
+// kinds PEOS-007 permits as Quality Claim criteria:
+//
+//   - Quality Characteristic (CriterionKindQualityCharacteristic);
+//   - Quality Measure (CriterionKindQualityMeasure);
+//   - Threshold (CriterionKindQualityThreshold);
+//   - Target (CriterionKindQualityTarget);
+//   - Quality Constraint (CriterionKindQualityConstraint).
+//
+// All five share this exact payload shape because PEOS-007 scopes all five
+// the same way: each "has no independent identity outside its owning
+// Profile Revision", so (Profile Revision, local key) is the complete
+// reference in every case. The criterion kind, not the payload, is what
+// distinguishes them -- which is also why a Threshold reference can never
+// be silently read as a Characteristic reference: the discriminator is
+// checked before the payload is handed back.
+//
+// This type is deliberately not a union over the five element kinds. Its
+// local key is meaningful only within its owning Profile Revision, and
+// PEOS-007 states no uniqueness rule across element kinds, so the same key
+// may legitimately name a Characteristic and a Threshold in one Profile
+// Revision. The owning kind therefore has to come from the criterion
+// discriminator rather than from the key.
 type QualityElementCriterionRef struct {
 	profile ArtifactRevisionRef
 	element LocalKey
@@ -249,6 +273,9 @@ const (
 	CriterionKindArtifactRevision      = "artifact_revision"
 	CriterionKindQualityCharacteristic = "quality_characteristic"
 	CriterionKindQualityMeasure        = "quality_measure"
+	CriterionKindQualityThreshold      = "quality_threshold"
+	CriterionKindQualityTarget         = "quality_target"
+	CriterionKindQualityConstraint     = "quality_constraint"
 	CriterionKindRuntimeContractRule   = "runtime_contract_rule"
 	CriterionKindRuntimeAssertion      = "runtime_assertion"
 	CriterionKindTemplateConstraint    = "template_constraint"
@@ -263,6 +290,9 @@ var knownCriterionKinds = map[string]bool{
 	CriterionKindArtifactRevision:      true,
 	CriterionKindQualityCharacteristic: true,
 	CriterionKindQualityMeasure:        true,
+	CriterionKindQualityThreshold:      true,
+	CriterionKindQualityTarget:         true,
+	CriterionKindQualityConstraint:     true,
 	CriterionKindRuntimeContractRule:   true,
 	CriterionKindRuntimeAssertion:      true,
 	CriterionKindTemplateConstraint:    true,
@@ -298,6 +328,9 @@ type CriterionRef struct {
 	artifactRevision      ArtifactRevisionRef
 	qualityCharacteristic QualityElementCriterionRef
 	qualityMeasure        QualityElementCriterionRef
+	qualityThreshold      QualityElementCriterionRef
+	qualityTarget         QualityElementCriterionRef
+	qualityConstraint     QualityElementCriterionRef
 	runtimeContractRule   RuntimeRuleCriterionRef
 	runtimeAssertion      RuntimeRuleCriterionRef
 	templateConstraint    TemplateConstraintCriterionRef
@@ -395,6 +428,73 @@ func (c CriterionRef) AsQualityMeasure() (QualityElementCriterionRef, bool) {
 	return c.qualityMeasure, true
 }
 
+// CriterionRefFromQualityThreshold constructs a CriterionRef identifying a
+// Threshold owned by an exact Quality Profile Revision. PEOS-007 lists
+// Threshold among the criteria a Quality Claim may cite, and a Threshold
+// "has no independent identity outside its owning Profile Revision", so
+// the reference names that Revision plus the Threshold's local key within
+// it.
+func CriterionRefFromQualityThreshold(ref QualityElementCriterionRef) (CriterionRef, error) {
+	if ref.IsZero() {
+		return CriterionRef{}, fmt.Errorf("core: CriterionRefFromQualityThreshold: %w", ErrInvalidPayload)
+	}
+	return CriterionRef{kind: CriterionKindQualityThreshold, known: true, qualityThreshold: ref}, nil
+}
+
+func (c CriterionRef) AsQualityThreshold() (QualityElementCriterionRef, bool) {
+	if c.kind != CriterionKindQualityThreshold {
+		return QualityElementCriterionRef{}, false
+	}
+	return c.qualityThreshold, true
+}
+
+// CriterionRefFromQualityTarget constructs a CriterionRef identifying a
+// Target owned by an exact Quality Profile Revision.
+//
+// Target and Threshold are separate criterion kinds because PEOS-007
+// requires it: "a Target expresses intent, while a Threshold expresses the
+// boundary used for a Claim outcome. The two SHALL NOT be conflated." They
+// share a payload shape but never a discriminator, so a Target can never be
+// read back through AsQualityThreshold.
+func CriterionRefFromQualityTarget(ref QualityElementCriterionRef) (CriterionRef, error) {
+	if ref.IsZero() {
+		return CriterionRef{}, fmt.Errorf("core: CriterionRefFromQualityTarget: %w", ErrInvalidPayload)
+	}
+	return CriterionRef{kind: CriterionKindQualityTarget, known: true, qualityTarget: ref}, nil
+}
+
+func (c CriterionRef) AsQualityTarget() (QualityElementCriterionRef, bool) {
+	if c.kind != CriterionKindQualityTarget {
+		return QualityElementCriterionRef{}, false
+	}
+	return c.qualityTarget, true
+}
+
+// CriterionRefFromQualityConstraint constructs a CriterionRef identifying a
+// Quality Constraint owned by an exact Quality Profile Revision.
+//
+// This is the Profile Revision-owned Quality Constraint, not a Requirement.
+// PEOS-007 permits a Quality Constraint to "also be represented as a
+// Requirement" by explicit modeling choice; when it is, that Requirement is
+// cited through CriterionKindRequirement or
+// CriterionKindRequirementRevision instead. The two paths stay distinct so
+// that a Profile-owned constraint is never silently treated as a
+// Requirement ("Every Quality Constraint SHALL NOT be silently treated as a
+// Requirement merely because it constrains engineering behavior").
+func CriterionRefFromQualityConstraint(ref QualityElementCriterionRef) (CriterionRef, error) {
+	if ref.IsZero() {
+		return CriterionRef{}, fmt.Errorf("core: CriterionRefFromQualityConstraint: %w", ErrInvalidPayload)
+	}
+	return CriterionRef{kind: CriterionKindQualityConstraint, known: true, qualityConstraint: ref}, nil
+}
+
+func (c CriterionRef) AsQualityConstraint() (QualityElementCriterionRef, bool) {
+	if c.kind != CriterionKindQualityConstraint {
+		return QualityElementCriterionRef{}, false
+	}
+	return c.qualityConstraint, true
+}
+
 func CriterionRefFromRuntimeContractRule(ref RuntimeRuleCriterionRef) (CriterionRef, error) {
 	if ref.IsZero() {
 		return CriterionRef{}, fmt.Errorf("core: CriterionRefFromRuntimeContractRule: %w", ErrInvalidPayload)
@@ -479,6 +579,14 @@ func (c CriterionRef) AsExternalRule() (ExternalRuleRef, bool) {
 // requires an additive, dedicated kind added to this file, not just a
 // caller passing more values into namespace/identifier.
 //
+// CriterionKindQualityThreshold, CriterionKindQualityTarget, and
+// CriterionKindQualityConstraint are exactly that case, resolved: PEOS-007
+// requires all three as Quality Claim criteria, all three are
+// (Profile Revision, local key) composites, and all three were therefore
+// added here as dedicated kinds reusing QualityElementCriterionRef rather
+// than being pushed through this constructor. Adding them changed no
+// existing kind, constructor signature, or wire form.
+//
 // A malformed or unsupported composite payload fails explicitly during
 // decode rather than being silently truncated or partially accepted; see
 // CriterionRef.UnmarshalJSON's default case. No silent data loss occurs.
@@ -540,6 +648,12 @@ func (c CriterionRef) MarshalJSON() ([]byte, error) {
 		refBytes, err = json.Marshal(c.qualityCharacteristic)
 	case c.kind == CriterionKindQualityMeasure:
 		refBytes, err = json.Marshal(c.qualityMeasure)
+	case c.kind == CriterionKindQualityThreshold:
+		refBytes, err = json.Marshal(c.qualityThreshold)
+	case c.kind == CriterionKindQualityTarget:
+		refBytes, err = json.Marshal(c.qualityTarget)
+	case c.kind == CriterionKindQualityConstraint:
+		refBytes, err = json.Marshal(c.qualityConstraint)
 	case c.kind == CriterionKindRuntimeContractRule:
 		refBytes, err = json.Marshal(c.runtimeContractRule)
 	case c.kind == CriterionKindRuntimeAssertion:
@@ -602,6 +716,21 @@ func (c *CriterionRef) UnmarshalJSON(data []byte) error {
 		var ref QualityElementCriterionRef
 		if err = json.Unmarshal(env.Ref, &ref); err == nil {
 			result, err = CriterionRefFromQualityMeasure(ref)
+		}
+	case CriterionKindQualityThreshold:
+		var ref QualityElementCriterionRef
+		if err = json.Unmarshal(env.Ref, &ref); err == nil {
+			result, err = CriterionRefFromQualityThreshold(ref)
+		}
+	case CriterionKindQualityTarget:
+		var ref QualityElementCriterionRef
+		if err = json.Unmarshal(env.Ref, &ref); err == nil {
+			result, err = CriterionRefFromQualityTarget(ref)
+		}
+	case CriterionKindQualityConstraint:
+		var ref QualityElementCriterionRef
+		if err = json.Unmarshal(env.Ref, &ref); err == nil {
+			result, err = CriterionRefFromQualityConstraint(ref)
 		}
 	case CriterionKindRuntimeContractRule:
 		var ref RuntimeRuleCriterionRef

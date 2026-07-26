@@ -248,11 +248,18 @@ func TestCriterionRefAllKnownKindsExercised(t *testing.T) {
 		CriterionKindArtifactRevision:      true,
 		CriterionKindQualityCharacteristic: true,
 		CriterionKindQualityMeasure:        true,
-		CriterionKindRuntimeContractRule:   true,
-		CriterionKindRuntimeAssertion:      true,
-		CriterionKindTemplateConstraint:    true,
-		CriterionKindProductRule:           true,
-		CriterionKindExternalRule:          true,
+		// The three kinds below were added additively by Packet I.1 for
+		// PEOS-007 and are exercised by
+		// TestCriterionRefQualityProfileOwnedKinds and
+		// TestQualityCompositeCriteriaRequireDedicatedKinds.
+		CriterionKindQualityThreshold:    true,
+		CriterionKindQualityTarget:       true,
+		CriterionKindQualityConstraint:   true,
+		CriterionKindRuntimeContractRule: true,
+		CriterionKindRuntimeAssertion:    true,
+		CriterionKindTemplateConstraint:  true,
+		CriterionKindProductRule:         true,
+		CriterionKindExternalRule:        true,
 	}
 	for kind := range knownCriterionKinds {
 		if !exercised[kind] {
