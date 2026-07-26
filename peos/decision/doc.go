@@ -1,13 +1,13 @@
 // Package decision implements the core, structural subset of PEOS-004's
 // Decision Model on top of the stable peos/core package.
 //
-// This package implements Decision, Authority, Basis, Alternative, Outcome
-// (with its Engineering Commitment value), Decision Record (with its
-// Revision and Content), Decision Supersession, and Decision Invalidation.
-// It deliberately does not implement Decision Conflict, Delegation,
-// structured Basis (assumptions, constraints, uncertainty), Decision
-// roles, Decision relation-type constants, or any approval/voting
-// workflow -- see "Deferred" below.
+// This package implements Decision, Authority, Basis (with its Evidence,
+// Assumption, Constraint, and Uncertainty components), Alternative,
+// Outcome (with its Engineering Commitment value), Decision Record (with
+// its Revision and Content), Decision Supersession, and Decision
+// Invalidation. It deliberately does not implement Decision Conflict,
+// Delegation, Decision roles, Decision relation-type constants, or any
+// approval/voting workflow -- see "Deferred" below.
 //
 // # Decision is not an Artifact
 //
@@ -68,6 +68,69 @@
 // a core.Representation on its ArtifactRevision, not to typed content: the
 // Decision Record field list in PEOS-004 is a SHOULD, not a MUST, and a
 // zero-value RecordContent is valid.
+//
+// # Decision Basis may combine Evidence, Assumptions, Constraints, and Uncertainties
+//
+// A Basis may consist of any non-empty combination of its four content
+// collections (PEOS-004:406-419's own "Decision Basis MAY include" list):
+// Evidence, Assumptions, Constraints, and Uncertainties. Evidence alone,
+// or a Basis carrying only Assumptions with no Evidence at all, are both
+// conformant -- nothing in PEOS-004 privileges Evidence over the other
+// three. Assumption, Constraint, and Uncertainty are typed value
+// structures, not free-form strings, because their normative field
+// carriage cannot fit in a single string: see each type's own doc comment
+// for the exact PEOS-004 clause behind every field it exposes.
+//
+// Every optional field on Assumption, Constraint, and Uncertainty traces
+// to an explicit PEOS-004 "SHOULD identify" clause -- Assumption's five
+// (:458-464), Constraint's one (:491), and Uncertainty's none (:544's "MAY
+// concern" list carries no identify obligation at all) -- and nothing
+// beyond those clauses is modeled. In particular, neither Constraint nor
+// Uncertainty carries an origin- or concern-category vocabulary:
+// PEOS-004:478-489's "Constraint MAY originate from" list and :544-555's
+// "Uncertainty MAY concern" list are structurally identical to
+// PEOS-004:737-749's authority-origin list, which this package already
+// declines to canonize (core.AuthorityRef's Kind is an open vocabulary
+// with zero predeclared constants); a Product needing that classification
+// carries it in Extension.
+//
+// Assumption.Uncertainty and Basis.Uncertainties are two distinct
+// directions of relation, not the same fact recorded twice.
+// Assumption.Uncertainty (PEOS-004:462, "An Assumption SHOULD identify...
+// its uncertainty") qualifies exactly the one Assumption that carries it.
+// Basis.Uncertainties (PEOS-004:542, "Known material uncertainty in a
+// Decision Basis MUST be explicit") records a standalone known material
+// uncertainty fact, independent of any particular Assumption -- even
+// though :546 permits such a fact to "concern... assumptions" in general,
+// that permission does not identify which Assumption it concerns, so it
+// cannot discharge :462's per-Assumption obligation. Both may be present
+// without duplication, and neither substitutes for the other.
+//
+// Constraint is Decision-Basis-scoped: PEOS-004:476 defines it as
+// restricting "the available Alternatives or Decision Outcome" of the one
+// Decision whose Basis carries it. It is not reused for a future
+// Delegation's "applicable constraints" (PEOS-004:833): a delegation's
+// constraints would limit a granted authority across all of that
+// grantee's future Decisions -- a different axis, the same distinction
+// this package already draws between Authority.requirements and
+// Authority.bases.
+//
+// None of Assumption, Constraint, or Uncertainty carries identity, a Ref,
+// a revision, or a lifecycle: PEOS-006's Claim Basis ("does not introduce
+// independent Claim Basis identity, revision, or lifecycle") and
+// PEOS-007's Quality Constraint ("value structures without independent
+// identity, revision, or lifecycle") are the governing precedents.
+//
+// The Basis final-state validity guarantee -- that NewBasis, NewBasisFrom,
+// every collection With* mutator, and UnmarshalJSON return a fully valid
+// Basis whenever they return a nil error -- does not extend to the
+// pre-existing, no-error-return WithExtension method: calling
+// Basis{}.WithExtension(ext) on the zero Basis yields a value that still
+// reports IsZero()==true. Extension alone is Product-specific data, not
+// Decision Basis content in the PEOS-004 sense, so it does not by itself
+// satisfy the "at least one of Evidence, Assumptions, Constraints, or
+// Uncertainties" requirement. This is a pre-existing Packet F API edge,
+// unchanged by Packet F.2.
 //
 // # Decision Supersession and Decision Invalidation are dedicated immutable governance records
 //
@@ -142,8 +205,7 @@
 //
 // # Deferred
 //
-// Decision Conflict, Delegation, structured Basis (assumptions,
-// constraints, uncertainty), Decision roles, Decision Consequences,
+// Decision Conflict, Delegation, Decision roles, Decision Consequences,
 // Decision relation-type constants, a decision repository, a supersession
 // or invalidation history resolver, condition evaluation, and any
 // approval or voting workflow are not implemented by this package.

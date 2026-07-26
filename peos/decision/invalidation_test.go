@@ -211,6 +211,9 @@ func TestInvalidationSourceMalformedNestedRefWrapsSentinel(t *testing.T) {
 	if !errors.Is(err, ErrInvalidDecisionInvalidation) {
 		t.Errorf("error = %v, want wrapping %v", err, ErrInvalidDecisionInvalidation)
 	}
+	if !errors.Is(err, core.ErrEmptyIdentity) {
+		t.Errorf("error = %v, want also wrapping %v", err, core.ErrEmptyIdentity)
+	}
 }
 
 func TestInvalidationSourceZeroMarshalRejected(t *testing.T) {
