@@ -104,4 +104,22 @@ var (
 	// instead, since it is a participant-shape rule of the same kind as
 	// checkDistinctParticipants, not content specific to Conflict.
 	ErrInvalidConflict = errors.New("requirement: conflict is invalid")
+
+	// ErrInvalidGovernanceAction is returned when a GovernanceAction is
+	// constructed or decoded from a zero arm payload, or decoded with an
+	// unrecognized kind discriminator or a missing/null ref. GovernanceAction
+	// is not itself a relationship type (PEOS-005 §23 and §27 both define
+	// it identically), so it carries its own sentinel rather than reusing
+	// ErrInvalidRequirementRelation or ErrInvalidRequirementSupersession --
+	// see governance.go's own doc comment.
+	ErrInvalidGovernanceAction = errors.New("requirement: governance action is invalid")
+
+	// ErrInvalidRequirementSupersession is returned for Supersession's own
+	// type-specific failures: a LifecycleConsequence left in its zero
+	// (unstated) state, an "identified" LifecycleConsequence with an empty
+	// or whitespace-only description, or a "none" LifecycleConsequence
+	// carrying a non-empty description (PEOS-005 §23.1). Supersession's
+	// participant, provenance, scope, and self-supersession failures use
+	// the shared ErrInvalidRequirementRelation instead.
+	ErrInvalidRequirementSupersession = errors.New("requirement: requirement supersession is invalid")
 )

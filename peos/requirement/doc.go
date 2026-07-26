@@ -66,16 +66,23 @@
 // participant identifies a Requirement identity or a specific Requirement
 // Artifact Revision (non-conforming pattern §36.14). Each relationship
 // type fixes its own permitted participant level(s): Derivation,
-// Refinement, and Decomposition each require both participants at
-// Requirement Artifact Revision level (§18.1, §19.1, §20.1), while
-// Dependency and Conflict permit either level independently per
-// participant, including mixed pairs (§21.1, §22.1: "each participant
-// SHALL explicitly identify whether it refers to Requirement identity
-// level or Requirement Artifact Revision level"). Dependency and Conflict
-// express that choice with RequirementParticipant (participant.go), a
-// closed union over core.RequirementRef and
+// Refinement, Decomposition, and Supersession each require both
+// participants at Requirement Artifact Revision level (§18.1, §19.1,
+// §20.1, §23.1: "source and target SHALL be identified at Requirement
+// Artifact Revision level while their owning Requirement identities
+// remain identifiable"), while Dependency and Conflict permit either
+// level independently per participant, including mixed pairs (§21.1,
+// §22.1: "each participant SHALL explicitly identify whether it refers to
+// Requirement identity level or Requirement Artifact Revision level").
+// Dependency and Conflict express that choice with RequirementParticipant
+// (participant.go), a closed union over core.RequirementRef and
 // core.RequirementArtifactRevisionRef, mirroring
 // decision.InvalidationSource's closed two-arm union pattern.
+// RequirementParticipant is deliberately NOT used by Supersession: §23.1
+// fixes both of its participants at Requirement Artifact Revision level
+// with no either-level choice, so accepting a RequirementParticipant there
+// would make an identity-level participant constructible in a place
+// PEOS-005 forbids it.
 // core.EngineeringSubjectRefFromRequirementRevision and
 // EngineeringSubjectRef.AsRequirementRevision are the two primitives that
 // make the revision-only level distinction enforceable without any
@@ -98,13 +105,15 @@
 // Derivation's and Dependency's scope is optional (§18 and §21 state no
 // unconditional scope requirement; §21's is conditional -- "the
 // applicable scope where the reliance is not universal"), while
-// Refinement's, Decomposition's, and Conflict's scope is mandatory: §19
-// requires every Refinement relationship to identify "the scope within
-// which compatibility is asserted," §20 requires every Decomposition
-// relationship to identify "the scope of that parent-to-subordinate
-// association," and §22 requires every Conflict relationship to
-// identify "the scope in which the Conflict exists." Refinement,
-// Decomposition, and Conflict therefore expose no WithScope or
+// Refinement's, Decomposition's, Conflict's, and Supersession's scope is
+// mandatory: §19 requires every Refinement relationship to identify "the
+// scope within which compatibility is asserted," §20 requires every
+// Decomposition relationship to identify "the scope of that
+// parent-to-subordinate association," §22 requires every Conflict
+// relationship to identify "the scope in which the Conflict exists," and
+// §23 requires every Supersession relationship to identify "the scope
+// within which that replacement applies." Refinement, Decomposition,
+// Conflict, and Supersession therefore expose no WithScope or
 // WithoutScope method -- WithoutScope would make an invalid, scope-less
 // value reachable on a type whose scope can never be legitimately
 // absent, and WithScope is unnecessary because their own constructors
@@ -171,11 +180,102 @@
 // participants, and one participant MAY participate in multiple Conflict
 // relationships; neither is checked by this package.
 //
-// # Requirement-identity distinctness: Derivation and Decomposition require it, Refinement does not
+// # Supersession is scoped replacement, not revision history
 //
-// PEOS-005 states an identity-distinctness requirement for two of the
-// three relation types this package implements so far, using different
-// wording for each, and states none at all for the third:
+// Supersession's direction is inverted relative to every other
+// relationship type in this package: source is the superseding (newer)
+// participant, target is the superseded (older) participant (§23.1),
+// whereas Derivation, Refinement, and Decomposition all put the
+// originating participant at source. Superseding()/Superseded() name
+// this directly, matching decision.DecisionSupersession's
+// SupersedingDecision/SupersededDecision and
+// lifecycle.LifecycleDefinitionVersionSupersession's
+// SupersedingVersion/SupersededVersion precedents.
+//
+// Unlike Derivation and Decomposition, Supersession does NOT require
+// Superseding and Superseded to name distinct Requirement identities:
+// REQ-1/REV-2 superseding REQ-1/REV-1 is a valid Supersession. Every
+// PEOS-005 clause touching Supersession's identity effect is worded as
+// preservation, never distinctness -- §7 ("Requirement supersession SHALL
+// NOT merge Requirement identities"), §23 ("Superseded Requirements SHALL
+// retain their identities"; "Supersession SHALL NOT merge Requirement
+// identities"), §28.3 ("Requirement identity SHALL remain preserved"),
+// and §35 ("Supersession SHALL NOT merge or destroy Requirement
+// identities") -- in contrast to §18's "SHALL NOT inherit the identity of
+// a source Requirement" and §20.1's "SHALL remain distinct," both of
+// which state distinctness directly (see the "Requirement-identity
+// distinctness" section below for the full comparison). "Merge" denotes
+// collapsing two identities into one; a Supersession whose two
+// participants already share one identity merges nothing -- the identity
+// count is one before and one after. §23's replacement is scoped (§23.2),
+// which linear revision history alone cannot express: "REV-2 replaces
+// REV-1 within scope S, while REV-1 remains applicable outside S" is
+// engineering meaning §25's ordinary content-change model has no way to
+// carry. checkDistinctRequirementIdentity is therefore NOT used by
+// Supersession -- only checkDistinctParticipants, rejecting direct
+// self-supersession (source == target).
+//
+// Supersession SHALL NOT be inferred solely from creation of a newer
+// Artifact Revision, Statement similarity, document or identifier order,
+// Lifecycle State, or archival status (§23; non-conforming pattern
+// §36.13, "Implicit Supersession"). This package prevents that
+// structurally rather than by convention: a Supersession value cannot be
+// constructed without an explicit governance action (GovernanceAction),
+// an explicit scope, and explicit provenance, none of which a bare
+// Artifact Revision carries -- a same-identity Supersession still
+// requires all three, exactly like a different-identity one.
+//
+// # Supersession records a replacement fact; it does not change Lifecycle state
+//
+// PEOS-005 §26.5 keeps Requirement Supersession and Lifecycle State
+// Assignment deliberately separate: "Assignment of [a Superseded
+// Lifecycle State] records governance state only. A State Assignment
+// SHALL NOT by itself establish: which Requirement supersedes another
+// Requirement; which Requirement Artifact Revisions are involved; the
+// scope of replacement; the authority or governance action establishing
+// replacement... The State Assignment and the applicable Supersession
+// relationship SHALL remain semantically distinct and independently
+// inspectable." NewSupersession only ever creates an immutable
+// relationship record: it does not read, require, or validate any
+// Lifecycle State, and this package does not import peos/lifecycle at
+// all -- that non-import is the structural guarantee of §26.5's
+// separation, not merely a documented intention.
+//
+// LifecycleConsequence (supersession.go) is Supersession's own declared
+// "resulting effective status or Lifecycle consequence, if any" (§23.1).
+// It is a closed two-state discriminator -- identified (with a mandatory,
+// trimmed description) or none (an explicitly constructed, non-zero
+// declaration of no consequence) -- whose zero value is invalid and
+// represents a third, unstated state §23.1 does not permit ("Absence of
+// a Lifecycle consequence SHALL be explicitly representable and SHALL
+// NOT invalidate an otherwise established Supersession relationship").
+// This mirrors Applicability's unrestricted/scoped shape (this file, and
+// content.go) and decision.SupersessionExtent's complete/partial shape,
+// both of which reject their own zero value for the same reason: a
+// *string or (string, bool) encoding cannot distinguish
+// absent-because-declared from absent-because-unset.
+// LifecycleConsequence is a declaration recorded inside the relationship,
+// never a Lifecycle State Assignment and never a reference to one --
+// treating a Superseded Lifecycle State Assignment as sufficient to
+// establish the replacement fact is exactly non-conforming pattern
+// §36.12 ("Lifecycle-Only Supersession"). Where a Product wants both a
+// Supersession relationship and a Lifecycle State Assignment, they are
+// two independent records a higher layer may create atomically; that
+// coordination is a repository/application concern, not one this value
+// type performs.
+//
+// §23.2's applicability boundary is likewise kept out of this package:
+// whether a superseded Requirement remains normatively applicable outside
+// (or even within) the Supersession's scope depends on its own
+// Applicability conditions, Lifecycle State, and Authority -- evaluation
+// this package does not perform. A Supersession's existence never by
+// itself makes its superseded participant universally non-applicable.
+//
+// # Requirement-identity distinctness: Derivation and Decomposition require it; Refinement, Dependency, Conflict, and Supersession do not
+//
+// PEOS-005 states an identity-distinctness requirement for exactly two of
+// the six relation types this package implements, using different
+// wording for each, and states none at all for the other four:
 //
 //   - Derivation (§18): "A derived Requirement SHALL possess its own
 //     identity." "A derived Requirement SHALL NOT inherit the identity
@@ -199,6 +299,18 @@
 //     line 739) requires only that the refining Requirement possess its
 //     own identity, not that it differ from the refined Requirement's
 //     identity, and §19.1 states no distinctness rule at all.
+//   - Dependency (§21/§21.1) and Conflict (§22/§22.1): neither section
+//     states an identity-distinctness rule of any kind. Conflict requires
+//     only participant-shape distinctness (its two participants must not
+//     be the same RequirementParticipant value); Dependency requires no
+//     distinctness at all, permitting even self-dependency.
+//   - Supersession (§23/§23.1): no distinctness clause exists here either
+//     -- every clause touching Supersession's identity effect (§7, §23,
+//     §28.3, §35) is worded as preservation ("SHALL NOT merge," "SHALL
+//     retain," "SHALL remain preserved"), never as distinctness, in
+//     contrast to §18's and §20.1's direct distinctness language. See
+//     "Supersession is scoped replacement, not revision history" above
+//     for the full argument.
 //
 // "Independently identifiable" (§18.1:709, §19:739, §20:777, §20:789) is
 // not itself a distinctness clause: it appears in all three sections,
@@ -212,18 +324,26 @@
 // Requirement identity (checkDistinctRequirementIdentity, relationship.go,
 // parameterized by each caller's own sentinel: ErrInvalidDerivation for
 // Derivation, ErrInvalidDecomposition for Decomposition), while accepting
-// the equivalent case for Refinement. This was a genuine correction to
-// this package's initial Derivation implementation (Packet G.1), found
-// during the normative audit that also produced this section (Packet
-// G.1.1) and applied in Packet G.1.1.I: the audit concluded the rule is
-// symmetric between Derivation and Decomposition, expressed in different
-// PEOS-005 wording for each, and that Refinement alone is the true
-// outlier -- not, as first assumed, that Decomposition alone carried the
-// rule. A later Revision of a Requirement that narrows its own earlier
-// wording is ordinary content change under §25, not a Derivation of a
-// new Requirement from an old one; that is the substantive reason
-// Refinement is permitted to relate two Revisions of one Requirement
-// while Derivation and Decomposition are not.
+// the equivalent case for Refinement, Dependency, Conflict, and
+// Supersession. checkDistinctRequirementIdentity is used by exactly two
+// of this package's six relationship types; the other four rely only on
+// checkDistinctParticipants (or, for Dependency, no distinctness check at
+// all). This was a genuine correction to this package's initial Derivation
+// implementation (Packet G.1), found during the normative audit that also
+// produced this section (Packet G.1.1) and applied in Packet G.1.1.I: the
+// audit concluded the rule is symmetric between Derivation and
+// Decomposition, expressed in different PEOS-005 wording for each, and
+// that Refinement alone was the outlier among the three types then
+// implemented -- Packet G.4's Supersession analysis later confirmed
+// Refinement was not a special case at all, but the first instance of the
+// more general rule that a section must state distinctness directly for
+// it to apply; every relation type added since (Dependency, Conflict,
+// Supersession) states no such clause and is treated accordingly. A later
+// Revision of a Requirement that narrows its own earlier wording is
+// ordinary content change under §25, not a Derivation of a new Requirement
+// from an old one; that is the substantive reason Refinement (and,
+// differently, Supersession) permit relating two Revisions of one
+// Requirement while Derivation and Decomposition do not.
 //
 // # Decomposition completeness is not modeled
 //
@@ -260,7 +380,23 @@
 // identity. The two packages reach different, and equally correct,
 // conclusions because they are answering to different normative text.
 //
-// # Deliberately excluded from Packets C, G.1, G.2, and G.3
+// # GovernanceAction is shared foundation, not Supersession-specific
+//
+// GovernanceAction (governance.go) identifies the governance action under
+// which a Supersession's replacement was established (§23: "a governance
+// action is an established Decision Outcome or another governance
+// mechanism explicitly permitted by an applicable PEOS Product contract";
+// "Governance action is a semantic role and SHALL NOT be interpreted as
+// introducing a separate PEOS entity" -- hence no identity, no lifecycle,
+// no Ref type). §27 defines Waiver's authorizing action in identical
+// terms, so this type is deliberately package-level shared foundation,
+// not folded into supersession.go: Packet G.5 (Waiver) is expected to
+// reuse GovernanceAction directly, unmodified, rather than defining its
+// own equivalent. Unlike RequirementParticipant, GovernanceAction carries
+// JSON: it is a type-specific field stored alongside, not inside, a
+// composed relation.Relation.
+//
+// # Deliberately excluded from Packets C, G.1, G.2, G.3, and G.4
 //
 // PEOS-005 defines no Requirement Acceptance Criterion, Verification
 // Method, or verification status/result — every "acceptance criteria" or
@@ -271,10 +407,11 @@
 // exclusively there per §26), Allocation (§24 -- PEOS-005 imposes no
 // positive representation obligation for it; a Product MAY compose
 // peos/relation.Relation with an opaque target, or use its own record),
-// or Requirement Supersession or Waiver, each scheduled for a later
-// PEOS-005 packet (Packets G.4-G.5) on top of the foundation this file
-// documents. Priority, criticality, and risk level have no normative
-// basis anywhere in PEOS-005 and are not modeled at all.
+// or Waiver (§27), scheduled for **Packet G.5** on top of the foundation
+// this file documents -- Requirement Supersession (§23) is no longer
+// excluded as of Packet G.4/G.4.I. Priority, criticality, and risk level
+// have no normative basis anywhere in PEOS-005 and are not modeled at
+// all.
 //
 // # Integrity scope
 //
