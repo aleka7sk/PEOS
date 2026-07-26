@@ -167,11 +167,22 @@ func (w Waiver) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON decodes w from its JSON form, applying the same
-// validation as NewWaiver. An explicit JSON null for requirement,
-// authority, governance_action, or scope decodes to that field's own
-// zero value and is then rejected by NewWaiver through its owning
-// sentinel; a missing key behaves identically. A decoded Waiver can
-// never be constructor-impossible.
+// validation as NewWaiver. A missing mandatory key (requirement,
+// authority, governance_action, or scope) leaves that wire field at its
+// zero value, which reaches NewWaiver and is rejected through that
+// field's own constructor sentinel. An explicitly present JSON null is
+// not equivalent: for governance_action and scope it is rejected inside
+// that nested type's own UnmarshalJSON, before NewWaiver ever runs; for
+// requirement and authority, encoding/json still invokes the nested
+// type's pointer-receiver UnmarshalJSON on a null value, which likewise
+// fails before NewWaiver runs. In every explicit-null case the resulting
+// error is wrapped here with ErrInvalidWaiver. Both missing and
+// explicit-null inputs are always rejected, but they do not necessarily
+// expose the same errors.Is sentinel set -- see waiver_test.go's
+// TestWaiverJSONMissing*Rejected and
+// TestWaiverJSONExplicitNullMandatoryFieldsRejected tests for the exact
+// sentinel each case produces. A decoded Waiver can never be
+// constructor-impossible.
 func (w *Waiver) UnmarshalJSON(data []byte) error {
 	var raw waiverJSON
 	if err := json.Unmarshal(data, &raw); err != nil {

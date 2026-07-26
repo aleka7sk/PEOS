@@ -503,7 +503,7 @@
 // recognizing duplicate, overlapping, or conflicting Waivers is a
 // repository-level concern this package does not check.
 //
-// # Deliberately excluded from Packets C, G.1, G.2, G.3, and G.4
+// # Deliberately not modeled by this package
 //
 // PEOS-005 defines no Requirement Acceptance Criterion, Verification
 // Method, or verification status/result — every "acceptance criteria" or
@@ -513,11 +513,12 @@
 // likewise does not implement Requirement Lifecycle (PEOS-003, governed
 // exclusively there per §26), or Allocation (§24 -- PEOS-005 imposes no
 // positive representation obligation for it; a Product MAY compose
-// peos/relation.Relation with an opaque target, or use its own record) --
-// Requirement Supersession (§23) is no longer excluded as of Packet
-// G.4/G.4.I, and Waiver (§27) is no longer excluded as of Packet G.5.I.
-// Priority, criticality, and risk level have no normative basis anywhere
-// in PEOS-005 and are not modeled at all.
+// peos/relation.Relation with an opaque target, or use its own record).
+// All six Requirement Relation Types (§17-§23) and Waiver (§27) are
+// implemented elsewhere in this package (Packets G.1-G.5.I); none of
+// those is deliberately excluded any longer. Priority, criticality, and
+// risk level have no normative basis anywhere in PEOS-005 and are not
+// modeled at all.
 //
 // # Integrity scope
 //

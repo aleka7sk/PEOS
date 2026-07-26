@@ -338,13 +338,17 @@ func TestWaiverJSONMissingScopeRejected(t *testing.T) {
 
 // TestWaiverJSONExplicitNullMandatoryFieldsRejected proves that an explicit
 // JSON null for any of Waiver's four mandatory keys is rejected rather than
-// silently treated as absent. requirement and authority surface
-// ErrInvalidWaiver (their nested types have no "null" literal check of
-// their own, so the zero value they decode to is caught by NewWaiver's own
-// validation, which for requirement uses ErrInvalidWaiver directly);
-// governance_action and scope surface their own owning sentinel, since
-// GovernanceAction and core.Scope reject a missing/null "ref" or
-// zero-value payload from inside their own UnmarshalJSON.
+// silently treated as absent -- and that this is not the same code path as
+// a missing key (see TestWaiverJSONMissing*Rejected). For requirement and
+// authority, encoding/json still invokes core.RequirementRef's and
+// core.AuthorityRef's own pointer-receiver UnmarshalJSON on a null value,
+// which fails before NewWaiver ever runs; the resulting error is wrapped
+// with ErrInvalidWaiver here, not with the field's own constructor
+// sentinel (contrast TestWaiverJSONMissingAuthorityRejected, where a
+// missing key does reach NewWaiver and does surface ErrInvalidAuthority).
+// governance_action and scope reject a null "ref" or zero-value payload
+// from inside their own UnmarshalJSON and surface their own owning
+// sentinel either way.
 func TestWaiverJSONExplicitNullMandatoryFieldsRejected(t *testing.T) {
 	base := map[string]string{
 		"requirement":       `{"artifact_id":"REQ-1"}`,
