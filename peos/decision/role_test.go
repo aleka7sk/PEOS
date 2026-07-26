@@ -212,6 +212,27 @@ func TestRoleJSONNullExtensionRejected(t *testing.T) {
 	}
 }
 
+// TestRoleNestedActorSentinelPreserved proves a malformed nested
+// core.ActorRef (empty namespace) preserves both ErrInvalidDecisionRole
+// and the underlying core.ErrEmptyIdentity through errors.Is, matching
+// the convention established by
+// TestBasisNestedDecodeErrorsPreserveBothSentinels (basis_test.go) and
+// the Packet F.1.A/F.2 nested-sentinel corrective tests.
+func TestRoleNestedActorSentinelPreserved(t *testing.T) {
+	payload := `{"actor":{"namespace":"","identifier":"alice"},"kind":"peos:approver"}`
+	var r Role
+	err := json.Unmarshal([]byte(payload), &r)
+	if err == nil {
+		t.Fatal("malformed nested actor accepted, want error")
+	}
+	if !errors.Is(err, ErrInvalidDecisionRole) {
+		t.Errorf("error = %v, want wrapping %v", err, ErrInvalidDecisionRole)
+	}
+	if !errors.Is(err, core.ErrEmptyIdentity) {
+		t.Errorf("error = %v, want also wrapping %v", err, core.ErrEmptyIdentity)
+	}
+}
+
 func TestRoleJSONUnknownFieldIgnored(t *testing.T) {
 	payload := `{"actor":{"namespace":"user","identifier":"alice"},"kind":"peos:approver","unknown_field":123}`
 	var r Role

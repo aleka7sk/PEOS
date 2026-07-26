@@ -437,8 +437,17 @@ func TestDecisionConflictSelfConflictRejectedViaUnmarshal(t *testing.T) {
 	}
 }
 
+// TestDecisionConflictNestedSentinelPreserved proves a malformed nested
+// core.Scope (valid kind, empty expression -- specifically triggering
+// core.ErrInvalidScope rather than the upstream
+// core.ErrInvalidVocabularyValue a malformed kind would produce)
+// preserves both the package sentinel and the underlying core sentinel
+// through errors.Is, matching the convention established by
+// TestBasisNestedDecodeErrorsPreserveBothSentinels (basis_test.go) and
+// TestAssumptionMalformedNestedScopePreservesBothSentinels
+// (assumption_test.go).
 func TestDecisionConflictNestedSentinelPreserved(t *testing.T) {
-	payload := `{"id":"c-1","decision_a":{"decision_id":"dec-1"},"decision_b":{"decision_id":"dec-2"},"overlapping_scope":{"kind":"","expression":""},"incompatibility":"i","governing_rule":"g"}`
+	payload := `{"id":"c-1","decision_a":{"decision_id":"dec-1"},"decision_b":{"decision_id":"dec-2"},"overlapping_scope":{"kind":"product-x:path","expression":""},"incompatibility":"i","governing_rule":"g"}`
 	var c DecisionConflict
 	err := json.Unmarshal([]byte(payload), &c)
 	if err == nil {
@@ -446,5 +455,27 @@ func TestDecisionConflictNestedSentinelPreserved(t *testing.T) {
 	}
 	if !errors.Is(err, ErrInvalidDecisionConflict) {
 		t.Errorf("error = %v, want wrapping %v", err, ErrInvalidDecisionConflict)
+	}
+	if !errors.Is(err, core.ErrInvalidScope) {
+		t.Errorf("error = %v, want also wrapping %v", err, core.ErrInvalidScope)
+	}
+}
+
+// TestDecisionConflictNestedDecisionRefSentinelPreserved proves a
+// malformed nested core.DecisionRef (empty decision_id) on either
+// conflicting-Decision field preserves both ErrInvalidDecisionConflict
+// and the underlying core.ErrEmptyIdentity.
+func TestDecisionConflictNestedDecisionRefSentinelPreserved(t *testing.T) {
+	payload := `{"id":"c-1","decision_a":{"decision_id":""},"decision_b":{"decision_id":"dec-2"},"overlapping_scope":{"kind":"product-x:path","expression":"/x"},"incompatibility":"i","governing_rule":"g"}`
+	var c DecisionConflict
+	err := json.Unmarshal([]byte(payload), &c)
+	if err == nil {
+		t.Fatal("malformed nested decision_a accepted, want error")
+	}
+	if !errors.Is(err, ErrInvalidDecisionConflict) {
+		t.Errorf("error = %v, want wrapping %v", err, ErrInvalidDecisionConflict)
+	}
+	if !errors.Is(err, core.ErrEmptyIdentity) {
+		t.Errorf("error = %v, want also wrapping %v", err, core.ErrEmptyIdentity)
 	}
 }

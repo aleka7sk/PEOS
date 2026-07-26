@@ -430,6 +430,27 @@ func TestConflictResolutionJSONNullRejectedPerKey(t *testing.T) {
 	}
 }
 
+// TestConflictResolutionNestedResolvingDecisionSentinelPreserved proves a
+// malformed nested core.DecisionRef (empty decision_id) on
+// resolving_decision preserves both ErrInvalidConflictResolution and the
+// underlying core.ErrEmptyIdentity through errors.Is, matching the
+// convention established by TestBasisNestedDecodeErrorsPreserveBothSentinels
+// (basis_test.go) and the Packet F.1.A/F.2 nested-sentinel corrective tests.
+func TestConflictResolutionNestedResolvingDecisionSentinelPreserved(t *testing.T) {
+	payload := `{"id":"r-1","conflict":"c-1","mechanism":"peos:priority","statement":"s","resolving_decision":{"decision_id":""}}`
+	var r ConflictResolution
+	err := json.Unmarshal([]byte(payload), &r)
+	if err == nil {
+		t.Fatal("malformed nested resolving_decision accepted, want error")
+	}
+	if !errors.Is(err, ErrInvalidConflictResolution) {
+		t.Errorf("error = %v, want wrapping %v", err, ErrInvalidConflictResolution)
+	}
+	if !errors.Is(err, core.ErrEmptyIdentity) {
+		t.Errorf("error = %v, want also wrapping %v", err, core.ErrEmptyIdentity)
+	}
+}
+
 func TestConflictResolutionJSONUnknownFieldIgnored(t *testing.T) {
 	payload := `{"id":"r-1","conflict":"c-1","mechanism":"peos:priority","statement":"s","unknown_field":123}`
 	var r ConflictResolution
