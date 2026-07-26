@@ -166,6 +166,28 @@ func TestDecisionZeroAlternativeRejected(t *testing.T) {
 	}
 }
 
+func TestDecisionAlternativesDefensiveCopies(t *testing.T) {
+	alt, err := NewAlternative("Use MySQL")
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := baseDecision(t)
+	alternatives := []Alternative{alt}
+	d, err = d.WithAlternatives(alternatives...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	alternatives[0] = Alternative{}
+	if d.Alternatives()[0].IsZero() {
+		t.Error("WithAlternatives did not defensively copy input")
+	}
+	got := d.Alternatives()
+	got[0] = Alternative{}
+	if d.Alternatives()[0].IsZero() {
+		t.Error("Alternatives() did not defensively copy on return")
+	}
+}
+
 func TestDecisionBasisAbsentPresent(t *testing.T) {
 	d := baseDecision(t)
 	if _, ok := d.Basis(); ok {

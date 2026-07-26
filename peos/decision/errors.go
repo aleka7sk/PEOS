@@ -61,6 +61,16 @@ var (
 	// not match the ArtifactID of the specialized identity it is being
 	// paired with.
 	ErrArtifactIDMismatch = errors.New("decision: artifact id mismatch")
+
+	// ErrInvalidDecisionSupersession is returned when a SupersessionID, a
+	// SupersessionExtent, or a DecisionSupersession fails to satisfy its
+	// required fields or internal consistency rules.
+	ErrInvalidDecisionSupersession = errors.New("decision: decision supersession is invalid")
+
+	// ErrInvalidDecisionInvalidation is returned when an InvalidationID,
+	// an InvalidationSource, or a DecisionInvalidation fails to satisfy
+	// its required fields or internal consistency rules.
+	ErrInvalidDecisionInvalidation = errors.New("decision: decision invalidation is invalid")
 )
 
 // decodeOptionalExtension decodes a raw JSON "extension" field captured as

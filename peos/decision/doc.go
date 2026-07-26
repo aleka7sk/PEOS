@@ -2,10 +2,12 @@
 // Decision Model on top of the stable peos/core package.
 //
 // This package implements Decision, Authority, Basis, Alternative, Outcome
-// (with its Engineering Commitment value), and Decision Record (with its
-// Revision and Content). It deliberately does not implement Decision
-// Supersession, Decision Invalidation, Decision Conflict, Delegation, or
-// any approval/voting workflow -- see "Deferred" below.
+// (with its Engineering Commitment value), Decision Record (with its
+// Revision and Content), Decision Supersession, and Decision Invalidation.
+// It deliberately does not implement Decision Conflict, Delegation,
+// structured Basis (assumptions, constraints, uncertainty), Decision
+// roles, Decision relation-type constants, or any approval/voting
+// workflow -- see "Deferred" below.
 //
 // # Decision is not an Artifact
 //
@@ -67,10 +69,82 @@
 // Decision Record field list in PEOS-004 is a SHOULD, not a MUST, and a
 // zero-value RecordContent is valid.
 //
+// # Decision Supersession and Decision Invalidation are dedicated immutable governance records
+//
+// DecisionSupersession and DecisionInvalidation are each independently
+// identified, immutable governance records -- not Artifacts, not
+// Lifecycle Subjects, not Artifact Revisions, not Decision Revisions (see
+// above), and not peos/relation.Relation specializations. PEOS-004 lists
+// "supersedes" and "invalidates" among its Decision Relation Types, but
+// Relation carries no extent, no effective condition/time, and no reason,
+// so it cannot express what these records must; a Product MAY
+// additionally record a Relation as an index over either fact, but that
+// Relation is never authoritative and this package does not import
+// peos/relation to create one.
+//
+// # Supersession extent is closed
+//
+// SupersessionExtent is a closed complete/partial distinction, not an
+// open vocabulary: PEOS-004's Extension Model does not list supersession
+// completeness among what a Product MAY extend, and explicitly forbids
+// extensions from redefining the core meaning of supersession. A partial
+// extent carries its own required, deterministically identifiable
+// remaining scope; a complete extent carries none.
+//
+// # Effective condition is normative text, not an executable predicate
+//
+// DecisionSupersession.EffectiveCondition and
+// DecisionInvalidation.EffectiveCondition are plain normative condition
+// statements. This package defines no condition language and no
+// evaluator; evaluating a condition against runtime or repository state
+// is a later, deliberately deferred concern.
+//
+// # Preservation is by reference, not by duplication
+//
+// Both records preserve the original Decision's Outcome and Applicability
+// by naming the Decision with core.DecisionRef, relying on Decision's own
+// constructor-only Outcome and Applicability fields (see above) rather
+// than copying their content. This package does not resolve or verify
+// that reference against any repository: the guarantee that the named
+// Decision is still the one originally superseded or invalidated is a
+// repository-layer obligation this package does not check, the same
+// limitation peos/lifecycle's own Supersession record documents for its
+// superseding/superseded references.
+//
+// # Invalidation is non-retroactive by default
+//
+// DecisionInvalidation carries no field asserting that the invalidated
+// Decision was never applicable. Its absence means exactly that:
+// non-retroactive. PEOS-004 permits retroactive effect only when an
+// applicable Product contract explicitly defines it; this package does
+// not model that profile.
+//
+// # InvalidationSource chooses one canonical source
+//
+// PEOS-004 requires Invalidation to "identify the invalidating authority
+// or Decision," and that "or" is not stated as an exclusive or in the
+// specification text. InvalidationSource nonetheless accepts exactly one
+// of the two, as a deliberate SDK architectural decision, not a
+// specification requirement: when the source is a Decision, that
+// Decision's own Authority is already required and non-zero, so carrying
+// a second, independent AuthorityRef alongside it would duplicate that
+// authority with no way for this package to detect a divergence between
+// the two.
+//
+// # Decision Invalidation is not core.RecordCorrection
+//
+// Invalidation is a governance act -- a withdrawal of normative effect --
+// never a typo correction, a representation fix, a metadata correction,
+// or a non-normative clarification. core.RecordRef's own correction union
+// deliberately excludes DecisionID; this package does not reuse
+// core.RecordCorrection or core.CorrectionKindInvalidate for Decision
+// Invalidation.
+//
 // # Deferred
 //
-// Decision Supersession, Decision Invalidation, Decision Conflict,
-// Delegation, structured Basis (assumptions, constraints, uncertainty),
-// Decision roles, Decision relation types, a decision repository, and any
+// Decision Conflict, Delegation, structured Basis (assumptions,
+// constraints, uncertainty), Decision roles, Decision Consequences,
+// Decision relation-type constants, a decision repository, a supersession
+// or invalidation history resolver, condition evaluation, and any
 // approval or voting workflow are not implemented by this package.
 package decision
