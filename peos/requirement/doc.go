@@ -67,10 +67,21 @@
 // Artifact Revision (non-conforming pattern §36.14). Each relationship
 // type fixes its own permitted participant level(s): Derivation,
 // Refinement, and Decomposition each require both participants at
-// Requirement Artifact Revision level (§18.1, §19.1, §20.1).
+// Requirement Artifact Revision level (§18.1, §19.1, §20.1), while
+// Dependency and Conflict permit either level independently per
+// participant, including mixed pairs (§21.1, §22.1: "each participant
+// SHALL explicitly identify whether it refers to Requirement identity
+// level or Requirement Artifact Revision level"). Dependency and Conflict
+// express that choice with RequirementParticipant (participant.go), a
+// closed union over core.RequirementRef and
+// core.RequirementArtifactRevisionRef, mirroring
+// decision.InvalidationSource's closed two-arm union pattern.
 // core.EngineeringSubjectRefFromRequirementRevision and
 // EngineeringSubjectRef.AsRequirementRevision are the two primitives that
-// make this level distinction enforceable without any peos/core change.
+// make the revision-only level distinction enforceable without any
+// peos/core change; core.EngineeringSubjectRefFromRequirement and
+// EngineeringSubjectRef.AsRequirement are the equivalent pair for the
+// identity-level arm.
 //
 // This package does not enforce transitive cycle prohibitions (Derivation,
 // Refinement, Decomposition, and Requirement Supersession cycles are all
@@ -84,24 +95,28 @@
 //
 // # Mandatory vs optional scope
 //
-// Derivation's scope is optional (§18 states no scope requirement),
-// while Refinement's and Decomposition's scope is mandatory: §19
+// Derivation's and Dependency's scope is optional (§18 and §21 state no
+// unconditional scope requirement; §21's is conditional -- "the
+// applicable scope where the reliance is not universal"), while
+// Refinement's, Decomposition's, and Conflict's scope is mandatory: §19
 // requires every Refinement relationship to identify "the scope within
-// which compatibility is asserted," and §20 requires every Decomposition
+// which compatibility is asserted," §20 requires every Decomposition
 // relationship to identify "the scope of that parent-to-subordinate
-// association." Refinement and Decomposition therefore expose no
-// WithScope or WithoutScope method -- WithoutScope would make an
-// invalid, scope-less value reachable on a type whose scope can never be
-// legitimately absent, and WithScope is unnecessary because their own
-// constructors already require scope as an argument. Their Scope()
-// accessor returns a bare core.Scope, not the (core.Scope, bool) shape
-// Derivation's optional scope requires: presence is guaranteed, so no
+// association," and §22 requires every Conflict relationship to
+// identify "the scope in which the Conflict exists." Refinement,
+// Decomposition, and Conflict therefore expose no WithScope or
+// WithoutScope method -- WithoutScope would make an invalid, scope-less
+// value reachable on a type whose scope can never be legitimately
+// absent, and WithScope is unnecessary because their own constructors
+// already require scope as an argument. Their Scope() accessor returns a
+// bare core.Scope, not the (core.Scope, bool) shape Derivation's and
+// Dependency's optional scope require: presence is guaranteed, so no
 // presence flag is needed. On decode, the shared requireRelationScope
 // helper (relationship.go) rejects an absent scope key explicitly,
 // rather than relying on relation.Relation's own `omitempty` behavior to
 // signal presence.
 //
-// # Derivation vs Refinement vs Decomposition
+// # Derivation vs Refinement vs Decomposition vs Dependency vs Conflict
 //
 // Derivation (§18) records engineering origin: that required engineering
 // intent was produced through engineering reasoning using other
@@ -111,12 +126,50 @@
 // with the refined intent within an asserted scope. Decomposition (§20)
 // records that one parent's required engineering intent is partitioned
 // into multiple independently identified subordinate Requirements.
-// PEOS-005 explicitly rejects inferring any of the three from the mere
-// existence of another over the same participants (§18, §19: "neither
-// relationship SHALL be inferred solely from the existence of the
-// other" -- non-conforming pattern §36.15); a Derivation and a
-// Refinement MAY validly coexist over the same source/target pair as
-// two independent values with two different relation types.
+// Dependency (§21) records that satisfying one participant's required
+// engineering intent relies on the availability, satisfaction, or
+// continued validity of the other's. Conflict (§22) records that two
+// participants establish incompatible required engineering intent within
+// overlapping applicability, so that satisfying both simultaneously,
+// within scope, is not possible. PEOS-005 explicitly rejects inferring
+// any of the first three from the mere existence of another over the
+// same participants (§18, §19: "neither relationship SHALL be inferred
+// solely from the existence of the other" -- non-conforming pattern
+// §36.15); a Derivation and a Refinement MAY validly coexist over the
+// same source/target pair as two independent values with two different
+// relation types.
+//
+// # Dependency and Conflict: direction, distinctness, and cycles
+//
+// Dependency's direction is semantic, not merely representational:
+// Dependent depends on DependsOn (§21.1). Conflict, by contrast, is
+// symmetric in meaning but representationally ordered -- §22.1 states an
+// implementation's ordering "SHALL NOT imply priority, authority,
+// preference, or resolution direction." ParticipantA and ParticipantB
+// deliberately avoid the Source/Target naming every other relationship
+// type in this package uses, matching decision.DecisionConflict's
+// DecisionA/DecisionB precedent. This package does not canonicalize
+// Conflict's participant order: (X, Y) and (Y, X) are both valid and are
+// preserved exactly as supplied, including through JSON round-trips;
+// recognizing that two stored Conflicts denote the same unordered pair
+// is a repository-level concern.
+//
+// Dependency enforces no distinctness rule between its two participants
+// -- not participant equality, and not Requirement-identity equality.
+// §21.1 explicitly permits Dependency cycles, including the degenerate
+// self-dependency: "Dependency cycles MAY be represented. The existence
+// of a Dependency cycle SHALL NOT by itself establish that the
+// participating Requirements are invalid, unsatisfiable, or
+// non-conforming." A Product contract MAY additionally prohibit specific
+// cycles (§21.1's own final sentence); this package does not. Conflict,
+// conversely, requires its two participants to be distinct (§22: "exactly
+// two distinct participants"; §22.1: "source and target SHALL be
+// distinct") -- a self-conflict is rejected -- but imposes no
+// Requirement-identity distinctness rule beyond that: a Requirement MAY
+// conflict with a distinct Revision of the very same Requirement.
+// §22.1 explicitly permits Conflict cycles among three or more distinct
+// participants, and one participant MAY participate in multiple Conflict
+// relationships; neither is checked by this package.
 //
 // # Requirement-identity distinctness: Derivation and Decomposition require it, Refinement does not
 //
@@ -207,7 +260,7 @@
 // identity. The two packages reach different, and equally correct,
 // conclusions because they are answering to different normative text.
 //
-// # Deliberately excluded from Packet C, Packet G.1, and Packet G.2
+// # Deliberately excluded from Packets C, G.1, G.2, and G.3
 //
 // PEOS-005 defines no Requirement Acceptance Criterion, Verification
 // Method, or verification status/result — every "acceptance criteria" or
@@ -218,11 +271,10 @@
 // exclusively there per §26), Allocation (§24 -- PEOS-005 imposes no
 // positive representation obligation for it; a Product MAY compose
 // peos/relation.Relation with an opaque target, or use its own record),
-// or Requirement Dependency, Conflict, Requirement Supersession, or
-// Waiver, each scheduled for a later PEOS-005 packet (Packets G.3-G.5) on
-// top of the foundation this file documents. Priority, criticality, and
-// risk level have no normative basis anywhere in PEOS-005 and are not
-// modeled at all.
+// or Requirement Supersession or Waiver, each scheduled for a later
+// PEOS-005 packet (Packets G.4-G.5) on top of the foundation this file
+// documents. Priority, criticality, and risk level have no normative
+// basis anywhere in PEOS-005 and are not modeled at all.
 //
 // # Integrity scope
 //

@@ -93,4 +93,15 @@ var (
 	// beyond the shared foundation ErrInvalidRequirementRelation already
 	// covers.
 	ErrInvalidDecomposition = errors.New("requirement: decomposition is invalid")
+
+	// ErrInvalidDependency is returned when a Dependency's nature is
+	// empty or whitespace-only.
+	ErrInvalidDependency = errors.New("requirement: dependency is invalid")
+
+	// ErrInvalidConflict is returned when a Conflict's nature is empty or
+	// whitespace-only. Conflict's participant-distinctness requirement
+	// (PEOS-005 §22.1) uses the shared ErrInvalidRequirementRelation
+	// instead, since it is a participant-shape rule of the same kind as
+	// checkDistinctParticipants, not content specific to Conflict.
+	ErrInvalidConflict = errors.New("requirement: conflict is invalid")
 )

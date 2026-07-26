@@ -116,3 +116,44 @@ func checkDistinctRequirementIdentity(a, b core.RequirementArtifactRevisionRef, 
 	}
 	return nil
 }
+
+// requirementParticipantSubject converts p into the
+// core.EngineeringSubjectRef relation.Relation stores as its source or
+// target, rejecting a zero participant. Used by Dependency and Conflict,
+// whose participants MAY identify either Requirement identity level or
+// Requirement Artifact Revision level (PEOS-005 §21.1, §22.1), unlike the
+// revision-only participants requirementRevisionParticipant handles.
+func requirementParticipantSubject(p RequirementParticipant) (core.EngineeringSubjectRef, error) {
+	switch {
+	case p.IsZero():
+		return core.EngineeringSubjectRef{}, fmt.Errorf("%w: participant must not be zero", ErrInvalidRequirementRelation)
+	case p.IsRequirement():
+		ref, _ := p.AsRequirement()
+		subject, err := core.EngineeringSubjectRefFromRequirement(ref)
+		if err != nil {
+			return core.EngineeringSubjectRef{}, fmt.Errorf("%w: %w", ErrInvalidRequirementRelation, err)
+		}
+		return subject, nil
+	default:
+		ref, _ := p.AsRequirementRevision()
+		subject, err := core.EngineeringSubjectRefFromRequirementRevision(ref)
+		if err != nil {
+			return core.EngineeringSubjectRef{}, fmt.Errorf("%w: %w", ErrInvalidRequirementRelation, err)
+		}
+		return subject, nil
+	}
+}
+
+// asRequirementParticipant unwraps subject as a RequirementParticipant,
+// accepting both Requirement identity-level and Requirement Artifact
+// Revision-level kinds and rejecting every other subject kind (PEOS-005
+// §21.1, §22.1).
+func asRequirementParticipant(subject core.EngineeringSubjectRef) (RequirementParticipant, error) {
+	if ref, ok := subject.AsRequirement(); ok {
+		return NewRequirementParticipantFromRequirement(ref)
+	}
+	if ref, ok := subject.AsRequirementRevision(); ok {
+		return NewRequirementParticipantFromRequirementRevision(ref)
+	}
+	return RequirementParticipant{}, fmt.Errorf("%w: participant must identify a Requirement identity or a Requirement Artifact Revision, not another subject kind", ErrInvalidRequirementRelation)
+}
