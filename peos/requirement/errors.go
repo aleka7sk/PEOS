@@ -122,4 +122,14 @@ var (
 	// participant, provenance, scope, and self-supersession failures use
 	// the shared ErrInvalidRequirementRelation instead.
 	ErrInvalidRequirementSupersession = errors.New("requirement: requirement supersession is invalid")
+
+	// ErrInvalidWaiver is returned when a Waiver is constructed or decoded
+	// with a zero-value waived Requirement, when a zero-value Waiver is
+	// marshaled, or when a Waiver's top-level JSON form fails to decode
+	// (PEOS-005 §27). Waiver is not a relationship (it composes no
+	// relation.Relation), so it does not reuse ErrInvalidRequirementRelation.
+	// Its other mandatory components delegate to their own owning
+	// sentinels: ErrInvalidAuthority (§27.1 authority), ErrInvalidGovernanceAction
+	// (§27 governance action), and core.ErrInvalidScope (§27.2 scope).
+	ErrInvalidWaiver = errors.New("requirement: waiver is invalid")
 )

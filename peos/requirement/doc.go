@@ -390,11 +390,118 @@
 // introducing a separate PEOS entity" -- hence no identity, no lifecycle,
 // no Ref type). §27 defines Waiver's authorizing action in identical
 // terms, so this type is deliberately package-level shared foundation,
-// not folded into supersession.go: Packet G.5 (Waiver) is expected to
-// reuse GovernanceAction directly, unmodified, rather than defining its
-// own equivalent. Unlike RequirementParticipant, GovernanceAction carries
-// JSON: it is a type-specific field stored alongside, not inside, a
-// composed relation.Relation.
+// not folded into supersession.go. Packet G.5.I confirmed this reuse
+// directly: Waiver (waiver.go) consumes GovernanceAction unmodified, with
+// no new arm and no Waiver-specific equivalent. Unlike RequirementParticipant,
+// GovernanceAction carries JSON: it is a type-specific field stored
+// alongside, not inside, a composed relation.Relation -- and, for Waiver,
+// alongside no relation.Relation at all, since Waiver composes none.
+//
+// # Waiver is a governance value record, not a relationship
+//
+// Waiver (waiver.go) records an authorized, scoped limitation of a
+// Requirement's normative applicability (§27: "A Requirement MAY be
+// waived only through applicable engineering governance... A waiver
+// suspends or limits normative applicability within its defined scope.").
+// It is a separate immutable governance value record -- not an Artifact,
+// not an Artifact Revision, not an Artifact Relation, not a Lifecycle
+// State Assignment, and not a Decision Outcome. It carries no identity of
+// its own (no ArtifactID, no RevisionID, no WaiverID or WaiverRef),
+// matching PEOS-008 :520's own statement that PEOS-005 "does not define
+// Waiver identity, Waiver lifecycle, Waiver revocation, or a Waiver
+// historical model."
+//
+// Waiver composes no relation.Relation, unlike this package's six
+// Requirement relationship wrappers: §17.4 binds every explicitly
+// represented Requirement *relationship* to PEOS-002's Artifact Relation
+// contract, but §27 never calls a waiver a relationship, and §17.1
+// governs relationship identity, lifecycle, and history -- not Waiver's.
+// A Waiver therefore carries no "relation" JSON key, no RelationType, and
+// no Source/Target: it names its single waived Requirement directly, at
+// Requirement identity level (core.RequirementRef), never at Requirement
+// Artifact Revision level -- §27 says "the Requirement" five times and
+// never once says "Requirement Artifact Revision," in direct contrast to
+// the six relationship types' own §18.1/§19.1/§20.1/§21.1/§22.1/§23.1
+// participant-level clauses. RequirementParticipant (participant.go) is
+// deliberately not reused here for the same reason it is not reused by
+// Supersession: it exists so Dependency and Conflict can express an
+// either-level choice §21.1/§22.1 explicitly require, and §27 asks no
+// such question.
+//
+// Waiver mandates exactly four fields, one per §27/§27.1/§27.2 "SHALL"
+// obligation: the waived Requirement (§27), the authority under which the
+// waiver is established (§27.1, core.AuthorityRef), the governance action
+// through which it was established (§27, GovernanceAction, reused
+// unchanged), and the waiver's scope (§27.2, core.Scope, mandatory --
+// no WithScope/WithoutScope, matching Refinement's, Decomposition's,
+// Conflict's, and Supersession's mandatory-scope treatment above). All
+// four are required constructor arguments; extension is the only optional
+// field. Waiver deliberately carries no core.Provenance field: unlike
+// this package's relationship wrappers, which inherit provenance from
+// relation.Relation as PEOS-002's own Artifact Relation obligation, §27
+// imposes no equivalent provenance requirement of its own, and Waiver
+// has no relation.Relation to inherit one from.
+//
+// # Waiver is not a Requirement edit, an Applicability change, a Lifecycle state, or a Decision Outcome
+//
+// A waiver SHALL NOT delete the Requirement, change its identity, or
+// rewrite its content (§27); structurally, Waiver holds a
+// core.RequirementRef -- a reference -- never a Requirement or Revision
+// value, so none of those three prohibited effects is representable here.
+// This is also the structural prevention of non-conforming pattern
+// §36.11 ("Representing a waiver as an informal flag or mutable
+// Requirement attribute," for example Requirement{waived = true}):
+// Requirement and Content gain no field for this package's Waiver support,
+// since Waiver is a wholly separate record referencing a Requirement, not
+// an attribute of one.
+//
+// Changing what a Requirement's content or Applicability says requires an
+// ordinary new Artifact Revision under §25; a Waiver produces none, and
+// Applicability (content.go, Revision-owned) and Waiver are independent
+// types with no field or method connecting them. A Waiver likewise
+// carries no Lifecycle State and does not import peos/lifecycle: §26
+// governs Lifecycle exclusively there, and §27 defines no Lifecycle
+// interaction for this package to model -- mirroring Supersession's own
+// independence from peos/lifecycle (see "Supersession records a
+// replacement fact" above). Finally, a GovernanceAction built from a
+// core.DecisionOutcomeRef is an authorization *reference* the Waiver
+// carries, not the Waiver itself, and not the Decision Outcome record:
+// the authorizing Decision Outcome and the Waiver it authorizes remain
+// two distinct records.
+//
+// # What Waiver deliberately does not model
+//
+// No waived-obligation reference: §27 contains no clause requiring an
+// explicitly represented waived obligation, criterion, quality
+// constraint, or rule distinct from the waived Requirement itself. The
+// narrowing mechanism §27 provides is scope, not a separate obligation
+// field -- §27: "A waiver suspends or limits normative applicability
+// within its defined scope."
+//
+// No justification, reason, rationale, or compensating-control field:
+// §27/§27.1/§27.2 mandate none, and §36.11's non-conformance triad is
+// scope + authority + governance only. A Product needing rationale prose
+// uses extension, which stays structurally separate from PEOS-owned
+// fields.
+//
+// No temporal fields (no effective-from, expiry, duration, or review-date):
+// §27 has no such clause. "Defined periods of applicability" appears only
+// inside §27.2's own "Scope MAY include" list, so PEOS-005 deliberately
+// carries any temporal bound inside scope's opaque expression, not as a
+// separate typed field this package would need to interpret.
+//
+// No lifecycle, expiry, revocation, or status field: PEOS-008 :520 is
+// decisive that PEOS-005 defines none of these for Waiver. Active/expired
+// is a runtime evaluation derived from scope (PEOS-008's own layer);
+// revoked/withdrawn is not a PEOS-005 construct -- a Product revokes by
+// recording a new governance action, never by mutating the original
+// Waiver value, which carries no mutator for any mandatory field.
+//
+// No collection or graph type: consistent with §17.1/§20.2/§22.1's
+// repeated refusal to reify relationship collections, this package
+// introduces no WaiverSet. A Requirement MAY carry multiple Waivers;
+// recognizing duplicate, overlapping, or conflicting Waivers is a
+// repository-level concern this package does not check.
 //
 // # Deliberately excluded from Packets C, G.1, G.2, G.3, and G.4
 //
@@ -404,14 +511,13 @@
 // (§30) that evaluates Claims *about* a Requirement Revision from outside
 // it; nothing of that kind is a Requirement content field. This package
 // likewise does not implement Requirement Lifecycle (PEOS-003, governed
-// exclusively there per §26), Allocation (§24 -- PEOS-005 imposes no
+// exclusively there per §26), or Allocation (§24 -- PEOS-005 imposes no
 // positive representation obligation for it; a Product MAY compose
-// peos/relation.Relation with an opaque target, or use its own record),
-// or Waiver (§27), scheduled for **Packet G.5** on top of the foundation
-// this file documents -- Requirement Supersession (§23) is no longer
-// excluded as of Packet G.4/G.4.I. Priority, criticality, and risk level
-// have no normative basis anywhere in PEOS-005 and are not modeled at
-// all.
+// peos/relation.Relation with an opaque target, or use its own record) --
+// Requirement Supersession (§23) is no longer excluded as of Packet
+// G.4/G.4.I, and Waiver (§27) is no longer excluded as of Packet G.5.I.
+// Priority, criticality, and risk level have no normative basis anywhere
+// in PEOS-005 and are not modeled at all.
 //
 // # Integrity scope
 //
