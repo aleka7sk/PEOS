@@ -85,4 +85,12 @@ var (
 	// ErrInvalidDerivation is returned when a Derivation's rationale is
 	// empty or whitespace-only.
 	ErrInvalidDerivation = errors.New("requirement: derivation is invalid")
+
+	// ErrInvalidDecomposition is returned when a Decomposition's
+	// subordinate Requirement identity is the same as its parent
+	// Requirement identity (PEOS-005 §20.1). There is no equivalent
+	// ErrInvalidRefinement: Refinement has no type-specific failure mode
+	// beyond the shared foundation ErrInvalidRequirementRelation already
+	// covers.
+	ErrInvalidDecomposition = errors.New("requirement: decomposition is invalid")
 )

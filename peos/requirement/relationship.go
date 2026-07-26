@@ -75,3 +75,33 @@ func checkDistinctParticipants(a, b core.RequirementArtifactRevisionRef) error {
 	}
 	return nil
 }
+
+// requireRelationScope returns r's declared scope, rejecting its absence
+// (PEOS-005 §19: "the scope within which compatibility is asserted";
+// §20: "the scope of that parent-to-subordinate association" -- both
+// mandatory, unlike Derivation's optional scope). Used by every
+// relationship type whose own PEOS-005 section makes scope mandatory
+// (Refinement, Decomposition, and later Conflict and Requirement
+// Supersession); Derivation and Dependency do not use this helper.
+func requireRelationScope(r relation.Relation) (core.Scope, error) {
+	scope, ok := r.Scope()
+	if !ok {
+		return core.Scope{}, fmt.Errorf("%w: scope must not be absent", ErrInvalidRequirementRelation)
+	}
+	return scope, nil
+}
+
+// checkDistinctRequirementIdentity rejects a and b naming Requirement
+// Artifact Revisions of the same Requirement identity, regardless of
+// revision (PEOS-005 §20.1: "A subordinate Requirement identity SHALL
+// remain distinct from the parent Requirement identity"). This rule is
+// stronger than checkDistinctParticipants's revision-level check, and is
+// used only by Decomposition: no other relation type PEOS-005 defines
+// states an identity-level distinctness requirement (see Refinement's
+// own doc comment for why §19 does not impose the same rule).
+func checkDistinctRequirementIdentity(a, b core.RequirementArtifactRevisionRef) error {
+	if a.ArtifactID() == b.ArtifactID() {
+		return fmt.Errorf("%w: subordinate Requirement identity must differ from the parent Requirement identity", ErrInvalidDecomposition)
+	}
+	return nil
+}

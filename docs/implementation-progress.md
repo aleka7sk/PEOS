@@ -1,10 +1,10 @@
 # PEOS Implementation Progress
 
-- **Last updated:** 2026-07-26 (Packet G.1.I — Requirement Relationship Foundation + Derivation implementation)
+- **Last updated:** 2026-07-26 (Packet G.2.I — Refinement + Decomposition implementation)
 - **Current specification:** PEOS-005 — Requirement Model
-- **Current packet:** Packet G (Blueprint) → G.A (Challenge Review) → G.B (Consolidated Blueprint) → G.B.1 (tracker sync) → **G.1 (Requirement Relationship Foundation + Derivation) are all complete and accepted.** Packet G.2 has **not** started.
-- **Overall status:** 5 of 10 specifications have a Go SDK package (`peos/core`, `peos/requirement`, `peos/relation`, `peos/lifecycle`, `peos/decision`). PEOS-004 is fully complete and accepted, zero open findings, one deliberate architectural deferral (Delegation). PEOS-005 is in progress: architecture is fully resolved (Packet G.B) and the first implementation packet (G.1) is complete and accepted — `peos/requirement` now imports `peos/relation`, both stale `doc.go` statements are corrected, and Derivation (§18) is fully implemented and tested. G.2–G.5 have not started. PEOS-006 through PEOS-009 have no implementation package yet.
-- **Exact next action:** **Packet G.2 — Refinement + Decomposition Blueprint** (PEOS-005 §19, §19.1, §20, §20.1–§20.2). Recommended model: Claude Opus. Recommended mode: Plan. See "Current Next Action" below.
+- **Current packet:** Packet G (Blueprint) → G.A (Challenge Review) → G.B (Consolidated Blueprint) → G.B.1 (tracker sync) → G.1 (Requirement Relationship Foundation + Derivation) → **G.2 (Refinement + Decomposition) are all complete and accepted.** Packet G.3 has **not** started.
+- **Overall status:** 5 of 10 specifications have a Go SDK package (`peos/core`, `peos/requirement`, `peos/relation`, `peos/lifecycle`, `peos/decision`). PEOS-004 is fully complete and accepted, zero open findings, one deliberate architectural deferral (Delegation). PEOS-005 is in progress: architecture is fully resolved (Packet G.B), and two implementation packets are complete — G.1 (Derivation, §18) and G.2 (Refinement §19, Decomposition §20). Both reuse the G.1 foundation unchanged; two new sentinels total across both packets (`ErrInvalidDerivation`, `ErrInvalidDecomposition`) and no `ErrInvalidRefinement`. G.3–G.5 have not started. PEOS-006 through PEOS-009 have no implementation package yet.
+- **Exact next action:** **Packet G.3 — Dependency + Conflict Blueprint** (PEOS-005 §21, §21.1, §22, §22.1). Recommended model: Claude Opus. Recommended mode: Plan. See "Current Next Action" below.
 
 This file is the single authoritative source for PEOS implementation status. Chat history, prior reports, and memory are not authoritative — this file, verified against repository evidence, is. See `.claude/rules/peos-progress.md` for the maintenance rule.
 
@@ -33,7 +33,7 @@ Standard Markdown checkboxes (`[x]` / `[ ]`) cannot express every state a PEOS p
 | PEOS-002 — Artifact Model | `[x]` | `peos/core` (`Artifact`, `ArtifactRevision`, `Representation`, `ArtifactID`, `ArtifactRevisionRef`, `ArtifactType`) — Packet B / B.1; `peos/relation` (`Relation`) — Packet D / D.1 | Packet B (Artifact + Revision + Representation), Packet B.1 (integrity/representation refinement), Packet D (Relation), Packet D.1 (Relation structural validation) | Cross-relation graph traversal, cycle detection, traceability coverage, orphan detection — explicitly assigned by PEOS-002 itself to "a future Traceability Model" | No formal audit packet recorded in this history; accepted by direct commit progression (`eaafa23`→`258bb66`→`aebadd0`, `1753354`) with passing tests at each step | `go test ./peos/core ./peos/relation` pass; coverage core 80.8%, relation 98.1% (verified 2026-07-26); `peos/relation/doc.go` documents the graph/traceability deferral explicitly |
 | PEOS-003 — Lifecycle | `[x]` | `peos/lifecycle` (`LifecycleDefinition`, `LifecycleDefinitionVersion`, `StateAssignment`, `TransitionRecord`, `LifecycleDefinitionVersionSupersession`) — Packet E / E.1 | Packet E (Definition, Version, State Assignment, Transition Record), Packet E.1 (Definition Version Supersession) | Guard/Effect/Trigger expression language (Packet E.2, "once a stable expression contract exists"); Current State / State History derivation; Lifecycle Migration execution | No formal audit packet recorded; accepted by commit progression (`129dd70`, `25567f1`, `1807fc2`) with passing tests | `go test ./peos/lifecycle` passes; coverage 85.9% (verified 2026-07-26); `peos/lifecycle/doc.go` documents all three deferrals explicitly with named future-packet placeholders |
 | PEOS-004 — Decision Model | `[x]` | `peos/decision` (`Decision`, `Authority`, `Basis`+`Assumption`/`Constraint`/`Uncertainty`, `Alternative`, `Outcome`+`Commitment`, `Record`, `DecisionSupersession`, `DecisionInvalidation`, `DecisionConflict`, `ConflictResolution`, `Role`, `Consequence`) — Packets F, F.1, F.2, F.2.A, F.3, F.3 audit, F.3.B | See full "Packet Progress" table below — Packets F through F.3.B (including all sub-audits) are all complete and accepted, zero open findings | **Delegation** — deferred by architecture, see "Deferred Architecture" below | F.2.A: **ACCEPT** (1 MINOR, fixed in F.3). F.3 post-implementation audit: **ACCEPTED WITH MINOR FINDINGS** (2 MINOR, 0 BLOCKER/MAJOR). F.3.B corrective test packet: **both MINOR findings closed** (MINOR-1 fixed with new nested-sentinel tests; MINOR-2 accepted as non-blocking, no action taken) | `go test ./peos/decision` passes, 434 tests, 0 failures; coverage unchanged at ~91.8%; `staticcheck`/`golangci-lint` clean; `peos/decision/doc.go` documents final status for every PEOS-004 concept including the Delegation deferral with exact missing type and owning-package question |
-| PEOS-005 — Requirement Model | `[~]` | `peos/requirement` (`Requirement`, `Revision`, `Content`, `Subject`, `Statement` — Packet C; **`Derivation` — Packet G.1**) + `peos/relation` (new dependency, introduced by G.1). **Authoritative architecture plan: Packet G.B** | Packet C (§6–§16); Packet G/G.A/G.B (architecture); **Packet G.1 (§17, §17.1–§17.4, §18, §18.1–§18.2 — Requirement relationship foundation + Derivation, complete and accepted)** | **G.2 — Refinement + Decomposition; G.3 — Dependency + Conflict; G.4 — Requirement Supersession; G.5 — Waiver.** No Allocation implementation packet (Allocation is Product-owned) | Packet G.A: **BLUEPRINT APPROVED WITH REQUIRED REVISIONS** (2 MAJOR, 7 MINOR, 2 NOTE, all incorporated by G.B). Packet G.B: **PACKET G BLUEPRINT REVISED AND ACCEPTED.** Packet G.1: implemented per Blueprint with no architectural deviation; all quality gates pass | `go test ./peos/requirement` passes, 94.6% coverage (verified 2026-07-26, up from 94.2%). **Minimum conformance (§34.1): still 9 of 10** — Derivation alone does not close §17–§23; Refinement, Decomposition, Dependency, Conflict, and Supersession remain (G.2–G.4). Both stale `peos/requirement/doc.go` statements **corrected** in Packet G.1 (Artifact Relations; Waiver). `peos/requirement` now imports `peos/relation` (verified via `go list`) |
+| PEOS-005 — Requirement Model | `[~]` | `peos/requirement` (`Requirement`, `Revision`, `Content`, `Subject`, `Statement` — Packet C; `Derivation` — Packet G.1; **`Refinement`, `Decomposition` — Packet G.2**) + `peos/relation` (dependency, introduced by G.1). **Authoritative architecture plan: Packet G.B** | Packet C (§6–§16); Packet G/G.A/G.B (architecture); Packet G.1 (§17, §17.1–§17.4, §18, §18.1–§18.2 — foundation + Derivation); **Packet G.2 (§19, §19.1, §20, §20.1–§20.2 — Refinement + Decomposition, complete and accepted)** | **G.3 — Dependency + Conflict; G.4 — Requirement Supersession; G.5 — Waiver.** No Allocation implementation packet (Allocation is Product-owned) | Packet G.A: **BLUEPRINT APPROVED WITH REQUIRED REVISIONS** (2 MAJOR, 7 MINOR, 2 NOTE, all incorporated by G.B). Packet G.B: **PACKET G BLUEPRINT REVISED AND ACCEPTED.** Packets G.1 and G.2: implemented per their Blueprints with no architectural deviation; all quality gates pass | `go test ./peos/requirement` passes, 95.1% coverage (verified 2026-07-26, up from 94.6%). **Minimum conformance (§34.1): still 9 of 10** — Dependency, Conflict, and Requirement Supersession remain (G.3–G.4) before §17–§23 is fully closed. Decomposition enforces §20.1's Requirement-identity distinctness (`ErrInvalidDecomposition`); Refinement deliberately does not (§19 imposes no such rule) — both verified by dedicated tests. `derivation.go`/`derivation_test.go` untouched by G.2 (verified via `git diff --stat`) |
 | PEOS-006 — Validation | `[ ]` | None | None | Everything — Claim, Validation Plan, Validation Execution Record, Validation Method | N/A | No `peos/validation` (or similarly named) directory exists. Spec text only (`spec/006-validation.md`, 36928 bytes) |
 | PEOS-007 — Quality Model | `[ ]` | None | None | Everything — Quality Profile, Quality Element, Quality Constraint | N/A | No implementation package exists. Spec text only (`spec/007-quality-model.md`) |
 | PEOS-008 — Runtime Contract | `[ ]` | None | None | Everything — Runtime Contract, Runtime Binding, Runtime Observation, Runtime Violation | N/A | No implementation package exists. Spec text only (`spec/008-runtime-contract.md`); commit `3498d52 "PEOS-008,009"` (2026-07-25) only edited spec text, not code |
@@ -75,8 +75,9 @@ Execution order, as reconstructed from `git log --reverse` and each package's ow
 | G.B.1 | `[x]` | Progress tracker synchronization: bring `docs/implementation-progress.md` in line with Packet G.B (this update) | `docs/implementation-progress.md` only, no code, no tests | Self-contained documentation-only corrective packet; validated by `git diff --check` and manual consistency review | None open | Packet G.1 |
 | G.1 | `[x]` | Requirement Relationship Foundation + Derivation Blueprint (§17, §17.1–§17.4, §18, §18.1–§18.2) | Architecture only, no code | Blueprint complete: full wrapper architecture, constructor contract, JSON contract, error model, test matrix, validation boundary matrix — see Packet G.1.I for implementation result | None open | Packet G.1.I |
 | G.1.I | `[x]` | Requirement Relationship Foundation + Derivation implementation, following the Packet G.1 Blueprint literally (no redesign) | New: `peos/requirement/relationship.go`, `derivation.go`, `derivation_test.go`. Modified: `errors.go` (2 sentinels: `ErrInvalidRequirementRelation`, `ErrInvalidDerivation`), `doc.go` (both stale statements corrected + new Requirement Relationship section) | Implemented exactly per Blueprint; zero architectural deviation. All quality gates pass (`gofmt`, `go build`, `go vet`, `go test` ×2 incl. `-race`, `staticcheck`, `golangci-lint`, `git diff --check`); 32 new Derivation tests, 0 failures; package coverage 94.6% (up from 94.2%) | None open | Packet G.2 |
-| G.2 | `[ ]` | Refinement + Decomposition (§19, §19.1, §20, §20.1–§20.2) | Not started | — | — | G.1 (satisfied — `relationship.go` foundation ready for reuse) |
-| G.3 | `[ ]` | Dependency + Conflict (§21, §21.1, §22, §22.1) | Not started | — | — | G.1 |
+| G.2 | `[x]` | Refinement + Decomposition Blueprint (§19, §19.1, §20, §20.1–§20.2) | Architecture only, no code | Blueprint complete: reused G.1 foundation unchanged, specified mandatory scope, Decomposition's §20.1 identity-distinctness rule, §20.2 no-completeness-model constraint, JSON contract, error model, test matrix, validation boundary matrix — see Packet G.2.I for implementation result | None open | Packet G.2.I |
+| G.2.I | `[x]` | Refinement + Decomposition implementation, following the Packet G.2 Blueprint literally (no redesign; G.1's foundation and Derivation untouched) | New: `peos/requirement/refinement.go`, `decomposition.go`, `refinement_test.go`, `decomposition_test.go`. Modified: `relationship.go` (2 new helpers, additive only: `requireRelationScope`, `checkDistinctRequirementIdentity`), `errors.go` (1 new sentinel: `ErrInvalidDecomposition`; no `ErrInvalidRefinement`), `doc.go` | Implemented exactly per Blueprint; zero architectural deviation. All quality gates pass (`gofmt`, `go build`, `go vet`, `go test` ×2 incl. `-race`, `staticcheck`, `golangci-lint`, `git diff --check`); 62 new tests (30 Refinement, 32 Decomposition), 0 failures; package coverage 95.1% (up from 94.6%); `derivation.go`/`derivation_test.go` verified untouched (`git diff --stat`); absence audit confirms no `DecompositionSet`/`RelationshipCollection`/`CompletenessAssertion` symbol exists | None open | Packet G.3 |
+| G.3 | `[ ]` | Dependency + Conflict (§21, §21.1, §22, §22.1) | Not started | — | — | G.1 (satisfied — `relationship.go` foundation, including the new `requireRelationScope` helper, ready for reuse) |
 | G.4 | `[ ]` | Requirement Supersession (§23, §23.1–§23.2, §26.5, §36.12–§36.13) | Not started | — | — | G.1 |
 | G.5 | `[ ]` | Waiver (§27, §27.1–§27.2, §36.11) — no-identity value record, independent of G.1–G.4 | Not started | — | — | — |
 | D | `[x]` | `peos/relation` — Relation (structural validation only) | `1753354` | Not formally audited as a named packet | None open | — |
@@ -179,6 +180,13 @@ All results below were re-executed directly in this task (Packet F.3.B) against 
 | `git diff --check` (Packet G.1.I) | **PASS** (clean) | No output |
 | Package coverage (Packet G.1.I) | `requirement` 94.6% (up from 94.2%) | `go test ./peos/requirement -coverprofile=...` |
 | Implementation compliance (Packet G.1.I) | **Zero architectural deviation** from the Packet G.1 Blueprint | Wrapper shape, constructor signature, JSON envelope, sentinel names, and decode-revalidation flow all implemented exactly as specified |
+| `gofmt -l peos/requirement` (Packet G.2.I) | **PASS** (clean) | No output |
+| `go test ./... -count=1` (Packet G.2.I) | **PASS** | `core`, `decision`, `lifecycle`, `relation`, `requirement` all `ok`, incl. 62 new `TestRefinement*`/`TestDecomposition*` tests, 0 failures |
+| `go test ./... -race -count=1` (Packet G.2.I) | **PASS** | All 5 packages `ok` under the race detector |
+| `staticcheck ./...` / `golangci-lint run ./...` (Packet G.2.I) | **PASS** (clean) | No output |
+| `git diff --check` (Packet G.2.I) | **PASS** (clean) | No output |
+| Package coverage (Packet G.2.I) | `requirement` 95.1% (up from 94.6%) | `go test ./peos/requirement -coverprofile=...` |
+| Implementation compliance (Packet G.2.I) | **Zero architectural deviation** from the Packet G.2 Blueprint | Mandatory-scope handling, §20.1 identity-distinctness check, sentinel count (1 new, no `ErrInvalidRefinement`), and JSON envelope all implemented exactly as specified; `derivation.go`/`derivation_test.go` confirmed untouched |
 
 **Documentation-only note (Packets G.A, G.B, G.B.1):** none of these three packets changed
 any Go file. G.A and G.B were pure architecture review/consolidation with no repository
@@ -193,21 +201,27 @@ against it, not carried over.
 
 **There is exactly one primary next action:**
 
-> **Packet G.2 — Refinement + Decomposition Blueprint** (PEOS-005 §19, §19.1, §20, §20.1–§20.2)
+> **Packet G.3 — Dependency + Conflict Blueprint** (PEOS-005 §21, §21.1, §22, §22.1)
 >
-> Design the mandatory-scope, acyclic revision-level relationship pair on top of the Packet
-> G.1 foundation (`peos/requirement/relationship.go`'s shared helpers, the
-> `ErrInvalidRequirementRelation` sentinel, the nested JSON envelope shape, and the
-> decode-revalidation pattern — reuse all of these, do not redesign them). Refinement and
-> Decomposition both require mandatory scope (unlike Derivation's optional scope) and both
-> prohibit direct and transitive self-reference (§19.1, §20.1); Decomposition additionally
-> must not imply completeness (§20.2, non-conforming pattern §36.16).
+> Design the two either-participant-level relationship types on top of the Packet G.1/G.2
+> foundation (`peos/requirement/relationship.go`'s shared helpers, including the G.2-added
+> `requireRelationScope` for Conflict's mandatory scope; the `ErrInvalidRequirementRelation`
+> sentinel; the nested JSON envelope shape; the decode-revalidation pattern — reuse all of
+> these, do not redesign them). Unlike every relationship type shipped so far, both
+> Dependency and Conflict permit participants at *either* Requirement identity level or
+> Requirement Artifact Revision level, and both permit cycles (§21.1 explicitly; §22.1 for
+> multi-participant Conflict cycles) rather than prohibiting them. Dependency requires no
+> source≠target rule (§21/§21.1 state none — do not add one). Conflict requires a mandatory
+> scope, a mandatory "nature of incompatibility" field, symmetric engineering semantics
+> despite an ordered stored representation (§22.1: "that ordering SHALL be representational
+> only and SHALL NOT alter the symmetric engineering semantics of Conflict"), and a
+> source≠target check (§22.1, unlike Dependency).
 
 - **Recommended model:** Claude Opus
-- **Recommended mode:** Plan (blueprint phase); exit Plan Mode only once the Refinement/Decomposition shape is approved
-- **Expected result:** A Packet G.2 Blueprint at the same level of detail as Packet G.1's, ready for direct implementation with no further architectural decisions
+- **Recommended mode:** Plan (blueprint phase); exit Plan Mode only once the Dependency/Conflict shape is approved
+- **Expected result:** A Packet G.3 Blueprint at the same level of detail as Packets G.1's and G.2's, ready for direct implementation with no further architectural decisions
 
 **Historical / superseded next actions — do not act on these:** every next action recorded
-in this section before Packet G.1.I (the original "Packet G — conformance-matrix audit
-phase," and the intermediate "Packet G.1 — … Blueprint") is now complete and superseded.
-**Packet G.2, above, is the sole current next action in this document.**
+in this section before Packet G.2.I (the original "Packet G — conformance-matrix audit
+phase," "Packet G.1 — … Blueprint," and "Packet G.2 — … Blueprint") is now complete and
+superseded. **Packet G.3, above, is the sole current next action in this document.**

@@ -65,8 +65,9 @@
 // PEOS-005 §17.3 requires every relationship to make clear whether each
 // participant identifies a Requirement identity or a specific Requirement
 // Artifact Revision (non-conforming pattern §36.14). Each relationship
-// type fixes its own permitted participant level(s): Derivation requires
-// both participants at Requirement Artifact Revision level (§18.1).
+// type fixes its own permitted participant level(s): Derivation,
+// Refinement, and Decomposition each require both participants at
+// Requirement Artifact Revision level (§18.1, §19.1, §20.1).
 // core.EngineeringSubjectRefFromRequirementRevision and
 // EngineeringSubjectRef.AsRequirementRevision are the two primitives that
 // make this level distinction enforceable without any peos/core change.
@@ -80,6 +81,75 @@
 // cycle detection, traceability coverage, and orphan detection" are
 // explicitly assigned elsewhere. Only the direct case (a relationship's
 // own source equal to its own target) is checked locally.
+//
+// # Mandatory vs optional scope
+//
+// Derivation's scope is optional (§18 states no scope requirement),
+// while Refinement's and Decomposition's scope is mandatory: §19
+// requires every Refinement relationship to identify "the scope within
+// which compatibility is asserted," and §20 requires every Decomposition
+// relationship to identify "the scope of that parent-to-subordinate
+// association." Refinement and Decomposition therefore expose no
+// WithScope or WithoutScope method -- WithoutScope would make an
+// invalid, scope-less value reachable on a type whose scope can never be
+// legitimately absent, and WithScope is unnecessary because their own
+// constructors already require scope as an argument. Their Scope()
+// accessor returns a bare core.Scope, not the (core.Scope, bool) shape
+// Derivation's optional scope requires: presence is guaranteed, so no
+// presence flag is needed. On decode, the shared requireRelationScope
+// helper (relationship.go) rejects an absent scope key explicitly,
+// rather than relying on relation.Relation's own `omitempty` behavior to
+// signal presence.
+//
+// # Derivation vs Refinement vs Decomposition
+//
+// Derivation (§18) records engineering origin: that required engineering
+// intent was produced through engineering reasoning using other
+// represented required engineering intent as an input. Refinement (§19)
+// records increased precision, narrower interpretation, additional
+// constraint, or greater engineering detail, while remaining compatible
+// with the refined intent within an asserted scope. Decomposition (§20)
+// records that one parent's required engineering intent is partitioned
+// into multiple independently identified subordinate Requirements.
+// PEOS-005 explicitly rejects inferring any of the three from the mere
+// existence of another over the same participants (§18, §19: "neither
+// relationship SHALL be inferred solely from the existence of the
+// other" -- non-conforming pattern §36.15); a Derivation and a
+// Refinement MAY validly coexist over the same source/target pair as
+// two independent values with two different relation types.
+//
+// # Decomposition alone enforces Requirement-identity distinctness
+//
+// PEOS-005 §20.1 states explicitly: "A subordinate Requirement identity
+// SHALL remain distinct from the parent Requirement identity." No
+// equivalent clause exists for Refinement: §19's own language ("A
+// refining Requirement SHALL remain independently identifiable," line
+// 739) requires only that the refining Requirement possess its own
+// identity, not that it differ from the refined Requirement's identity,
+// and §19.1 states no distinctness rule at all. This package therefore
+// rejects a Decomposition whose parent and subordinate name different
+// Revisions of the very same Requirement (checkDistinctRequirementIdentity,
+// relationship.go), while accepting the equivalent case for Refinement.
+// This is a deliberate asymmetry required by the specification text, not
+// an inconsistency between the two types.
+//
+// # Decomposition completeness is not modeled
+//
+// PEOS-005 §20.2 states that the existence of Decomposition relationships
+// does not by itself establish that subordinate Requirements completely
+// cover the parent's required engineering intent, that they are mutually
+// exclusive, or that satisfying every subordinate establishes
+// satisfaction of the parent, and explicitly forbids introducing a
+// Relationship Collection, a Decomposition Set, a Completeness Assertion,
+// or any other PEOS entity representing a group of Decomposition
+// relationships. This package introduces none of these: a set of
+// Decomposition values sharing one parent is, deliberately, nothing more
+// than a set of independently valid Go values with no group type, no
+// shared identity, and no completeness semantics of its own. One parent
+// MAY be the source of multiple Decomposition relationships, and one
+// subordinate MAY be the target of more than one (§20.1); distinguishing
+// their scopes when that occurs is a repository-level concern this
+// package does not check.
 //
 // # Derivation is deliberately not identity-bearing, unlike DecisionSupersession
 //
@@ -98,7 +168,7 @@
 // identity. The two packages reach different, and equally correct,
 // conclusions because they are answering to different normative text.
 //
-// # Deliberately excluded from Packet C and Packet G.1
+// # Deliberately excluded from Packet C, Packet G.1, and Packet G.2
 //
 // PEOS-005 defines no Requirement Acceptance Criterion, Verification
 // Method, or verification status/result — every "acceptance criteria" or
@@ -109,11 +179,11 @@
 // exclusively there per §26), Allocation (§24 -- PEOS-005 imposes no
 // positive representation obligation for it; a Product MAY compose
 // peos/relation.Relation with an opaque target, or use its own record),
-// or Requirement Refinement, Decomposition, Dependency, Conflict,
-// Requirement Supersession, or Waiver, each scheduled for a later PEOS-005
-// packet (Packets G.2-G.5) on top of the foundation this file documents.
-// Priority, criticality, and risk level have no normative basis anywhere
-// in PEOS-005 and are not modeled at all.
+// or Requirement Dependency, Conflict, Requirement Supersession, or
+// Waiver, each scheduled for a later PEOS-005 packet (Packets G.3-G.5) on
+// top of the foundation this file documents. Priority, criticality, and
+// risk level have no normative basis anywhere in PEOS-005 and are not
+// modeled at all.
 //
 // # Integrity scope
 //
