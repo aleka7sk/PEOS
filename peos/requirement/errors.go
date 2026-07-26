@@ -70,4 +70,19 @@ var (
 	// ErrInvalidRationale is returned when a Rationale's text is empty or
 	// whitespace-only.
 	ErrInvalidRationale = errors.New("requirement: rationale is invalid")
+
+	// ErrInvalidRequirementRelation is the shared foundation sentinel for
+	// every Requirement relationship wrapper (Derivation, and later
+	// Refinement, Decomposition, Dependency, Conflict, and Requirement
+	// Supersession -- PEOS-005 §17-§23). It is returned for participant
+	// zero-value or wrong-level errors, relation type mismatch, missing
+	// provenance, non-distinct source/target, a malformed nested
+	// relation.Relation, and zero-value marshal. Relationship-content
+	// errors specific to one relation type (for example, Derivation's
+	// rationale) use their own sentinel instead.
+	ErrInvalidRequirementRelation = errors.New("requirement: requirement relation is invalid")
+
+	// ErrInvalidDerivation is returned when a Derivation's rationale is
+	// empty or whitespace-only.
+	ErrInvalidDerivation = errors.New("requirement: derivation is invalid")
 )
