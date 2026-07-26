@@ -93,15 +93,26 @@ func requireRelationScope(r relation.Relation) (core.Scope, error) {
 
 // checkDistinctRequirementIdentity rejects a and b naming Requirement
 // Artifact Revisions of the same Requirement identity, regardless of
-// revision (PEOS-005 §20.1: "A subordinate Requirement identity SHALL
-// remain distinct from the parent Requirement identity"). This rule is
-// stronger than checkDistinctParticipants's revision-level check, and is
-// used only by Decomposition: no other relation type PEOS-005 defines
-// states an identity-level distinctness requirement (see Refinement's
-// own doc comment for why §19 does not impose the same rule).
-func checkDistinctRequirementIdentity(a, b core.RequirementArtifactRevisionRef) error {
+// revision. This rule is stronger than checkDistinctParticipants's
+// revision-level check, and applies to any relation type whose own
+// PEOS-005 section requires Requirement-identity distinctness between
+// its two participants -- Decomposition (§20.1: "A subordinate
+// Requirement identity SHALL remain distinct from the parent Requirement
+// identity") and Derivation (§18: "A derived Requirement SHALL possess
+// its own identity"; "A derived Requirement SHALL NOT inherit the
+// identity of a source Requirement" -- PEOS-009 :664/:758 establishes
+// that inheriting an identity means sharing it, i.e. an equal ArtifactID,
+// which is the same condition §20.1 states in different words; see
+// Packet G.1.1's audit and doc.go's own "Requirement-identity
+// distinctness" section for the full three-way comparison against
+// Refinement, which imposes no such rule).
+//
+// sentinel is the caller's own error sentinel (ErrInvalidDerivation,
+// ErrInvalidDecomposition, ...): this helper is relation-type-agnostic
+// and does not itself decide which relationship's failure this is.
+func checkDistinctRequirementIdentity(a, b core.RequirementArtifactRevisionRef, sentinel error) error {
 	if a.ArtifactID() == b.ArtifactID() {
-		return fmt.Errorf("%w: subordinate Requirement identity must differ from the parent Requirement identity", ErrInvalidDecomposition)
+		return fmt.Errorf("%w: Requirement identity must not be shared between the two participants", sentinel)
 	}
 	return nil
 }

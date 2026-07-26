@@ -28,6 +28,22 @@ import (
 // possess its own identity" (§18) refers to the derived Requirement
 // itself, never to the Derivation relationship recording that fact.
 //
+// That same clause is also an invariant NewDerivation enforces: source
+// and target MUST name different Requirement identities
+// (source.ArtifactID() != target.ArtifactID()), not merely different
+// Revisions. "A derived Requirement SHALL possess its own identity" and
+// "A derived Requirement SHALL NOT inherit the identity of a source
+// Requirement" (§18) forbid the source and derived Requirement from
+// sharing one ArtifactID -- PEOS-009 (:664, :758) establishes that
+// "inheriting" an identity means sharing it, the same condition PEOS-005
+// §20.1 states in different words for Decomposition's parent and
+// subordinate. See doc.go's "Requirement-identity distinctness" section
+// for the full three-way comparison against Refinement, which imposes no
+// such rule and therefore does permit two Revisions of the very same
+// Requirement to serve as Refined and Refining. A later Revision of the
+// same Requirement narrowing its own earlier wording is ordinary content
+// change under §25, not a Derivation.
+//
 // Both source and target are identified at Requirement Artifact Revision
 // level, never at Requirement identity level (§18.1: "both source and
 // target SHALL be identified at Requirement Artifact Revision level").
@@ -40,7 +56,8 @@ import (
 //
 // This package does not enforce transitive acyclicity (§18.1: "A
 // Requirement Artifact Revision SHALL NOT be directly or transitively
-// derived from itself"): only the direct case (source == target) is
+// derived from itself"): only the direct cases (source == target, and
+// source's Requirement identity == target's Requirement identity) are
 // checked here. Detecting a transitive cycle requires traversing every
 // other Derivation relationship in a repository, which this package does
 // not hold -- see doc.go.
@@ -51,9 +68,12 @@ type Derivation struct {
 
 // NewDerivation validates source, target, provenance, and rationale and
 // returns a Derivation. source and target must each be non-zero and
-// identify a Requirement Artifact Revision; they must differ. provenance
-// must be non-zero. rationale must be non-empty after trimming
-// surrounding whitespace; the trimmed value is stored.
+// identify a Requirement Artifact Revision; they must differ, and their
+// owning Requirement identities must also differ (PEOS-005 §18: a
+// derived Requirement must possess its own identity and must not inherit
+// the identity of a source Requirement). provenance must be non-zero.
+// rationale must be non-empty after trimming surrounding whitespace; the
+// trimmed value is stored.
 //
 // A successful call always returns a fully valid Derivation: every
 // mandatory field is a required constructor argument, never a later
@@ -75,6 +95,9 @@ func NewDerivation(
 		return Derivation{}, fmt.Errorf("requirement: NewDerivation: %w", err)
 	}
 	if err := checkDistinctParticipants(source, target); err != nil {
+		return Derivation{}, fmt.Errorf("requirement: NewDerivation: %w", err)
+	}
+	if err := checkDistinctRequirementIdentity(source, target, ErrInvalidDerivation); err != nil {
 		return Derivation{}, fmt.Errorf("requirement: NewDerivation: %w", err)
 	}
 	if provenance.IsZero() {

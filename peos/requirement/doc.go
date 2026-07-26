@@ -118,20 +118,59 @@
 // Refinement MAY validly coexist over the same source/target pair as
 // two independent values with two different relation types.
 //
-// # Decomposition alone enforces Requirement-identity distinctness
+// # Requirement-identity distinctness: Derivation and Decomposition require it, Refinement does not
 //
-// PEOS-005 §20.1 states explicitly: "A subordinate Requirement identity
-// SHALL remain distinct from the parent Requirement identity." No
-// equivalent clause exists for Refinement: §19's own language ("A
-// refining Requirement SHALL remain independently identifiable," line
-// 739) requires only that the refining Requirement possess its own
-// identity, not that it differ from the refined Requirement's identity,
-// and §19.1 states no distinctness rule at all. This package therefore
-// rejects a Decomposition whose parent and subordinate name different
-// Revisions of the very same Requirement (checkDistinctRequirementIdentity,
-// relationship.go), while accepting the equivalent case for Refinement.
-// This is a deliberate asymmetry required by the specification text, not
-// an inconsistency between the two types.
+// PEOS-005 states an identity-distinctness requirement for two of the
+// three relation types this package implements so far, using different
+// wording for each, and states none at all for the third:
+//
+//   - Derivation (§18): "A derived Requirement SHALL possess its own
+//     identity." "A derived Requirement SHALL NOT inherit the identity
+//     of a source Requirement." PEOS-009 (:664, :758) is the governing
+//     cross-specification precedent for what "inherit the identity"
+//     means: :664 states a generated Artifact "has its own Artifact
+//     identity, independent of the Template's identity," and :758 lists,
+//     as the corresponding non-conforming pattern, "Representing a
+//     generated Artifact as sharing, or inheriting, the Template's own
+//     Artifact identity." PEOS-009 therefore equates "inheriting" an
+//     identity with "sharing" it -- an equal ArtifactID. Applied to
+//     §18, a Derivation whose source and target name the same
+//     Requirement identity (regardless of which Revisions) shares that
+//     identity, and is therefore non-conforming identity inheritance.
+//   - Decomposition (§20.1): "A subordinate Requirement identity SHALL
+//     remain distinct from the parent Requirement identity" -- the same
+//     condition stated directly rather than through the "inherit"
+//     terminology §18 uses.
+//   - Refinement (§19): no equivalent clause exists. §19's own language
+//     ("A refining Requirement SHALL remain independently identifiable,"
+//     line 739) requires only that the refining Requirement possess its
+//     own identity, not that it differ from the refined Requirement's
+//     identity, and §19.1 states no distinctness rule at all.
+//
+// "Independently identifiable" (§18.1:709, §19:739, §20:777, §20:789) is
+// not itself a distinctness clause: it appears in all three sections,
+// including Decomposition, which also carries §20.1's separate explicit
+// distinctness statement -- if "independently identifiable" implied
+// distinctness on its own, that second statement would be redundant. It
+// is common ground, not the discriminator.
+//
+// This package therefore rejects both a Derivation and a Decomposition
+// whose two participants name different Revisions of the very same
+// Requirement identity (checkDistinctRequirementIdentity, relationship.go,
+// parameterized by each caller's own sentinel: ErrInvalidDerivation for
+// Derivation, ErrInvalidDecomposition for Decomposition), while accepting
+// the equivalent case for Refinement. This was a genuine correction to
+// this package's initial Derivation implementation (Packet G.1), found
+// during the normative audit that also produced this section (Packet
+// G.1.1) and applied in Packet G.1.1.I: the audit concluded the rule is
+// symmetric between Derivation and Decomposition, expressed in different
+// PEOS-005 wording for each, and that Refinement alone is the true
+// outlier -- not, as first assumed, that Decomposition alone carried the
+// rule. A later Revision of a Requirement that narrows its own earlier
+// wording is ordinary content change under §25, not a Derivation of a
+// new Requirement from an old one; that is the substantive reason
+// Refinement is permitted to relate two Revisions of one Requirement
+// while Derivation and Decomposition are not.
 //
 // # Decomposition completeness is not modeled
 //

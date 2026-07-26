@@ -110,7 +110,7 @@ func NewDecomposition(
 	if err := checkDistinctParticipants(parent, subordinate); err != nil {
 		return Decomposition{}, fmt.Errorf("requirement: NewDecomposition: %w", err)
 	}
-	if err := checkDistinctRequirementIdentity(parent, subordinate); err != nil {
+	if err := checkDistinctRequirementIdentity(parent, subordinate, ErrInvalidDecomposition); err != nil {
 		return Decomposition{}, fmt.Errorf("requirement: NewDecomposition: %w", err)
 	}
 	if provenance.IsZero() {

@@ -78,6 +78,26 @@ func TestNewDerivationSelfDerivationRejected(t *testing.T) {
 	}
 }
 
+// TestNewDerivationSameRequirementDifferentRevisionsRejected proves the
+// Packet G.1.1 audit's authoritative conclusion: PEOS-005 §18 requires
+// "A derived Requirement SHALL possess its own identity" and "A derived
+// Requirement SHALL NOT inherit the identity of a source Requirement,"
+// so a source and target naming different Revisions of the very same
+// Requirement identity is non-conforming identity inheritance -- the
+// deliberate mirror of Decomposition's equivalent rejection, and the
+// opposite of Refinement's equivalent acceptance.
+func TestNewDerivationSameRequirementDifferentRevisionsRejected(t *testing.T) {
+	source := mustRequirementRevisionRef(t, "REQ-1", "REV-1")
+	target := mustRequirementRevisionRef(t, "REQ-1", "REV-2")
+	d, err := NewDerivation(source, target, mustProvenance(t), "rationale")
+	if !errors.Is(err, ErrInvalidDerivation) {
+		t.Errorf("error = %v, want %v", err, ErrInvalidDerivation)
+	}
+	if !d.IsZero() {
+		t.Error("returned Derivation is not zero on identity-inheritance rejection")
+	}
+}
+
 func TestNewDerivationZeroProvenanceRejected(t *testing.T) {
 	_, err := NewDerivation(mustRequirementRevisionRef(t, "REQ-1", "REV-1"), mustRequirementRevisionRef(t, "REQ-2", "REV-1"), core.Provenance{}, "rationale")
 	if !errors.Is(err, ErrInvalidRequirementRelation) {
@@ -437,6 +457,32 @@ func TestDerivationJSONSourceEqualsTargetRejected(t *testing.T) {
 	}
 }
 
+// TestDerivationJSONSameRequirementDifferentRevisionsRejected proves the
+// §18 identity-distinctness rule is enforced on decode too, and that a
+// previously populated receiver is left unchanged by the rejection.
+func TestDerivationJSONSameRequirementDifferentRevisionsRejected(t *testing.T) {
+	prov, err := json.Marshal(mustProvenance(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := `{"kind":"requirement_revision","ref":{"artifact_id":"REQ-1","revision_id":"REV-1"}}`
+	target := `{"kind":"requirement_revision","ref":{"artifact_id":"REQ-1","revision_id":"REV-2"}}`
+	payload := `{"relation":{"relation_type":"peos:derivation","source":` + source + `,"target":` + target + `,"provenance":` + string(prov) + `},"rationale":"rationale"}`
+
+	original := fullDerivation(t)
+	receiver := original
+	err = json.Unmarshal([]byte(payload), &receiver)
+	if !errors.Is(err, ErrInvalidDerivation) {
+		t.Errorf("error = %v, want %v", err, ErrInvalidDerivation)
+	}
+	if receiver.Rationale() != original.Rationale() {
+		t.Error("failed Unmarshal changed receiver")
+	}
+	if receiver.Extension().IsZero() {
+		t.Error("failed Unmarshal changed receiver's extension")
+	}
+}
+
 func TestDerivationJSONMissingRationaleRejected(t *testing.T) {
 	payload := derivationPayload(t, "requirement_revision", "requirement_revision", "peos:derivation", "")
 	var d Derivation
@@ -480,6 +526,25 @@ func TestDerivationConstructorUnmarshalEquivalenceSelfDerivation(t *testing.T) {
 	jsonErr := json.Unmarshal([]byte(payload), &d)
 	if !errors.Is(ctorErr, ErrInvalidRequirementRelation) || !errors.Is(jsonErr, ErrInvalidRequirementRelation) {
 		t.Errorf("ctorErr = %v, jsonErr = %v, want both wrapping %v", ctorErr, jsonErr, ErrInvalidRequirementRelation)
+	}
+}
+
+// TestDerivationConstructorUnmarshalEquivalenceSameRequirementDifferentRevisions
+// proves both the constructor and Unmarshal paths enforce the same §18
+// identity-distinctness invariant, matching ErrInvalidDerivation on both.
+func TestDerivationConstructorUnmarshalEquivalenceSameRequirementDifferentRevisions(t *testing.T) {
+	_, ctorErr := NewDerivation(mustRequirementRevisionRef(t, "REQ-1", "REV-1"), mustRequirementRevisionRef(t, "REQ-1", "REV-2"), mustProvenance(t), "rationale")
+	prov, err := json.Marshal(mustProvenance(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := `{"kind":"requirement_revision","ref":{"artifact_id":"REQ-1","revision_id":"REV-1"}}`
+	target := `{"kind":"requirement_revision","ref":{"artifact_id":"REQ-1","revision_id":"REV-2"}}`
+	payload := `{"relation":{"relation_type":"peos:derivation","source":` + source + `,"target":` + target + `,"provenance":` + string(prov) + `},"rationale":"rationale"}`
+	var d Derivation
+	jsonErr := json.Unmarshal([]byte(payload), &d)
+	if !errors.Is(ctorErr, ErrInvalidDerivation) || !errors.Is(jsonErr, ErrInvalidDerivation) {
+		t.Errorf("ctorErr = %v, jsonErr = %v, want both wrapping %v", ctorErr, jsonErr, ErrInvalidDerivation)
 	}
 }
 
