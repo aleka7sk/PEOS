@@ -32,6 +32,8 @@ type Decision struct {
 	basis         Basis
 	rationale     string
 	provenance    core.Provenance
+	roles         []Role
+	consequences  []Consequence
 	extension     core.Extension
 }
 
@@ -155,6 +157,46 @@ func (d Decision) WithoutProvenance() Decision {
 	return d
 }
 
+// WithRoles returns a copy of d with its declared Roles set to exactly
+// the values given, in the order given, replacing any previous Roles. A
+// zero-value Role among roles is rejected. Calling with no arguments
+// clears the declared Roles.
+func (d Decision) WithRoles(roles ...Role) (Decision, error) {
+	if len(roles) == 0 {
+		d.roles = nil
+		return d, nil
+	}
+	cp := make([]Role, len(roles))
+	for idx, r := range roles {
+		if r.IsZero() {
+			return Decision{}, fmt.Errorf("decision: Decision.WithRoles: %w", ErrInvalidDecisionRole)
+		}
+		cp[idx] = r
+	}
+	d.roles = cp
+	return d, nil
+}
+
+// WithConsequences returns a copy of d with its declared Consequences set
+// to exactly the values given, in the order given, replacing any
+// previous Consequences. A zero-value Consequence among consequences is
+// rejected. Calling with no arguments clears the declared Consequences.
+func (d Decision) WithConsequences(consequences ...Consequence) (Decision, error) {
+	if len(consequences) == 0 {
+		d.consequences = nil
+		return d, nil
+	}
+	cp := make([]Consequence, len(consequences))
+	for idx, c := range consequences {
+		if c.IsZero() {
+			return Decision{}, fmt.Errorf("decision: Decision.WithConsequences: %w", ErrInvalidConsequence)
+		}
+		cp[idx] = c
+	}
+	d.consequences = cp
+	return d, nil
+}
+
 // WithExtension returns a copy of d with its extension data set.
 func (d Decision) WithExtension(e core.Extension) Decision {
 	d.extension = e
@@ -201,6 +243,28 @@ func (d Decision) Rationale() (string, bool) { return d.rationale, d.rationale !
 // Provenance returns d's declared Provenance, and whether one is set.
 func (d Decision) Provenance() (core.Provenance, bool) { return d.provenance, !d.provenance.IsZero() }
 
+// Roles returns a defensive copy of d's declared Roles, in declaration
+// order.
+func (d Decision) Roles() []Role {
+	if len(d.roles) == 0 {
+		return nil
+	}
+	cp := make([]Role, len(d.roles))
+	copy(cp, d.roles)
+	return cp
+}
+
+// Consequences returns a defensive copy of d's declared Consequences, in
+// declaration order.
+func (d Decision) Consequences() []Consequence {
+	if len(d.consequences) == 0 {
+		return nil
+	}
+	cp := make([]Consequence, len(d.consequences))
+	copy(cp, d.consequences)
+	return cp
+}
+
 func (d Decision) Extension() core.Extension { return d.extension }
 
 // IsZero reports whether d is the zero value.
@@ -225,6 +289,8 @@ type decisionJSON struct {
 	Basis         *Basis                       `json:"basis,omitempty"`
 	Rationale     string                       `json:"rationale,omitempty"`
 	Provenance    *core.Provenance             `json:"provenance,omitempty"`
+	Roles         []Role                       `json:"roles,omitempty"`
+	Consequences  []Consequence                `json:"consequences,omitempty"`
 	Extension     *core.Extension              `json:"extension,omitempty"`
 }
 
@@ -259,6 +325,12 @@ func (d Decision) MarshalJSON() ([]byte, error) {
 	if !d.provenance.IsZero() {
 		raw.Provenance = &d.provenance
 	}
+	if len(d.roles) > 0 {
+		raw.Roles = d.roles
+	}
+	if len(d.consequences) > 0 {
+		raw.Consequences = d.consequences
+	}
 	if !d.extension.IsZero() {
 		raw.Extension = &d.extension
 	}
@@ -276,15 +348,17 @@ type decisionUnmarshalJSON struct {
 	Basis         json.RawMessage `json:"basis"`
 	Rationale     json.RawMessage `json:"rationale"`
 	Provenance    json.RawMessage `json:"provenance"`
+	Roles         json.RawMessage `json:"roles"`
+	Consequences  json.RawMessage `json:"consequences"`
 	Extension     json.RawMessage `json:"extension"`
 }
 
 // UnmarshalJSON decodes d from its JSON form, applying the same validation
 // as New and each With* method. An explicit JSON null for any optional
 // field ("subjects", "question", "alternatives", "basis", "rationale",
-// "provenance", "extension") is rejected rather than silently treated as
-// absent; an empty string for "question" or "rationale" when the key is
-// present is likewise rejected.
+// "provenance", "roles", "consequences", "extension") is rejected rather
+// than silently treated as absent; an empty string for "question" or
+// "rationale" when the key is present is likewise rejected.
 func (d *Decision) UnmarshalJSON(data []byte) error {
 	var raw decisionUnmarshalJSON
 	if err := json.Unmarshal(data, &raw); err != nil {
@@ -367,6 +441,32 @@ func (d *Decision) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("decision: unmarshal Decision: %w", err)
 		}
 		if result, err = result.WithProvenance(provenance); err != nil {
+			return err
+		}
+	}
+
+	if len(raw.Roles) > 0 {
+		if string(raw.Roles) == "null" {
+			return fmt.Errorf("decision: unmarshal Decision: %w: roles must not be null", ErrInvalidDecision)
+		}
+		var roles []Role
+		if err := json.Unmarshal(raw.Roles, &roles); err != nil {
+			return fmt.Errorf("decision: unmarshal Decision: %w", err)
+		}
+		if result, err = result.WithRoles(roles...); err != nil {
+			return err
+		}
+	}
+
+	if len(raw.Consequences) > 0 {
+		if string(raw.Consequences) == "null" {
+			return fmt.Errorf("decision: unmarshal Decision: %w: consequences must not be null", ErrInvalidDecision)
+		}
+		var consequences []Consequence
+		if err := json.Unmarshal(raw.Consequences, &consequences); err != nil {
+			return fmt.Errorf("decision: unmarshal Decision: %w", err)
+		}
+		if result, err = result.WithConsequences(consequences...); err != nil {
 			return err
 		}
 	}

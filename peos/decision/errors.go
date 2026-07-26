@@ -71,6 +71,24 @@ var (
 	// an InvalidationSource, or a DecisionInvalidation fails to satisfy
 	// its required fields or internal consistency rules.
 	ErrInvalidDecisionInvalidation = errors.New("decision: decision invalidation is invalid")
+
+	// ErrInvalidDecisionConflict is returned when a ConflictID or a
+	// DecisionConflict fails to satisfy its required fields or internal
+	// consistency rules.
+	ErrInvalidDecisionConflict = errors.New("decision: decision conflict is invalid")
+
+	// ErrInvalidConflictResolution is returned when a
+	// ConflictResolutionID, a ResolutionMechanism, or a
+	// ConflictResolution fails to satisfy its required fields.
+	ErrInvalidConflictResolution = errors.New("decision: conflict resolution is invalid")
+
+	// ErrInvalidDecisionRole is returned when a RoleKind or a Role fails
+	// to satisfy its required fields.
+	ErrInvalidDecisionRole = errors.New("decision: decision role is invalid")
+
+	// ErrInvalidConsequence is returned when a Consequence fails to
+	// satisfy its required fields.
+	ErrInvalidConsequence = errors.New("decision: consequence is invalid")
 )
 
 // decodeOptionalExtension decodes a raw JSON "extension" field captured as

@@ -488,6 +488,55 @@ func TestBasisMutatorInputSliceCopied(t *testing.T) {
 	}
 }
 
+// TestBasisWithEvidenceInputSliceCopied is F.2 MINOR-1 hardening
+// (F.2.A audit): proves WithEvidence, specifically, defensively copies
+// its own input slice, mutating the caller-owned slice after a
+// successful call and asserting the Basis is unaffected.
+func TestBasisWithEvidenceInputSliceCopied(t *testing.T) {
+	b := fullMixedBasis(t)
+	evidence := []core.EvidenceArtifactRevisionRef{mustEvidenceRef(t, "ART-2", "REV-2")}
+	updated, err := b.WithEvidence(evidence...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evidence[0] = core.EvidenceArtifactRevisionRef{}
+	if updated.Evidence()[0].IsZero() {
+		t.Error("WithEvidence did not defensively copy input")
+	}
+}
+
+// TestBasisWithConstraintsInputSliceCopied is F.2 MINOR-1 hardening
+// (F.2.A audit): proves WithConstraints, specifically, defensively
+// copies its own input slice.
+func TestBasisWithConstraintsInputSliceCopied(t *testing.T) {
+	b := fullMixedBasis(t)
+	constraints := []Constraint{mustConstraint(t, "fresh constraint")}
+	updated, err := b.WithConstraints(constraints...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	constraints[0] = Constraint{}
+	if updated.Constraints()[0].IsZero() {
+		t.Error("WithConstraints did not defensively copy input")
+	}
+}
+
+// TestBasisWithUncertaintiesInputSliceCopied is F.2 MINOR-1 hardening
+// (F.2.A audit): proves WithUncertainties, specifically, defensively
+// copies its own input slice.
+func TestBasisWithUncertaintiesInputSliceCopied(t *testing.T) {
+	b := fullMixedBasis(t)
+	uncertainties := []Uncertainty{mustUncertainty(t, "fresh uncertainty")}
+	updated, err := b.WithUncertainties(uncertainties...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	uncertainties[0] = Uncertainty{}
+	if updated.Uncertainties()[0].IsZero() {
+		t.Error("WithUncertainties did not defensively copy input")
+	}
+}
+
 // --- Basis accessors ---------------------------------------------------
 
 func TestBasisAccessorsDefensiveCopies(t *testing.T) {

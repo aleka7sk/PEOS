@@ -4,10 +4,11 @@
 // This package implements Decision, Authority, Basis (with its Evidence,
 // Assumption, Constraint, and Uncertainty components), Alternative,
 // Outcome (with its Engineering Commitment value), Decision Record (with
-// its Revision and Content), Decision Supersession, and Decision
-// Invalidation. It deliberately does not implement Decision Conflict,
-// Delegation, Decision roles, Decision relation-type constants, or any
-// approval/voting workflow -- see "Deferred" below.
+// its Revision and Content), Decision Supersession, Decision
+// Invalidation, Decision Conflict, Conflict Resolution, Decision Roles,
+// and Decision Consequences. It deliberately does not implement
+// Delegation, Decision relation-type constants, or any approval/voting
+// workflow -- see "Deferred" below.
 //
 // # Decision is not an Artifact
 //
@@ -203,10 +204,215 @@
 // core.RecordCorrection or core.CorrectionKindInvalidate for Decision
 // Invalidation.
 //
+// # Decision Conflict is binary and independently identified
+//
+// DecisionConflict represents PEOS-004's Decision Conflict ("A Decision
+// Conflict exists when two applicable Decisions establish incompatible
+// normative intent within overlapping Applicability") as a binary
+// relationship, not an N-ary one: :1117's own definitional clause is
+// "when two applicable Decisions ...". A jointly-unsatisfiable triple of
+// Decisions is three pairwise conflicts, each independently identified;
+// PEOS-004 defines no N-ary conflict concept for this package to model.
+//
+// DecisionConflict carries its own ConflictID, not a natural key derived
+// from the two conflicting Decisions and their overlapping scope: the
+// same pair of Decisions MAY conflict in the same scope over two
+// materially different incompatible Outcomes (:1123), so the natural key
+// is insufficient. Independent identity is also what the Conflict
+// Invariant (:1342, "Conflicting applicable Decisions require explicit
+// resolution") requires structurally: the invariant presupposes a
+// conflict that exists while unresolved, and a conflict recorded only
+// inside its own resolution could never be observed as unresolved.
+//
+// governingRule is a required field, not optional, and this is a
+// deliberate boundary: it is what makes DecisionConflict the analyzed
+// conflict :1121 defines (all four of its MUSTs satisfied), as distinct
+// from a Runtime's raw pre-analysis detection (:1360's permitted "detect
+// conflicts" activity). A raw detection is represented as a
+// peos/relation.Relation carrying core.RelationTypeConflict -- this
+// package does not import peos/relation to create one, for the same
+// reason DecisionSupersession does not: Relation cannot carry :1123 or
+// :1124, has no identity for a resolution to reference, and does not
+// reject source == target (see DecisionSupersession's own doc comment).
+//
+// # Conflict Resolution is a separate, optional-linked record
+//
+// ConflictResolution records that a specific DecisionConflict has been
+// closed (:1342; :1128's six mechanisms). It is a separate immutable
+// value, never a mutation of DecisionConflict: there is no "resolved
+// bool" or "status" field anywhere in this package's Conflict model, so
+// a DecisionConflict without a corresponding ConflictResolution is, by
+// construction, unresolved.
+//
+// ResolutionMechanism is an open core.VocabularyValue wrapper with six
+// predeclared PEOS-namespace constants drawn directly from :1128. This
+// is a deliberate departure from the closed, two-variant
+// SupersessionExtent: PEOS-004's Extension Model (:1398-1411) explicitly
+// names "conflict-resolution policies" among what a Product contract MAY
+// define, and :1128's own sixth arm is itself "an applicable Product
+// contract" -- the governing distinction (see SupersessionExtent's own
+// doc comment) is whether the Extension Model lists the axis, and here
+// it does.
+//
+// resolvingDecision is a plain optional field, not conditionally
+// required by mechanism. An earlier design required it exactly when
+// mechanism was the Decision or Supersession constant; that rule was
+// rejected during adversarial review because ResolutionMechanism is
+// open -- a Product-defined mechanism value that is, in substance,
+// decision-based would silently escape a rule keyed to two hardcoded
+// predeclared constants, producing an invariant that presents as
+// complete but is not. The identification burden instead rests entirely
+// on the required statement field, consistent with :1128's six
+// mechanisms being categories, not identifications.
+//
+// # Decision Roles use an open RoleKind vocabulary
+//
+// Role associates an identified core.ActorRef with a single Decision
+// role (:768's "Decision Author; Decision Proposer; Decision Maker;
+// Decision Approver; Decision Reviewer; Decision Executor; Decision
+// Recorder; Decision Owner"). RoleKind is modeled open, with those eight
+// values predeclared, because :781 states outright "The applicable
+// Product contract MAY define additional roles" and the Extension Model
+// separately lists "additional Decision roles" -- unlike Constraint's
+// origin list and Uncertainty's concern list (Packet F.2), which carry
+// no such explicit extensibility permission and are therefore left
+// unmodeled entirely rather than opened.
+//
+// Requiring an explicit core.ActorRef on every Role is what satisfies
+// :785 ("Role identity MUST NOT be inferred solely from document
+// authorship or repository ownership"): no field on Role can be
+// populated implicitly from a Decision Record's own authorship. Role is
+// not Authority: :751 requires Decision Authority to stay distinguishable
+// from authorship, facilitation, recommendation, implementation, and
+// documentation, and Role's vocabulary names exactly those
+// non-authority participations. Role is also not core.Provenance.Actor,
+// which records who produced a record -- one actor -- not who held a
+// role in the Decision, of which there MAY be many (:783).
+//
+// Decision Roles and Decision Maker/Approver are modeled at SHOULD /
+// conditional-MUST strength, not unconditional MUST: :815's "the
+// approving Actor MUST be identifiable" is conditional on approval being
+// required, and Roles are absent from both the Conformance list
+// (:1431-1443) and the fourteen Decision Invariants (:1284-1342).
+// Separation-of-duties enforcement (:845-855, "A Product contract MAY
+// require...") is a Product/Runtime responsibility this package does not
+// evaluate -- see "Runtime and Product boundaries" below.
+//
+// # Decision Consequence is distinct from Engineering Commitment
+//
+// Consequence is modeled at SHOULD strength: :316 says only that a
+// significant Decision "SHOULD have ... identified consequences", and
+// :874 says a Decision Record "SHOULD identify ... Consequences".
+// Consequence is absent from both the Conformance list and the fourteen
+// Decision Invariants, unlike Basis's Assumption and Uncertainty, which
+// this package models at :456/:542's conditional MUST strength (see
+// Basis's own doc comment). It is nonetheless modeled, at that lower
+// strength, for the same reason Alternative (SHOULD, :353) and rationale
+// (MAY, :518) are modeled: it is a named PEOS-004 "# Scope" entry (:54)
+// with its own dedicated section, not illustrative prose.
+//
+// :697's "Consequences MUST be distinguishable from completed effects"
+// is not a requirement that Consequence be separately representable; it
+// is a distinguishability constraint against a completion concept this
+// package does not model at all, so the MUST holds vacuously today, and
+// continues to hold structurally: Consequence carries no completion or
+// status field, so a Consequence value can never be mistaken for a
+// completed effect.
+//
+// Consequence is not Commitment, despite :620 and :683's "MAY include"
+// lists sharing several examples nearly verbatim (required Lifecycle
+// Transitions / require a Lifecycle Transition; accepted risks / accept
+// a defined risk; review obligations / impose a review condition;
+// validation work / establish a validation expectation; operational
+// changes / establish an operational obligation; implementation work /
+// establish an implementation obligation; new constraints / constrain
+// future Artifacts or Revisions). That overlap is of illustrative
+// examples, not of definitions: :616 defines Engineering Commitment as
+// normative intent established, changed, or removed by an established
+// Decision Outcome; :681 defines Decision Consequence as an expected,
+// required, permitted, or accepted effect of that Outcome. :681
+// explicitly admits predictions -- expected effects that are not
+// themselves normative intent. Encoding such a prediction as a
+// Commitment would misrepresent it as established normative intent and
+// would violate :1413's prohibition on extensions that "redefine the
+// core meaning of ... Engineering Commitment." Consequence therefore
+// carries no CommitmentEffect-equivalent verb, unlike Commitment, and
+// hangs off Decision rather than Outcome, following :316 and :701 ("A
+// Decision MAY be applicable even when its Consequences have not yet
+// been completed").
+//
+// # Runtime and Product boundaries
+//
+// This package does not evaluate scope overlap, priority, or authority
+// to determine whether two Decisions actually conflict (:1121's own
+// analysis), does not detect conflicts (:1360's permitted Runtime
+// activity), does not evaluate separation-of-duties rules (:845-855),
+// and does not define a significance classification (:300, "A Product
+// contract MAY define significance levels") or a Decision Context
+// representation beyond what core.Representation on a Decision Record
+// Revision already provides (:275-292, all MAY). These remain Runtime or
+// Product-contract responsibilities this package's value types support
+// but do not perform.
+//
+// # Delegation is deferred to a future authority-grant packet
+//
+// Decision Authority delegation (:824-839: "A delegation MUST identify:
+// the delegating Actor or authority; the receiving Actor; the delegated
+// scope; applicable constraints; the effective period or condition;
+// revocation conditions when applicable") is not implemented by this
+// package, on architectural grounds rather than for lack of a
+// representable shape.
+//
+// Every standalone aggregate this package defines names at least one
+// Decision -- Record, DecisionSupersession, DecisionInvalidation,
+// DecisionConflict -- and every non-standalone type (Authority, Basis,
+// Outcome, Alternative, Commitment, Role, Consequence) is embedded
+// inside Decision. A delegation record would be neither: it grants
+// authority, after which the grantee makes arbitrarily many future
+// Decisions unrelated to any single one this package could name.
+//
+// Authority is demonstrably cross-cutting in this repository, not
+// Decision-local: peos/lifecycle already consumes core.AuthorityRef (in
+// StateAssignment and TransitionRecordContent) and does not import
+// peos/decision. PEOS-003 :627 ("Authority delegated to a Runtime MUST
+// be explicit or determinable through an applicable contract") means
+// the moment a lifecycle record made under delegated authority must name
+// its delegation, peos/lifecycle would need to import peos/decision --
+// inverting dependency direction, since lifecycle is the more
+// foundational model -- or duplicate the record. peos/core also
+// explicitly declines to define an Authority aggregate today
+// (core.AuthorityRef's own doc comment: "this package does not define
+// an Authority aggregate, does not give AuthorityRef a lifecycle ...
+// this package stops at the reference"); a delegation record with
+// identity, scope, effective period, constraints, and revocation
+// conditions is exactly such an aggregate, and building it inside
+// peos/decision would pre-empt that open question in the wrong package.
+//
+// Decision-side conformance does not require Delegation: :743 lists
+// "delegated authority" among the nine MAY-origins of an authority
+// basis, core.AuthorityRef already carries an open Kind for that
+// purpose, the Authority Invariant (:1306) is met today by Authority,
+// and Delegation is absent from both the Conformance list and all
+// fourteen Decision Invariants.
+//
+// The missing type is an authority-grant record: identity; delegator
+// (core.ActorRef or core.AuthorityRef); delegate core.ActorRef;
+// delegated scope; effective period or condition; applicable
+// constraints; revocation conditions. A Product-defined Extension is not
+// a substitute: :828 imposes six MUST-identify items an opaque blob
+// cannot enforce, and an extension cannot be referenced by
+// peos/lifecycle's own authority fields. The owning future packet must
+// first decide which package owns authority-grant aggregates -- peos/core
+// (admitting the aggregate it currently declines) or a new sibling
+// package dedicated to governance grants -- and whether core.AuthorityRef
+// gains a link to the delegation that produced it. It cannot be
+// peos/decision, because peos/lifecycle must be able to reach the record
+// without importing peos/decision.
+//
 // # Deferred
 //
-// Decision Conflict, Delegation, Decision roles, Decision Consequences,
-// Decision relation-type constants, a decision repository, a supersession
-// or invalidation history resolver, condition evaluation, and any
+// Delegation (see above), Decision relation-type constants, a decision
+// repository, a supersession or invalidation history resolver, condition
+// evaluation, conflict detection and scope-overlap evaluation, and any
 // approval or voting workflow are not implemented by this package.
 package decision
