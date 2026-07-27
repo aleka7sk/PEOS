@@ -155,6 +155,22 @@ const (
 // requirement.RequirementParticipant, the equivalent union PEOS-005 needed for
 // Dependency and Conflict while its other four relation types stayed
 // revision-only.
+//
+// # Two distinct JSON surfaces
+//
+// This type's own MarshalJSON/UnmarshalJSON (below) is the public construction
+// and decode API: callers building or reading a TemplateParticipant value in
+// isolation use this closed-union wire form directly. Specialization's actual
+// wire-level participant-level discrimination, however, travels through a
+// different path: Specialization composes relation.Relation, whose source and
+// target are core.EngineeringSubjectRef values, and it is that type's own
+// "template" / "template_revision" discriminator -- not this type's JSON --
+// that a Specialization document carries on the wire. subject() is the single
+// conversion point between the two: it is how a TemplateParticipant is turned
+// into (and, on decode, recovered from) the core.EngineeringSubjectRef that
+// relation.Relation actually stores. Both JSON surfaces remain fully present
+// and tested; this note only clarifies which one governs Specialization's own
+// encoded form.
 type TemplateParticipant struct {
 	kind     templateParticipantKind
 	template core.TemplateRef
