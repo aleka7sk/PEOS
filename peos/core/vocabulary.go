@@ -6,10 +6,13 @@ import (
 	"strings"
 )
 
-// VocabularyValue is an open, namespaced vocabulary value. PEOS-000-009
-// define a number of extensible vocabularies (Artifact Type, Relation
-// Type, Validation Method, Claim Outcome, and others; see the PEOS
-// Reference Meta-Model Blueprint, Controlled Vocabulary Registry) that a
+// VocabularyValue is an open, namespaced vocabulary value. PEOS-002 through
+// PEOS-009 each define at least one extensible vocabulary this way (for
+// example, PEOS-002 Relation Type: "This list is illustrative and is not a
+// closed type system"; PEOS-006 Validation Method: "stable semantics
+// within its governing scope... this specification's own illustrative
+// vocabulary... This list is illustrative and is not a closed vocabulary";
+// PEOS-006 Claim Outcome: "an extensible controlled vocabulary") that a
 // Product or a future PEOS specification MAY extend with new values. This
 // type never rejects an unrecognized value; it only rejects a value that
 // fails to supply both a namespace and a value component.
@@ -209,10 +212,10 @@ var (
 
 // ClaimOutcome is a namespaced Claim Outcome vocabulary value (PEOS-006).
 // The minimum set (satisfied / not satisfied / inconclusive) is fixed by
-// PEOS-006; Product configuration MAY add further values provided they
-// map unambiguously to one of those three (PEOS Reference Meta-Model
-// Blueprint SS6). This type does not enforce that mapping; a future
-// validator does.
+// PEOS-006's "Claim Outcome" section; a specialized Claim Type MAY add
+// further values "provided each additional value is unambiguously mapped
+// to one of the general outcome semantics above." This type does not
+// enforce that mapping; a future validator does.
 type ClaimOutcome struct{ value VocabularyValue }
 
 func NewClaimOutcome(v VocabularyValue) ClaimOutcome { return ClaimOutcome{value: v} }
@@ -304,11 +307,13 @@ var (
 )
 
 // CorrectionKind distinguishes correct / replace / invalidate (see
-// correction.go). PEOS-006's Claim Correction section and the PEOS
-// Reference Meta-Model Blueprint (SS10) name exactly these three kinds;
-// this package treats the family as closed for that reason, while still
-// exposing NewCorrectionKind for forward compatibility with a future
-// specification amendment.
+// correction.go). PEOS-006's "Claim Correction, Replacement, and
+// Invalidation" section names exactly these three kinds ("A new
+// Validation Claim MAY explicitly: correct an earlier Claim... replace an
+// earlier Claim... invalidate an earlier Claim..."); this package treats
+// the family as closed for that reason, while still exposing
+// NewCorrectionKind for forward compatibility with a future specification
+// amendment.
 type CorrectionKind struct{ value VocabularyValue }
 
 func NewCorrectionKind(v VocabularyValue) CorrectionKind { return CorrectionKind{value: v} }

@@ -21,14 +21,20 @@ import (
 //
 // Some criterion kinds reference an owned-value element (a Quality
 // Characteristic or Measure, a Runtime Assertion, a Template Parameter
-// Constraint) that PEOS-000-009 scope to their owning Artifact Revision
-// with a local key (PEOS Reference Meta-Model Blueprint SS5). Packet A
-// does not implement those owning constructs (Quality Profile, Runtime
-// Contract, Template are Packet B/F/G/H work); the combinator types below
-// reference such an element only as "the owning Revision, plus the local
-// key naming the element within it," using LocalKey and the Revision-ref
-// types already defined in reference.go, rather than inventing a
-// standalone entity type for the element itself.
+// Constraint) that this SDK scopes to its owning Artifact Revision with a
+// local key. PEOS-009 states this pattern explicitly for its own owned
+// values ("Every Template Parameter SHALL have a stable template-local key
+// within its owning Template Artifact Revision"); peos/quality and
+// peos/runtime apply the identical compositional choice for Quality
+// Characteristic/Measure and Runtime Assertion respectively, each
+// documented in its own package's doc.go under "profile-local key
+// namespace" and "runtime-local key namespace". Packet A does not
+// implement those owning constructs (Quality Profile, Runtime Contract,
+// Template are Packet B/F/G/H work); the combinator types below reference
+// such an element only as "the owning Revision, plus the local key naming
+// the element within it," using LocalKey and the Revision-ref types
+// already defined in reference.go, rather than inventing a standalone
+// entity type for the element itself.
 
 // QualityElementCriterionRef references a Quality Profile Revision-owned
 // element by naming its owning Quality Profile Revision and its local key
@@ -314,10 +320,13 @@ func (o OpaqueCriterion) Namespace() string  { return o.namespace }
 func (o OpaqueCriterion) Identifier() string { return o.identifier }
 
 // CriterionRef is the tagged union used for a Validation/Quality/
-// Compliance/Template Conformance Claim's criteria (PEOS-006 Claim
-// Criteria; PEOS Reference Meta-Model Blueprint SS9). It is a distinct
-// type from EngineeringSubjectRef; see the package-level comment above
-// for why the separation matters.
+// Compliance/Template Conformance Claim's criteria (PEOS-006 "Claim
+// Criteria": "A criterion MAY identify: a Requirement; a Requirement
+// Artifact Revision; a Quality Characteristic; a Quality Measure; a
+// threshold; a target; a Runtime Contract rule; a Template constraint; a
+// Product contract rule; another explicitly defined evaluation rule").
+// It is a distinct type from EngineeringSubjectRef; see the package-level
+// comment above for why the separation matters.
 type CriterionRef struct {
 	kind  string
 	known bool

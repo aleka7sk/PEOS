@@ -141,6 +141,12 @@ func TestTestImportBoundary(t *testing.T) {
 		peosModulePrefix + "relation":   true,
 		peosModulePrefix + "validation": true,
 	}
+
+	// A package's own external test files (package template_test) legitimately
+	// import the package under test -- that is the standard Go idiom for
+	// example_test.go files godoc attaches to this package, not a boundary
+	// violation, so self-import is allowed here.
+	allowed[peosModulePrefix+"template"] = true
 	for name, paths := range parsePackageImports(t, ".", true) {
 		for _, path := range paths {
 			if !strings.HasPrefix(path, peosModulePrefix) {

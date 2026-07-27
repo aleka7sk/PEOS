@@ -16,10 +16,13 @@ import (
 // into a specific record type (for example, a future ValidationClaim's
 // "replaces" field would have type RecordCorrectionRef[ValidationClaimRef]).
 // This packet does not assert that Runtime Observation or Runtime
-// Violation support a correction reference; PEOS-008 does not document
-// one for those two record families (see the PEOS Reference Meta-Model
-// Blueprint SS16), and adding a correction field to them here would
-// assert something the specifications do not.
+// Violation support a correction reference: PEOS-008's own "Runtime
+// Observation" and "Runtime Violation" sections define no correction,
+// replacement, or invalidation mechanism for either record family (unlike
+// PEOS-006's "Claim Correction, Replacement, and Invalidation" section,
+// which this file's CorrectionKind vocabulary is otherwise grounded in),
+// and adding a correction field to them here would assert something the
+// specification does not.
 //
 // The correction kinds below are exactly the three PEOS-006 names:
 // correct, replace, invalidate. This package never uses "supersede" or

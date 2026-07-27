@@ -110,6 +110,11 @@ func TestProductionImportBoundary(t *testing.T) {
 // clean, so the tests hold themselves to it too.
 func TestTestImportBoundary(t *testing.T) {
 	allowed := map[string]bool{peosModulePrefix + "core": true}
+	// A package's own external test files (package validation_test) legitimately
+	// import the package under test -- that is the standard Go idiom for
+	// example_test.go files godoc attaches to this package, not a boundary
+	// violation, so self-import is allowed here.
+	allowed[peosModulePrefix+"validation"] = true
 
 	byFile := parsePackageImports(t, ".", true)
 	for name, paths := range byFile {

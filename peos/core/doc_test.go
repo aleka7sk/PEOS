@@ -93,6 +93,11 @@ func TestProductionImportBoundary(t *testing.T) {
 // crossable in practice even while production sources stay clean.
 func TestTestImportBoundary(t *testing.T) {
 	allowed := map[string]bool{}
+	// A package's own external test files (package core_test) legitimately
+	// import the package under test -- that is the standard Go idiom for
+	// example_test.go files godoc attaches to this package, not a boundary
+	// violation, so self-import is allowed here.
+	allowed[peosModulePrefix+"core"] = true
 
 	byFile := parsePackageImports(t, ".", true)
 	for name, paths := range byFile {
@@ -114,10 +119,14 @@ func TestTestImportBoundary(t *testing.T) {
 // assertion, independent of the table-driven form above, so the guarantee
 // survives a refactor of either test.
 func TestNoPeosImportsAnywhereInCore(t *testing.T) {
+	// example_test.go's package core_test legitimately imports core itself --
+	// the standard Go idiom for a godoc-visible example -- so self-import is
+	// excluded, same as in TestTestImportBoundary above.
+	self := peosModulePrefix + "core"
 	byFile := parsePackageImports(t, ".", true)
 	for name, paths := range byFile {
 		for _, path := range paths {
-			if strings.HasPrefix(path, peosModulePrefix) {
+			if strings.HasPrefix(path, peosModulePrefix) && path != self {
 				t.Errorf("%s imports %q; peos/core is the foundation and must depend on no PEOS package", name, path)
 			}
 		}
