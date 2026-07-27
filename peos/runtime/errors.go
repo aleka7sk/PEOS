@@ -6,15 +6,15 @@ import "errors"
 // this package. Callers should use errors.Is against these sentinels rather
 // than comparing error values directly.
 //
-// The complete PEOS-008 sentinel set is declared here up front, per the
-// convention Packet H.1/I.1 established: declaring a later packet's
-// sentinels ahead of time means that packet does not have to reopen this
-// file. Four sentinels below --ErrInvalidRuntimeBindingRecord,
+// The complete PEOS-008 sentinel set is declared here: ErrInvalidRuntimeContract,
+// ErrRuntimeContractArtifactTypeMismatch, ErrRuntimeContractArtifactIDMismatch,
+// ErrInvalidContractApplicability, ErrInvalidRequirementReference,
+// ErrInvalidRuntimeAssertion, and ErrInvalidRuntimeContractRule cover the
+// Runtime Contract declaration side; ErrInvalidRuntimeBindingRecord,
 // ErrInvalidRuntimeUnbindingRecord, ErrInvalidRuntimeObservation, and
-// ErrInvalidRuntimeViolation-- are reserved for Packet J.2 (Runtime Binding,
-// Unbinding, Observation, and Violation records) and are not referenced by
-// any Packet J.1 code, because J.1 implements only the Runtime Contract
-// declaration side.
+// ErrInvalidRuntimeViolation cover the Runtime Binding, Unbinding,
+// Observation, and Violation records; ErrDuplicateRuntimeLocalKey and
+// ErrUnknownRuntimeLocalKey are shared across both.
 //
 // There is deliberately no per-field sentinel. Each field belongs to
 // exactly one owning aggregate, and a caller that receives
@@ -97,24 +97,37 @@ var (
 	// ErrInvalidRuntimeAssertion is distinct from ErrInvalidRuntimeContract.
 	ErrInvalidRuntimeContractRule = errors.New("runtime: runtime contract rule is invalid")
 
-	// ErrInvalidRuntimeBindingRecord is reserved for Packet J.2. It will be
-	// the aggregate sentinel for BindingRecord -- the PEOS-008 Runtime
-	// Binding Record. It is not used by Packet J.1.
+	// ErrInvalidRuntimeBindingRecord is the aggregate sentinel for
+	// BindingRecord -- the PEOS-008 Runtime Binding Record. It is returned
+	// when a BindingRecord is constructed or decoded with a zero mandatory
+	// field (id, Contract Revision reference, subject, environment, scope,
+	// bound-at timestamp, actor, provenance), an invalid optional value, an
+	// invalid or self-referencing correction reference, or a zero-value
+	// marshal.
 	ErrInvalidRuntimeBindingRecord = errors.New("runtime: runtime binding record is invalid")
 
-	// ErrInvalidRuntimeUnbindingRecord is reserved for Packet J.2. It will
-	// be the aggregate sentinel for UnbindingRecord -- the PEOS-008 Runtime
-	// Unbinding Record. It is not used by Packet J.1.
+	// ErrInvalidRuntimeUnbindingRecord is the aggregate sentinel for
+	// UnbindingRecord -- the PEOS-008 Runtime Unbinding Record. It is
+	// returned when an UnbindingRecord is constructed or decoded with a
+	// zero mandatory field (id, Binding Record reference, subject,
+	// terminated-at timestamp, reason, actor, provenance), an invalid
+	// optional value, an invalid or self-referencing correction reference,
+	// or a zero-value marshal.
 	ErrInvalidRuntimeUnbindingRecord = errors.New("runtime: runtime unbinding record is invalid")
 
-	// ErrInvalidRuntimeObservation is reserved for Packet J.2. It will be
-	// the aggregate sentinel for Observation -- the PEOS-008 Runtime
-	// Observation. It is not used by Packet J.1.
+	// ErrInvalidRuntimeObservation is the aggregate sentinel for
+	// Observation -- the PEOS-008 Runtime Observation. It is returned when
+	// an Observation is constructed or decoded with a zero mandatory field
+	// (id, subject, scope, environment, observed-at timestamp, observed
+	// value, collection method, source, provenance), an invalid optional
+	// value, or a zero-value marshal.
 	ErrInvalidRuntimeObservation = errors.New("runtime: runtime observation is invalid")
 
-	// ErrInvalidRuntimeViolation is reserved for Packet J.2. It will be the
-	// aggregate sentinel for Violation -- the PEOS-008 Runtime Violation. It
-	// is not used by Packet J.1.
+	// ErrInvalidRuntimeViolation is the aggregate sentinel for Violation --
+	// the PEOS-008 Runtime Violation. It is returned when a Violation is
+	// constructed or decoded with a zero mandatory field (id, subject,
+	// criterion, trigger, occurred-at timestamp, classification, scope,
+	// provenance), an invalid optional value, or a zero-value marshal.
 	ErrInvalidRuntimeViolation = errors.New("runtime: runtime violation is invalid")
 
 	// ErrDuplicateRuntimeLocalKey is returned when a core.LocalKey repeats
