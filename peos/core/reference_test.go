@@ -1116,3 +1116,84 @@ func TestRuntimeRecordRefsUsableAsCorrectionTarget(t *testing.T) {
 		t.Fatalf("RuntimeUnbindingRecordRef as correction target: %v", err)
 	}
 }
+
+func TestTemplateApplicationRecordRef(t *testing.T) {
+	if _, err := NewTemplateApplicationRecordRef(TemplateApplicationRecordID{}); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("empty identity: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+
+	recordID, err := NewTemplateApplicationRecordID("TAR-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := NewTemplateApplicationRecordRef(recordID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.IsZero() {
+		t.Error("valid TemplateApplicationRecordRef reports IsZero() = true")
+	}
+	var zero TemplateApplicationRecordRef
+	if !zero.IsZero() {
+		t.Error("zero-value TemplateApplicationRecordRef.IsZero() = false, want true")
+	}
+	if ref.RecordID() != recordID {
+		t.Error("RecordID() mismatch")
+	}
+
+	data, err := json.Marshal(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"record_id":"TAR-1"}` {
+		t.Errorf("Marshal = %s", data)
+	}
+	var decoded TemplateApplicationRecordRef
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded != ref {
+		t.Errorf("round trip mismatch: got %v, want %v", decoded, ref)
+	}
+
+	if err := json.Unmarshal([]byte(`{"record_id":""}`), &decoded); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("empty record_id: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+	if err := json.Unmarshal([]byte(`{}`), &decoded); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("absent record_id: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+	if err := json.Unmarshal([]byte(`null`), &decoded); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("explicit null: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+	if err := json.Unmarshal([]byte(`not json`), &decoded); err == nil {
+		t.Error("malformed JSON accepted, want error")
+	}
+	if decoded != ref {
+		t.Error("failed unmarshal did not preserve receiver")
+	}
+}
+
+// TestTemplateApplicationRecordRefUsableAsCorrectionTarget confirms
+// TemplateApplicationRecordRef satisfies correctionTarget (IsZero() bool +
+// json.Marshaler), so it can instantiate RecordCorrectionRef[T] as
+// PEOS-009 requires: "Correction of a Template Application Record creates a
+// new Template Application Record", and such a reference "SHALL identify
+// the earlier record exactly."
+func TestTemplateApplicationRecordRefUsableAsCorrectionTarget(t *testing.T) {
+	recordID, err := NewTemplateApplicationRecordID("TAR-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := NewTemplateApplicationRecordRef(recordID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, kind := range []CorrectionKind{CorrectionKindCorrect, CorrectionKindReplace, CorrectionKindInvalidate} {
+		if _, err := NewRecordCorrectionRef(kind, ref); err != nil {
+			t.Errorf("TemplateApplicationRecordRef as %v correction target: %v", kind, err)
+		}
+	}
+	if _, err := NewRecordCorrectionRef(CorrectionKindCorrect, TemplateApplicationRecordRef{}); err == nil {
+		t.Error("zero TemplateApplicationRecordRef accepted as correction target, want error")
+	}
+}

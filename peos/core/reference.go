@@ -573,6 +573,71 @@ func (r *RuntimeObservationRef) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// TemplateApplicationRecordRef is an exact reference to a Template
+// Application Record (PEOS-009), the only immutable non-Artifact record
+// PEOS-009 defines. It exists so a Template Application Record can be
+// referenced at compile-time-fixed type wherever PEOS-009 requires the
+// earlier record to be identified exactly -- "Such a reference SHALL
+// identify the earlier record exactly."
+//
+// Unlike RuntimeObservationRef, this type IS used as a RecordCorrectionRef
+// type parameter: PEOS-009 documents a correction, replacement, or
+// invalidation reference for the Template Application Record family
+// ("Correction of a Template Application Record creates a new Template
+// Application Record"), exactly as PEOS-008 does for Runtime Binding and
+// Unbinding Records. RecordCorrectionRef[TemplateApplicationRecordRef] is
+// therefore a valid instantiation.
+type TemplateApplicationRecordRef struct {
+	templateApplicationRecordRefID TemplateApplicationRecordID
+}
+
+// NewTemplateApplicationRecordRef validates id and returns a
+// TemplateApplicationRecordRef.
+func NewTemplateApplicationRecordRef(id TemplateApplicationRecordID) (TemplateApplicationRecordRef, error) {
+	if id.IsZero() {
+		return TemplateApplicationRecordRef{}, fmt.Errorf("core: NewTemplateApplicationRecordRef: %w", ErrEmptyIdentity)
+	}
+	return TemplateApplicationRecordRef{templateApplicationRecordRefID: id}, nil
+}
+
+func (r TemplateApplicationRecordRef) RecordID() TemplateApplicationRecordID {
+	return r.templateApplicationRecordRefID
+}
+func (r TemplateApplicationRecordRef) IsZero() bool {
+	return r.templateApplicationRecordRefID.IsZero()
+}
+
+type templateApplicationRecordRefJSON struct {
+	RecordID TemplateApplicationRecordID `json:"record_id"`
+}
+
+// MarshalJSON encodes r as {"record_id":...}. It does not reject the zero
+// value, matching RuntimeBindingRecordRef, RuntimeUnbindingRecordRef,
+// RuntimeObservationRef, and every other reference type in this file: the
+// core reference layer's established contract is to validate on decode
+// (through the constructor) rather than on encode. Diverging here would
+// give one member of a four-member record-reference family a different
+// marshal contract from its siblings, and would introduce an asymmetric
+// failure mode into RecordCorrectionRef[T], which handles all of them
+// uniformly. A valid RecordCorrectionRef can never hold a zero target, so
+// no reachable path emits an un-decodable reference.
+func (r TemplateApplicationRecordRef) MarshalJSON() ([]byte, error) {
+	return json.Marshal(templateApplicationRecordRefJSON{RecordID: r.templateApplicationRecordRefID})
+}
+
+func (r *TemplateApplicationRecordRef) UnmarshalJSON(data []byte) error {
+	var raw templateApplicationRecordRefJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("core: unmarshal TemplateApplicationRecordRef: %w", err)
+	}
+	v, err := NewTemplateApplicationRecordRef(raw.RecordID)
+	if err != nil {
+		return err
+	}
+	*r = v
+	return nil
+}
+
 // TemplateRef identifies a Template at the identity level (PEOS-009).
 type TemplateRef struct{ templateRefID ArtifactID }
 
