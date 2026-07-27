@@ -61,6 +61,40 @@
 // and enforcing one here would require a repository this package does
 // not have).
 //
+// # Scope is optional here, and mandatory in specialized wrappers
+//
+// PEOS-002 states scope twice, and the two statements read differently.
+// The Artifact Relation item enumeration lists "its applicable scope when
+// the scope is not self-evident" -- qualified. A later clause in the same
+// section states "Every Artifact Relation SHALL identify its Relation Type,
+// scope, and provenance" -- unqualified. Packet L.0.C recorded the
+// harmonized reading rather than leaving the choice implicit in the code:
+//
+//   - the later clause enumerates *which concepts* an Artifact Relation
+//     identifies, naming scope as one of them;
+//   - the earlier, qualified clause governs *cardinality*, and is the only
+//     one of the two that speaks to when scope may be absent.
+//
+// Generic relation scope is therefore optional when the scope is
+// self-evident, which is why Relation carries hasScope alongside scope and
+// exposes WithScope/WithoutScope rather than demanding a scope at
+// construction.
+//
+// A specialized wrapper may, and does, require scope where its own
+// specification section makes it mandatory: peos/requirement's six
+// relationship wrappers and all three peos/template wrappers each call a
+// requireRelationScope helper before accepting a Relation, because PEOS-005
+// and PEOS-009 state scope unconditionally for those relation types. The
+// generic type staying permissive is what lets each specialized type apply
+// its own rule without this package having to guess which rule applies.
+//
+// PEOS-002's own Artifact Supersession section is the clearest case of a
+// stricter specialized rule: it lists "the applicable scope" without a
+// qualifier, and its Supersession Identity Invariant independently requires
+// "the scope of replacement". No wrapper enforces that today -- see the
+// Deferred Architecture section of docs/implementation-progress.md, which
+// records the generic-representation status of Artifact Supersession.
+//
 // # Graph and specialized semantic validation remain external
 //
 // Cycle policy is explicitly per-Relation-Type, not universal (PEOS-002

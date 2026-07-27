@@ -3,7 +3,10 @@ package lifecycle
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/aleka7sk/PEOS/peos/core"
 )
@@ -328,7 +331,16 @@ func mustResultingAssignmentRef(t *testing.T) core.StateAssignmentRef {
 	return ref
 }
 
-func baseContentParts(t *testing.T) (core.LifecycleSubjectRef, core.LifecycleDefinitionVersionRef, TransitionID, StateID, core.Timestamp) {
+func mustStateAssignmentRef(t *testing.T, value string) core.StateAssignmentRef {
+	t.Helper()
+	ref, err := core.NewStateAssignmentRef(mustStateAssignmentID(t, value))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ref
+}
+
+func baseContentParts(t *testing.T) (core.LifecycleSubjectRef, core.LifecycleDefinitionVersionRef, TransitionID, core.StateAssignmentRef, core.Timestamp) {
 	t.Helper()
 	subject := mustLifecycleSubject(t, "REQ-1")
 	defID := mustLifecycleDefinitionID(t, "LC-REVIEW-1")
@@ -341,15 +353,15 @@ func baseContentParts(t *testing.T) (core.LifecycleSubjectRef, core.LifecycleDef
 		t.Fatal(err)
 	}
 	transition := mustTransitionID(t, "submit-for-review")
-	fromState := mustStateID(t, "draft")
+	fromAssignment := mustStateAssignmentRef(t, "SA-DRAFT-1")
 	attemptedAt := mustTimestamp(t, 2026, 1, 1)
-	return subject, definitionVersion, transition, fromState, attemptedAt
+	return subject, definitionVersion, transition, fromAssignment, attemptedAt
 }
 
 func mustSucceededContent(t *testing.T) TransitionRecordContent {
 	t.Helper()
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeSucceeded)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeSucceeded)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -379,8 +391,8 @@ func TestSucceededContentCompleteAccepted(t *testing.T) {
 	if c.DefinitionVersion().IsZero() {
 		t.Error("DefinitionVersion() is zero")
 	}
-	if c.FromState().IsZero() {
-		t.Error("FromState() is zero")
+	if c.FromAssignment().IsZero() {
+		t.Error("FromAssignment() is zero")
 	}
 	if c.AttemptedAt().IsZero() {
 		t.Error("AttemptedAt() is zero")
@@ -414,8 +426,8 @@ func TestSucceededContentCompleteAccepted(t *testing.T) {
 }
 
 func TestSucceededContentWithoutToStateRejected(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeSucceeded)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeSucceeded)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,8 +445,8 @@ func TestSucceededContentWithoutToStateRejected(t *testing.T) {
 }
 
 func TestSucceededContentWithoutCompletedAtRejected(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeSucceeded)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeSucceeded)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -452,8 +464,8 @@ func TestSucceededContentWithoutCompletedAtRejected(t *testing.T) {
 }
 
 func TestSucceededContentWithoutResultingAssignmentRejected(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeSucceeded)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeSucceeded)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -480,8 +492,8 @@ func mustFailure(t *testing.T) Failure {
 }
 
 func TestFailedContentWithFailureAccepted(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeFailed)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeFailed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -499,8 +511,8 @@ func TestFailedContentWithFailureAccepted(t *testing.T) {
 }
 
 func TestFailedContentWithoutFailureRejected(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeFailed)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeFailed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,8 +526,8 @@ func TestFailedContentWithoutFailureRejected(t *testing.T) {
 }
 
 func TestFailedContentWithToStateRejected(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeFailed)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeFailed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -537,8 +549,8 @@ func TestFailedContentWithToStateRejected(t *testing.T) {
 }
 
 func TestFailedContentWithResultingAssignmentRejected(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeFailed)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeFailed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -560,8 +572,8 @@ func TestFailedContentWithResultingAssignmentRejected(t *testing.T) {
 }
 
 func TestInterruptedContentAccepted(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeInterrupted)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeInterrupted)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -575,8 +587,8 @@ func TestInterruptedContentAccepted(t *testing.T) {
 }
 
 func TestInterruptedContentWithToStateRejected(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeInterrupted)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeInterrupted)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -594,8 +606,8 @@ func TestInterruptedContentWithToStateRejected(t *testing.T) {
 }
 
 func TestInterruptedContentWithResultingAssignmentRejected(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeInterrupted)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeInterrupted)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -613,8 +625,8 @@ func TestInterruptedContentWithResultingAssignmentRejected(t *testing.T) {
 }
 
 func TestIndeterminateContentWithoutCompletedAtAccepted(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeIndeterminate)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeIndeterminate)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -624,8 +636,8 @@ func TestIndeterminateContentWithoutCompletedAtAccepted(t *testing.T) {
 }
 
 func TestIndeterminateContentWithToStateRejected(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeIndeterminate)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeIndeterminate)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -639,8 +651,8 @@ func TestIndeterminateContentWithToStateRejected(t *testing.T) {
 }
 
 func TestIndeterminateContentWithResultingAssignmentRejected(t *testing.T) {
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeIndeterminate)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeIndeterminate)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -658,8 +670,8 @@ func TestUnknownProductOutcomeAcceptedUnderGenericRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, NewTransitionOutcome(vocab))
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, NewTransitionOutcome(vocab))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -796,8 +808,8 @@ func TestCrossRecordConstructionAndRoundTrip(t *testing.T) {
 	}
 
 	// A successful TransitionRecordContent referencing that StateAssignment.
-	subject, definitionVersion, transition, fromState, attemptedAt := baseContentParts(t)
-	content, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromState, attemptedAt, TransitionOutcomeSucceeded)
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	content, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeSucceeded)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -836,5 +848,307 @@ func TestCrossRecordConstructionAndRoundTrip(t *testing.T) {
 	gotAssignmentRef, ok := recordRevision.Content().ResultingAssignment()
 	if !ok || gotAssignmentRef != assignmentRef {
 		t.Errorf("ResultingAssignment() = (%v, %v), want (%v, true)", gotAssignmentRef, ok, assignmentRef)
+	}
+}
+
+// --- Packet L.0.C: source State Assignment endpoint ----------------------
+
+func mustProvenanceWithoutActor(t *testing.T) core.Provenance {
+	t.Helper()
+	ts, err := core.NewTimestamp(time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return core.NewProvenance().WithRecordedAt(ts)
+}
+
+func mustTransitionRecordRevisionWithProvenance(t *testing.T, artifactID, revisionID string, prov core.Provenance) core.ArtifactRevision {
+	t.Helper()
+	revID, err := core.NewArtifactRevisionID(revisionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rev, err := core.NewArtifactRevision(mustArtifactID(t, artifactID), revID, mustOrigin(t), prov, mustIntegrity(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rev
+}
+
+// mustOutcomeContent builds a content value for outcome, satisfying exactly
+// the field combination validateOutcome requires for it.
+func mustOutcomeContent(t *testing.T, outcome TransitionOutcome) TransitionRecordContent {
+	t.Helper()
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, outcome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	switch {
+	case outcome.Equal(TransitionOutcomeSucceeded):
+		return mustSucceededContent(t)
+	case outcome.Equal(TransitionOutcomeFailed):
+		if c, err = c.WithCompletedAt(mustTimestamp(t, 2026, 1, 2)); err != nil {
+			t.Fatal(err)
+		}
+		f, err := NewFailure("guard rejected")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if c, err = c.WithFailure(f); err != nil {
+			t.Fatal(err)
+		}
+	case outcome.Equal(TransitionOutcomeInterrupted):
+		if c, err = c.WithCompletedAt(mustTimestamp(t, 2026, 1, 2)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return c
+}
+
+func TestTransitionRecordContentFromAssignmentIsAStateAssignmentRef(t *testing.T) {
+	c := mustSucceededContent(t)
+	if c.FromAssignment().IsZero() {
+		t.Fatal("FromAssignment() is zero")
+	}
+	// The source endpoint must be a State Assignment reference, not a State
+	// identifier: PEOS-003 requires "the source State Assignment".
+	want := mustStateAssignmentRef(t, "SA-DRAFT-1")
+	if c.FromAssignment() != want {
+		t.Errorf("FromAssignment() = %v, want %v", c.FromAssignment(), want)
+	}
+}
+
+func TestTransitionRecordContentNoFromStateMethodRemains(t *testing.T) {
+	// Packet L.0.C removed the parallel StateID endpoint entirely; no
+	// deprecated accessor may survive alongside FromAssignment.
+	rt := reflect.TypeOf(TransitionRecordContent{})
+	for _, name := range []string{"FromState", "SourceState"} {
+		if _, ok := rt.MethodByName(name); ok {
+			t.Errorf("TransitionRecordContent still exposes %s", name)
+		}
+	}
+}
+
+func TestTransitionRecordContentZeroSourceAssignmentRejected(t *testing.T) {
+	subject, definitionVersion, transition, _, attemptedAt := baseContentParts(t)
+	_, err := NewTransitionRecordContent(subject, definitionVersion, transition, core.StateAssignmentRef{}, attemptedAt, TransitionOutcomeSucceeded)
+	if !errors.Is(err, ErrInvalidStateAssignment) {
+		t.Fatalf("err = %v, want ErrInvalidStateAssignment", err)
+	}
+}
+
+func TestTransitionRecordContentSourceAssignmentJSONRoundTrip(t *testing.T) {
+	c := mustSucceededContent(t)
+	data, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"source_state_assignment"`) {
+		t.Fatalf("wire form missing source_state_assignment key: %s", data)
+	}
+	if strings.Contains(string(data), `"from_state"`) {
+		t.Fatalf("wire form still carries the removed from_state key: %s", data)
+	}
+	var decoded TransitionRecordContent
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.FromAssignment() != c.FromAssignment() {
+		t.Errorf("FromAssignment() = %v, want %v", decoded.FromAssignment(), c.FromAssignment())
+	}
+	again, err := json.Marshal(decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(again) != string(data) {
+		t.Errorf("round trip not byte-identical:\n got %s\nwant %s", again, data)
+	}
+}
+
+func TestTransitionRecordContentSourceAssignmentExplicitNullRejected(t *testing.T) {
+	data, err := json.Marshal(mustSucceededContent(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	raw["source_state_assignment"] = json.RawMessage("null")
+	payload, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded TransitionRecordContent
+	if err := json.Unmarshal(payload, &decoded); err == nil {
+		t.Fatal("explicit null source_state_assignment accepted")
+	}
+	if !decoded.IsZero() {
+		t.Error("receiver mutated by a failed decode")
+	}
+}
+
+func TestTransitionRecordContentFailedDecodePreservesReceiver(t *testing.T) {
+	original := mustSucceededContent(t)
+	receiver := original
+	if err := json.Unmarshal([]byte(`{"subject":{"kind":"artifact","ref":{"artifact_id":"REQ-9"}}}`), &receiver); err == nil {
+		t.Fatal("decode of an incomplete payload succeeded")
+	}
+	if receiver.FromAssignment() != original.FromAssignment() || !receiver.Outcome().Equal(original.Outcome()) {
+		t.Error("receiver mutated by a failed decode")
+	}
+}
+
+// --- Packet L.0.C: responsible Actor invariant ---------------------------
+
+func TestCompletedTransitionWithActorSucceeds(t *testing.T) {
+	record, err := NewTransitionRecord(mustTransitionRecordArtifact(t, "TR-6001"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// mustProvenance carries an Actor.
+	revision := mustTransitionRecordArtifactRevision(t, "TR-6001", "REV-1")
+	if _, err := NewTransitionRecordRevision(record, revision, mustSucceededContent(t)); err != nil {
+		t.Fatalf("completed transition with an Actor rejected: %v", err)
+	}
+}
+
+func TestCompletedTransitionWithoutActorFails(t *testing.T) {
+	record, err := NewTransitionRecord(mustTransitionRecordArtifact(t, "TR-6002"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision := mustTransitionRecordRevisionWithProvenance(t, "TR-6002", "REV-1", mustProvenanceWithoutActor(t))
+	_, err = NewTransitionRecordRevision(record, revision, mustSucceededContent(t))
+	if !errors.Is(err, ErrMissingResponsibleActor) {
+		t.Fatalf("err = %v, want ErrMissingResponsibleActor", err)
+	}
+	if !errors.Is(err, ErrInvalidTransitionRecordRevision) {
+		t.Error("ErrMissingResponsibleActor must be wrapped inside ErrInvalidTransitionRecordRevision")
+	}
+}
+
+func TestCompletedTransitionAuthorityWithoutActorStillFails(t *testing.T) {
+	record, err := NewTransitionRecord(mustTransitionRecordArtifact(t, "TR-6003"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := mustSucceededContent(t).WithAuthority(mustAuthorityRef(t, "peos", "review-board"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := content.Authority(); !ok {
+		t.Fatal("authority not set")
+	}
+	revision := mustTransitionRecordRevisionWithProvenance(t, "TR-6003", "REV-1", mustProvenanceWithoutActor(t))
+	// PEOS-003: "Actor identity and transition authority are distinct."
+	// Authority must not satisfy the Actor obligation.
+	if _, err := NewTransitionRecordRevision(record, revision, content); !errors.Is(err, ErrMissingResponsibleActor) {
+		t.Fatalf("err = %v, want ErrMissingResponsibleActor", err)
+	}
+}
+
+func TestCompletedTransitionActorWithoutAuthorityObeysExistingRules(t *testing.T) {
+	record, err := NewTransitionRecord(mustTransitionRecordArtifact(t, "TR-6004"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := mustSucceededContent(t)
+	if _, ok := content.Authority(); ok {
+		t.Fatal("expected no authority on the base succeeded content")
+	}
+	// Authority remains optional; an Actor alone is sufficient.
+	revision := mustTransitionRecordArtifactRevision(t, "TR-6004", "REV-1")
+	rr, err := NewTransitionRecordRevision(record, revision, content)
+	if err != nil {
+		t.Fatalf("actor-without-authority rejected: %v", err)
+	}
+	if _, ok := rr.Content().Authority(); ok {
+		t.Error("authority appeared where none was set")
+	}
+}
+
+func TestNonCompletedTransitionsDoNotRequireActor(t *testing.T) {
+	for _, outcome := range []TransitionOutcome{
+		TransitionOutcomeFailed,
+		TransitionOutcomeInterrupted,
+		TransitionOutcomeIndeterminate,
+	} {
+		t.Run(outcome.String(), func(t *testing.T) {
+			record, err := NewTransitionRecord(mustTransitionRecordArtifact(t, "TR-7001"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			revision := mustTransitionRecordRevisionWithProvenance(t, "TR-7001", "REV-1", mustProvenanceWithoutActor(t))
+			// PEOS-003 states the Actor obligation only for a completed
+			// Transition; a Transition Attempt that failed, was interrupted,
+			// or is indeterminate must not inherit an invented requirement.
+			if _, err := NewTransitionRecordRevision(record, revision, mustOutcomeContent(t, outcome)); err != nil {
+				t.Fatalf("%s outcome wrongly required an Actor: %v", outcome, err)
+			}
+		})
+	}
+}
+
+func TestProductDefinedOutcomeDoesNotRequireActor(t *testing.T) {
+	vocab, err := core.NewVocabularyValue("acme", "compensated")
+	if err != nil {
+		t.Fatal(err)
+	}
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	content, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, NewTransitionOutcome(vocab))
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := NewTransitionRecord(mustTransitionRecordArtifact(t, "TR-7002"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision := mustTransitionRecordRevisionWithProvenance(t, "TR-7002", "REV-1", mustProvenanceWithoutActor(t))
+	if _, err := NewTransitionRecordRevision(record, revision, content); err != nil {
+		t.Fatalf("product-defined outcome wrongly required an Actor: %v", err)
+	}
+}
+
+func TestTransitionRecordRevisionDecodeEnforcesResponsibleActor(t *testing.T) {
+	// The invariant must hold on the decode path too, not only on the
+	// constructor path -- both route through
+	// newTransitionRecordRevisionFromParts.
+	record, err := NewTransitionRecord(mustTransitionRecordArtifact(t, "TR-7003"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	good := mustTransitionRecordArtifactRevision(t, "TR-7003", "REV-1")
+	rr, err := NewTransitionRecordRevision(record, good, mustSucceededContent(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(rr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	bad := mustTransitionRecordRevisionWithProvenance(t, "TR-7003", "REV-1", mustProvenanceWithoutActor(t))
+	badRevision, err := json.Marshal(bad)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	raw["core"] = badRevision
+	payload, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	receiver := rr
+	if err := json.Unmarshal(payload, &receiver); !errors.Is(err, ErrMissingResponsibleActor) {
+		t.Fatalf("err = %v, want ErrMissingResponsibleActor", err)
+	}
+	if _, ok := receiver.Core().Provenance().Actor(); !ok {
+		t.Error("receiver mutated by a failed decode")
 	}
 }

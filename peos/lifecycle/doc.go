@@ -58,6 +58,46 @@
 // core.StateAssignmentID, analogous to how PEOS-006 models a Validation
 // Claim.
 //
+// # A Transition Record's endpoints and its responsible Actor
+//
+// PEOS-003 requires a Transition Record to identify "the source State
+// Assignment" and "the resulting target State Assignment when successful".
+// Both endpoints are therefore core.StateAssignmentRef values on
+// TransitionRecordContent -- fromAssignment (mandatory) and
+// resultingAssignment (set when successful). A StateID names a State inside
+// a Definition Version and cannot say which of a Subject's Assignments to
+// that State a Transition departed from, since a Subject may occupy the same
+// State more than once over its history. Packet L.0.C replaced the original
+// fromState StateID field with fromAssignment for that reason, changing the
+// wire key from "from_state" to "source_state_assignment"; no parallel
+// StateID field or compatibility alias is retained. toState remains a
+// StateID, because it names the targeted State rather than an Assignment.
+//
+// PEOS-003 also states "Every completed Transition MUST identify the
+// responsible Actor or Runtime," and separately that "Actor identity and
+// transition authority are distinct." This package does not duplicate the
+// Actor inside TransitionRecordContent: a Transition Record is a PEOS-002
+// Artifact, so its Revision already carries core.Provenance, and that
+// Provenance's Actor *is* the responsible transition Actor. Because neither
+// the content nor the core.ArtifactRevision can check the rule alone,
+// newTransitionRecordRevisionFromParts -- the single construction boundary
+// both NewTransitionRecordRevision and UnmarshalJSON pass through -- rejects
+// a succeeded-outcome revision whose Provenance carries no Actor, with
+// ErrMissingResponsibleActor wrapped inside
+// ErrInvalidTransitionRecordRevision.
+//
+// The invariant stops at the succeeded outcome. PEOS-003 distinguishes a
+// completed Transition from a Transition Attempt that was rejected, failed,
+// interrupted, or left indeterminate, and states no Actor obligation for
+// those; requiring one would invent normative content. Authority stays a
+// distinct optional field and never satisfies the Actor check. Applicable
+// Evidence likewise stays optional and is not duplicated into content:
+// PEOS-003 lists it among a Transition Record's items but defines no
+// Transition-specific Evidence semantics, and the Revision already carries
+// Origin, Provenance, and Representations. The Provenance recorded time is
+// not a replacement for attemptedAt or completedAt, which are separate,
+// domain-meaningful times.
+//
 // # State and Transition identity are scoped local keys, not global identities
 //
 // PEOS-003 requires State and Transition identifiers to be unique only

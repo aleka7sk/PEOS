@@ -1,157 +1,206 @@
 # Product Engineering OS (PEOS)
 
-> **Build products, not prompts.**
+> **Every implementation decision should be traceable to an approved product need.**
 
-Product Engineering OS (PEOS) is an open specification for building software products with AI through a structured engineering process rather than ad-hoc prompting.
+PEOS is a set of ten normative specifications describing how software product engineering
+state is modeled — artifacts, revisions, lifecycles, decisions, requirements, validation,
+quality, runtime contracts, and templates — together with a Go SDK that implements those
+specifications as immutable, self-validating value types.
 
-Instead of asking an AI model to immediately generate code, PEOS guides every project through a sequence of validated engineering stages—from understanding the problem to delivering production-ready software.
-
-The goal is to make AI an engineering partner rather than a code generator.
-
----
-
-# Why PEOS?
-
-Modern AI can generate impressive amounts of code.
-
-However, many software projects fail long before implementation because of:
-
-* unclear problems;
-* missing requirements;
-* incorrect assumptions;
-* premature architecture decisions;
-* scope creep;
-* lack of traceability;
-* undocumented business rules.
-
-Most AI workflows optimize for writing code.
-
-PEOS optimizes for building successful products.
+The specifications are the product. The SDK exists to make them checkable by a compiler
+rather than only by review.
 
 ---
 
-# Philosophy
-
-PEOS is built around a simple principle:
-
-> **Every line of code should trace back to a validated business need.**
-
-The engineering process is treated as a pipeline where each stage produces artifacts consumed by the next stage.
-
-```
-Idea
-    ↓
-Discovery
-    ↓
-Research
-    ↓
-Product Definition
-    ↓
-Requirements
-    ↓
-Architecture
-    ↓
-Planning
-    ↓
-Implementation
-    ↓
-Review
-    ↓
-Release
-```
-
-Skipping stages is considered technical debt.
-
----
-
-# Core Principles
-
-## Problem before solution
-
-Never design a solution before understanding the problem.
-
-## Evidence over assumptions
-
-Assumptions are explicitly marked until validated.
-
-## Documents before code
-
-Documentation defines the product.
-
-Code implements the documentation.
-
-## Small validated decisions
-
-Large projects emerge from many validated decisions instead of one large design.
-
-## Traceability
-
-Every feature should be traceable to:
-
-* a business goal;
-* a user need;
-* a requirement;
-* an implementation task;
-* production code.
-
----
-
-# Repository Structure
+## Repository structure
 
 ```
 .
+├── spec/                      # PEOS-000 .. PEOS-009, the normative specifications
+│   └── adr/                   # architecture decision records
+├── peos/                      # the Go SDK, one package per specification domain
+│   ├── core/                  # PEOS-002 identity, references, vocabularies, provenance
+│   ├── relation/              # PEOS-002 Artifact Relation contract
+│   ├── lifecycle/             # PEOS-003
+│   ├── decision/              # PEOS-004
+│   ├── requirement/           # PEOS-005
+│   ├── validation/            # PEOS-006
+│   ├── quality/               # PEOS-007
+│   ├── runtime/               # PEOS-008
+│   └── template/              # PEOS-009
 ├── docs/
-├── templates/
-├── examples/
-├── .claude/
-│   ├── skills/
-│   ├── agents/
-│   ├── rules/
-│   └── settings.json
-├── CLAUDE.md
+│   └── implementation-progress.md   # authoritative implementation tracker
+├── CLAUDE.md                  # engineering process rules for this repository
+├── MANIFESTO.md
 └── README.md
+```
+
+`templates/`, `examples/`, `runtimes/`, and `tools/` exist as **empty placeholder
+directories** for future work. They contain no files today and nothing in the SDK depends
+on them.
+
+---
+
+## The specifications
+
+| Spec | Title | Package |
+|---|---|---|
+| PEOS-000 | Overview | — (interpretive foundation) |
+| PEOS-001 | Philosophy | — (interpretive foundation) |
+| PEOS-002 | Artifact Model | `peos/core`, `peos/relation` |
+| PEOS-003 | Lifecycle | `peos/lifecycle` |
+| PEOS-004 | Decision Model | `peos/decision` |
+| PEOS-005 | Requirement Model | `peos/requirement` |
+| PEOS-006 | Validation Model | `peos/validation` |
+| PEOS-007 | Quality Model | `peos/quality` |
+| PEOS-008 | Runtime Contract | `peos/runtime` |
+| PEOS-009 | Template Contract | `peos/template` |
+
+PEOS-000 and PEOS-001 have no dedicated package by design: they are an interpretive
+foundation cited throughout every package's documentation, not a domain model.
+
+---
+
+## Architecture
+
+**Specification-first.** No type exists in the SDK unless a specification clause requires
+it. Where a specification defines a concept but not its ontology, the SDK records the gap
+as a deliberate deferral rather than inventing structure — see *Deferrals* below.
+
+**Immutable artifacts and revisions.** An Artifact carries stable identity; an Artifact
+Revision is an immutable recorded state of it. Nothing in the SDK mutates a recorded
+Revision. Records that need amendment reference an earlier record through a typed
+correction reference; they never rewrite it.
+
+**Constructors validate; values are immutable.** Every type is constructed through a
+function that enforces its invariants, and every modifier returns a new value rather than
+mutating the receiver. A field that participates in a cross-field invariant is a
+constructor argument, not a modifier-only field, so no valid state is unconstructible.
+
+**Derived state is never stored.** Current lifecycle state, satisfaction, conformance,
+compatibility, and quality are derived views. No SDK type carries a `status`, `current`,
+`compatible`, `conformant`, or `satisfied` field, and tests assert their absence from
+every wire form.
+
+**Graph analysis is out of scope.** Traversal, cycle detection, traceability coverage, and
+orphan detection are assigned by PEOS-002 itself to a future Traceability Model. The SDK
+holds no repository, no relation set, and no query mechanism.
+
+### Package dependency direction
+
+```
+core  (foundation — imports no PEOS package)
+ ├── relation      → core
+ ├── lifecycle     → core
+ ├── decision      → core
+ ├── validation    → core
+ ├── requirement   → core, relation
+ ├── quality       → core, validation
+ ├── runtime       → core, validation
+ └── template      → core, relation, validation
+```
+
+The graph is acyclic and enforced by tests: every package carries a `doc_test.go` that
+parses its own imports and fails on any dependency its rule does not permit, plus
+assertions locking the converse directions.
+
+---
+
+## Using the SDK
+
+```
+go get github.com/aleka7sk/PEOS
+```
+
+Requires Go 1.22 or later. The module has no third-party dependencies — the SDK imports
+only the standard library.
+
+Package documentation is the primary reference; each package's `doc.go` states the
+specification clauses it implements, the boundaries it deliberately stays within, and the
+reasoning behind each architectural choice:
+
+```
+go doc github.com/aleka7sk/PEOS/peos/core
+go doc github.com/aleka7sk/PEOS/peos/requirement
 ```
 
 ---
 
-# Workflow
+## Running tests and quality gates
 
-PEOS divides software development into dedicated engineering stages.
+```
+gofmt -l .
+go build ./...
+go vet ./...
+go test ./... -count=1
+go test ./... -race -count=1
+staticcheck ./...
+golangci-lint run ./...
+```
 
-Each stage is implemented as a Claude Code Skill.
+`staticcheck` and `golangci-lint` are optional external tools; the first five commands
+require only the Go toolchain. All eight gates pass on the current tree.
 
-Every Skill:
+Per-package coverage:
 
-* has a single responsibility;
-* consumes specific artifacts;
-* produces specific artifacts;
-* defines clear completion criteria;
-* avoids making decisions outside its scope.
-
----
-
-# Current Status
-
-PEOS is currently under active development.
-
-Version: **0.1.0**
-
-The first reference project is an Excel-first CRM platform used to validate the framework against a real-world business workflow.
-
-Future versions will be validated against additional domains, including SaaS products, mobile applications, marketplaces, and internal enterprise systems.
+```
+go test ./peos/<package> -cover
+```
 
 ---
 
-# Contributing
+## Current status
 
-The framework evolves through real projects.
+All ten specifications are implemented and accepted. Nine Go packages, 2,005 test
+functions, 144 error sentinels, and 2,289 exported production symbols. Coverage by
+package: `core` 84.4%, `relation` 98.1%, `lifecycle` 86.5%, `decision` 92.0%,
+`requirement` 95.4%, `validation` 97.4%, `quality` 97.4%, `runtime` 96.8%,
+`template` 97.7%.
 
-If a project exposes weaknesses in PEOS, the framework should improve rather than forcing projects to adapt.
+`docs/implementation-progress.md` is the authoritative record of what is implemented,
+what is deferred, which audits have run, and what the next action is. It supersedes this
+section whenever the two disagree.
 
-Continuous refinement is a design goal, not a maintenance task.
+The SDK is a value layer. It deliberately provides **no** repository, storage backend,
+query engine, execution engine, renderer, workflow orchestrator, or CLI. Those are
+Product concerns, and several are explicitly assigned elsewhere by the specifications
+themselves.
 
 ---
 
-# License
+## Deferrals
 
-MIT License.
+The following are specified by PEOS but deliberately not implemented, each recorded with
+its normative source and the question that must be resolved first. The full list, with
+reasoning, is in the Deferred Architecture section of
+`docs/implementation-progress.md`.
+
+- Specialized Artifact Supersession enforcement (PEOS-002) — the relation is
+  representable through `relation.Relation`; the specialized scope and
+  self-supersession rules are not yet enforced by a wrapper.
+- Cross-relation graph traversal, cycle detection, traceability coverage, orphan
+  detection (PEOS-002) — assigned by the specification to a future Traceability Model.
+- Guard / Effect expression language (PEOS-003) — no stable expression contract exists
+  to implement against.
+- Lifecycle Migration execution and Current State / State History resolution (PEOS-003).
+- Delegation (PEOS-004) — blocked on which package should own authority-grant aggregates.
+- Runtime Waiver attached conditions and criterion-level subject (PEOS-008).
+- Template Migration (PEOS-009) — PEOS-009 states what a migration must identify but
+  never what a Migration *is*.
+
+---
+
+## Contributing
+
+The framework evolves through real projects. If a project exposes a weakness in PEOS, the
+specification should improve rather than the project working around it.
+
+`CLAUDE.md` documents the engineering process this repository holds itself to: a
+source-of-truth hierarchy, an evidence-and-certainty vocabulary, scope control, and the
+requirement that every implementation decision trace back to an approved product need.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).

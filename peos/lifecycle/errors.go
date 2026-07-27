@@ -103,4 +103,22 @@ var (
 	// LifecycleDefinitionVersionSupersession fails to satisfy its required
 	// fields or internal consistency rules.
 	ErrInvalidLifecycleSupersession = errors.New("lifecycle: lifecycle definition version supersession is invalid")
+
+	// ErrMissingResponsibleActor is returned when a TransitionRecordRevision
+	// whose content declares a succeeded outcome is paired with a
+	// core.ArtifactRevision whose Provenance carries no Actor. PEOS-003
+	// states "Every completed Transition MUST identify the responsible Actor
+	// or Runtime," and this package carries that Actor in the enclosing
+	// Revision's Provenance rather than duplicating it inside
+	// TransitionRecordContent -- so this is the one cross-value invariant
+	// that cannot be checked by either part alone.
+	//
+	// It is always wrapped inside ErrInvalidTransitionRecordRevision, so a
+	// caller may match either the general revision-level sentinel or this
+	// specific cause. It is deliberately narrow: it applies only to the
+	// succeeded outcome, because PEOS-003 distinguishes a completed
+	// Transition from a Transition Attempt that was rejected, failed,
+	// interrupted, or left indeterminate, and states no Actor obligation
+	// for those.
+	ErrMissingResponsibleActor = errors.New("lifecycle: completed transition requires a responsible actor in the revision provenance")
 )

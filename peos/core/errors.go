@@ -24,9 +24,14 @@ var (
 	// constructed or decoded without a revision identity component.
 	ErrMissingRevisionID = errors.New("core: revision-level reference requires a revision id")
 
-	// ErrUnexpectedRevisionID is returned when an identity-level reference
-	// is constructed or decoded with a revision identity component present.
-	ErrUnexpectedRevisionID = errors.New("core: identity-level reference must not carry a revision id")
+	// There is deliberately no ErrUnexpectedRevisionID counterpart to
+	// ErrMissingRevisionID. An identity-level reference type has no field a
+	// revision identity could occupy, so the condition such a sentinel would
+	// name is unreachable by construction rather than merely unexercised.
+	// Packet L.0.C removed the exported sentinel that previously sat here and
+	// documented itself as "returned when an identity-level reference is
+	// constructed or decoded with a revision identity component present" --
+	// behaviour no code path could produce.
 
 	// ErrInvalidTimestamp is returned when a timestamp value is zero, or
 	// otherwise fails PEOS timestamp validation.
