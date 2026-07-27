@@ -73,30 +73,63 @@
 // StateID field or compatibility alias is retained. toState remains a
 // StateID, because it names the targeted State rather than an Assignment.
 //
-// PEOS-003 also states "Every completed Transition MUST identify the
-// responsible Actor or Runtime," and separately that "Actor identity and
-// transition authority are distinct." This package does not duplicate the
-// Actor inside TransitionRecordContent: a Transition Record is a PEOS-002
-// Artifact, so its Revision already carries core.Provenance, and that
-// Provenance's Actor *is* the responsible transition Actor. Because neither
-// the content nor the core.ArtifactRevision can check the rule alone,
-// newTransitionRecordRevisionFromParts -- the single construction boundary
-// both NewTransitionRecordRevision and UnmarshalJSON pass through -- rejects
-// a succeeded-outcome revision whose Provenance carries no Actor, with
-// ErrMissingResponsibleActor wrapped inside
+// PEOS-003 also states two obligations for a completed Transition, and this
+// package satisfies them in two different places.
+//
+// First, "Every completed Transition MUST identify the responsible Actor or
+// Runtime." This package does not duplicate the Actor inside
+// TransitionRecordContent: a Transition Record is a PEOS-002 Artifact, so its
+// Revision already carries core.Provenance, and that Provenance's Actor *is*
+// the responsible transition Actor.
+//
+// Second, PEOS-003 lists "authority basis" among a Transition Record's items
+// **without a qualifier** -- in direct contrast to "failure or override
+// information when applicable" three items below it in the same list -- and
+// states an Authority Invariant: "A completed Transition has an identifiable
+// authority basis." The authority basis is stored explicitly, as
+// TransitionRecordContent.Authority(), and is mandatory for a completed
+// Transition. Packet L.0.C had left it optional for every outcome and
+// described that as "exactly as PEOS-003 leaves it"; Packet L.0.D found that
+// description inaccurate, and Packet L.0.E applies the obligation.
+//
+// Because neither the content nor the core.ArtifactRevision can check either
+// rule alone, newTransitionRecordRevisionFromParts -- the single construction
+// boundary both NewTransitionRecordRevision and UnmarshalJSON pass through --
+// enforces both, rejecting a succeeded-outcome revision whose Provenance
+// carries no Actor (ErrMissingResponsibleActor) or whose content carries no
+// Authority (ErrMissingTransitionAuthority), each wrapped inside
 // ErrInvalidTransitionRecordRevision.
 //
-// The invariant stops at the succeeded outcome. PEOS-003 distinguishes a
-// completed Transition from a Transition Attempt that was rejected, failed,
-// interrupted, or left indeterminate, and states no Actor obligation for
-// those; requiring one would invent normative content. Authority stays a
-// distinct optional field and never satisfies the Actor check. Applicable
-// Evidence likewise stays optional and is not duplicated into content:
-// PEOS-003 lists it among a Transition Record's items but defines no
-// Transition-specific Evidence semantics, and the Revision already carries
-// Origin, Provenance, and Representations. The Provenance recorded time is
-// not a replacement for attemptedAt or completedAt, which are separate,
-// domain-meaningful times.
+// Both invariants stop at the succeeded outcome. PEOS-003's Target State
+// Invariant -- "A completed Transition establishes an explicitly permitted
+// target State" -- identifies which outcome is a completed Transition:
+// validateOutcome requires a target State and a resulting State Assignment for
+// succeeded and forbids both for failed, interrupted, and indeterminate. A
+// Transition Attempt that was rejected, failed, interrupted, or left
+// indeterminate is not a completed Transition, and PEOS-003 states neither
+// obligation for one; extending either rule to those outcomes, or to a
+// Product-declared outcome this package has no normative basis to constrain,
+// would invent normative content. Non-succeeded outcomes therefore keep the
+// optional Authority semantics they have always had.
+//
+// Actor and Authority remain distinct concepts and neither substitutes for the
+// other -- PEOS-003: "Actor identity and transition authority are distinct."
+// A record missing both surfaces the Actor cause first, in check order.
+//
+// **Authority derivation is not implemented.** PEOS-003 requires a Lifecycle
+// Definition to define which Actors or authority classes may perform a
+// Transition, so an authority basis could in principle be derived from the
+// Definition Version together with the Actor. This package models neither
+// authority classes nor a policy language, so no such derivation would be
+// reliable; Authority() is read directly and nothing else is consulted.
+//
+// Applicable Evidence stays optional and is not duplicated into content:
+// PEOS-003 makes it conditional on a Lifecycle Definition requiring it ("A
+// Lifecycle Definition MAY require Evidence"), scopes its MUST to *Required*
+// Evidence, defers retention to "the applicable contract," and assigns
+// validity to PEOS-006. The Revision already carries Origin, Provenance, and
+// Representations. The Provenance recorded time is not a replacement for
+// attemptedAt or completedAt, which are separate, domain-meaningful times.
 //
 // # State and Transition identity are scoped local keys, not global identities
 //

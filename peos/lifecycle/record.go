@@ -227,21 +227,49 @@ func (r *TransitionRecord) UnmarshalJSON(data []byte) error {
 // Assignment that resulted from reaching it is carried separately by
 // resultingAssignment.
 //
-// # The responsible Actor lives in the enclosing Revision's Provenance
+// # A completed Transition needs both an Actor and an authority basis
 //
-// core.Provenance is carried only through the enclosing
-// TransitionRecordRevision's own core.ArtifactRevision.Provenance(); this
+// PEOS-003 states two separate obligations for a completed Transition, and
+// this package satisfies them in two different places.
+//
+// The **responsible Actor** ("Every completed Transition MUST identify the
+// responsible Actor or Runtime") lives in the enclosing
+// TransitionRecordRevision's own core.ArtifactRevision.Provenance(). This
 // type does not duplicate Actor or recorded time. For a Transition Record,
-// that Provenance's Actor *is* PEOS-003's "responsible Actor or Runtime" --
-// the two are the same concept, not merely a convenient carrier, and
-// newTransitionRecordRevisionFromParts enforces its presence for a
-// completed Transition. See TransitionRecordRevision for the invariant and
-// for why it lives there rather than on this type.
+// that Provenance's Actor *is* PEOS-003's responsible Actor -- the same
+// concept, not merely a convenient carrier.
 //
-// Authority remains a distinct field and a distinct concept: PEOS-003
-// states "Actor identity and transition authority are distinct," so
-// Authority() is neither a substitute for nor implied by the Provenance
-// Actor, and it stays optional exactly as PEOS-003 leaves it.
+// The **authority basis** is stored explicitly here, in this type, and is
+// reached through Authority(). PEOS-003 lists "authority basis" among a
+// Transition Record's items **without a qualifier**, in direct contrast to
+// "failure or override information when applicable" three items below it in
+// the same list, and separately states an Authority Invariant: "A completed
+// Transition has an identifiable authority basis." Authority is therefore
+// mandatory for a succeeded outcome.
+//
+// "Completed" means the succeeded outcome in this lifecycle model. PEOS-003's
+// Target State Invariant -- "A completed Transition establishes an explicitly
+// permitted target State" -- settles it: validateOutcome requires a target
+// State and a resulting State Assignment for succeeded and forbids both for
+// failed, interrupted, and indeterminate. Non-succeeded outcomes therefore
+// retain the optional Authority semantics they have always had, because
+// PEOS-003 states no authority obligation for a Transition Attempt that was
+// rejected, failed, interrupted, or left indeterminate.
+//
+// Actor and Authority are distinct, and neither substitutes for the other:
+// PEOS-003 states "Actor identity and transition authority are distinct."
+// A succeeded record missing either one is rejected, with its own sentinel.
+//
+// **No authority derivation is implemented.** PEOS-003 requires a Lifecycle
+// Definition to define which Actors or authority classes may perform a
+// Transition, so an authority basis could in principle be derived from the
+// Definition Version plus the Actor. This package models neither authority
+// classes nor a policy language, so no such derivation would be reliable, and
+// none is attempted: Authority() is read, and nothing else is consulted.
+//
+// newTransitionRecordRevisionFromParts enforces both invariants -- see
+// validateResponsibleActor and validateTransitionAuthority, and
+// TransitionRecordRevision for why they live there rather than on this type.
 //
 // Applicable Evidence is likewise not duplicated here. PEOS-003 lists it
 // among a Transition Record's items but defines no Transition-specific
@@ -402,7 +430,12 @@ func (c TransitionRecordContent) ResultingAssignment() (core.StateAssignmentRef,
 	return c.resultingAssignment, c.hasResultingAssignment
 }
 
-// Authority returns c's declared authority, and whether one is set.
+// Authority returns c's declared authority basis, and whether one is set.
+//
+// It is mandatory for a succeeded outcome and optional otherwise, but that
+// rule is enforced at TransitionRecordRevision construction rather than here,
+// for the same reason validateOutcome's rules are: the applicable rule depends
+// on the outcome, which may be set before or after Authority in a With*-chain.
 func (c TransitionRecordContent) Authority() (core.AuthorityRef, bool) {
 	return c.authority, c.hasAuthority
 }
@@ -674,6 +707,9 @@ func newTransitionRecordRevisionFromParts(revision core.ArtifactRevision, conten
 	if err := validateResponsibleActor(revision, content); err != nil {
 		return TransitionRecordRevision{}, err
 	}
+	if err := validateTransitionAuthority(content); err != nil {
+		return TransitionRecordRevision{}, err
+	}
 	return TransitionRecordRevision{core: revision, content: content}, nil
 }
 
@@ -699,6 +735,42 @@ func validateResponsibleActor(revision core.ArtifactRevision, content Transition
 	}
 	if _, ok := revision.Provenance().Actor(); !ok {
 		return fmt.Errorf("lifecycle: %w: %w", ErrInvalidTransitionRecordRevision, ErrMissingResponsibleActor)
+	}
+	return nil
+}
+
+// validateTransitionAuthority enforces PEOS-003's authority-basis obligation
+// for a completed Transition. PEOS-003 lists "authority basis" among the items
+// a Transition Record MUST identify **without a qualifier** -- in direct
+// contrast to "failure or override information when applicable" three items
+// below it in the same list -- and states an Authority Invariant: "A completed
+// Transition has an identifiable authority basis."
+//
+// Packet L.0.C left Authority optional for every outcome and documented that as
+// "exactly as PEOS-003 leaves it." Packet L.0.D found that characterization
+// inaccurate: a succeeded record with no authority anywhere was constructible,
+// and core.ArtifactRevision has no authority field to fall back on. Packet
+// L.0.E applies the obligation here.
+//
+// No derivation is attempted. The authority basis is read from
+// TransitionRecordContent.Authority() and from nowhere else -- not from the
+// Actor, the Lifecycle Definition Version, the Transition definition,
+// repository state, or implicit policy. PEOS-003 requires a Lifecycle
+// Definition to define which Actors or authority classes may perform a
+// Transition, but this package models neither those classes nor a policy
+// language, so no reliable derivation exists to implement. Actor identity and
+// authority basis remain separate concepts, and neither substitutes for the
+// other.
+//
+// Scope matches validateResponsibleActor exactly: only the succeeded outcome.
+// A failed, interrupted, indeterminate, or Product-declared outcome is not a
+// completed Transition, so its Authority stays optional as before.
+func validateTransitionAuthority(content TransitionRecordContent) error {
+	if !content.outcome.Equal(TransitionOutcomeSucceeded) {
+		return nil
+	}
+	if _, ok := content.Authority(); !ok {
+		return fmt.Errorf("lifecycle: %w: %w", ErrInvalidTransitionRecordRevision, ErrMissingTransitionAuthority)
 	}
 	return nil
 }

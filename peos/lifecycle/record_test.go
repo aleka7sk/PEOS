@@ -377,6 +377,38 @@ func mustSucceededContent(t *testing.T) TransitionRecordContent {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A succeeded outcome requires an authority basis (PEOS-003's Authority
+	// Invariant, enforced since Packet L.0.E), so the canonical valid
+	// succeeded fixture carries one. Use mustSucceededContentWithoutAuthority
+	// for the negative cases.
+	c, err = c.WithAuthority(mustAuthorityRef(t, "peos", "review-board"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+// mustSucceededContentWithoutAuthority builds an otherwise-valid succeeded
+// content carrying no authority basis, for the negative authority cases.
+func mustSucceededContentWithoutAuthority(t *testing.T) TransitionRecordContent {
+	t.Helper()
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	c, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, TransitionOutcomeSucceeded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c, err = c.WithToState(mustStateID(t, "accepted")); err != nil {
+		t.Fatal(err)
+	}
+	if c, err = c.WithCompletedAt(mustTimestamp(t, 2026, 1, 2)); err != nil {
+		t.Fatal(err)
+	}
+	if c, err = c.WithResultingAssignment(mustResultingAssignmentRef(t)); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := c.Authority(); ok {
+		t.Fatal("fixture unexpectedly carries authority")
+	}
 	return c
 }
 
@@ -825,6 +857,10 @@ func TestCrossRecordConstructionAndRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	content, err = content.WithAuthority(mustAuthorityRef(t, "peos", "review-board"))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	recordRevision, err := NewTransitionRecordRevision(record, revision, content)
 	if err != nil {
@@ -1049,23 +1085,24 @@ func TestCompletedTransitionAuthorityWithoutActorStillFails(t *testing.T) {
 	}
 }
 
-func TestCompletedTransitionActorWithoutAuthorityObeysExistingRules(t *testing.T) {
+func TestCompletedTransitionActorWithoutAuthorityFails(t *testing.T) {
 	record, err := NewTransitionRecord(mustTransitionRecordArtifact(t, "TR-6004"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	content := mustSucceededContent(t)
-	if _, ok := content.Authority(); ok {
-		t.Fatal("expected no authority on the base succeeded content")
-	}
-	// Authority remains optional; an Actor alone is sufficient.
+	content := mustSucceededContentWithoutAuthority(t)
+	// mustTransitionRecordArtifactRevision carries an Actor, so the Actor
+	// obligation is satisfied and only the authority basis is missing.
 	revision := mustTransitionRecordArtifactRevision(t, "TR-6004", "REV-1")
-	rr, err := NewTransitionRecordRevision(record, revision, content)
-	if err != nil {
-		t.Fatalf("actor-without-authority rejected: %v", err)
+	_, err = NewTransitionRecordRevision(record, revision, content)
+	if !errors.Is(err, ErrMissingTransitionAuthority) {
+		t.Fatalf("err = %v, want ErrMissingTransitionAuthority", err)
 	}
-	if _, ok := rr.Content().Authority(); ok {
-		t.Error("authority appeared where none was set")
+	if !errors.Is(err, ErrInvalidTransitionRecordRevision) {
+		t.Error("ErrMissingTransitionAuthority must be wrapped inside ErrInvalidTransitionRecordRevision")
+	}
+	if errors.Is(err, ErrMissingResponsibleActor) {
+		t.Error("an Actor was present; the Actor sentinel must not be reported")
 	}
 }
 
@@ -1149,6 +1186,238 @@ func TestTransitionRecordRevisionDecodeEnforcesResponsibleActor(t *testing.T) {
 		t.Fatalf("err = %v, want ErrMissingResponsibleActor", err)
 	}
 	if _, ok := receiver.Core().Provenance().Actor(); !ok {
+		t.Error("receiver mutated by a failed decode")
+	}
+}
+
+// --- Packet L.0.E: completed-transition authority basis ------------------
+
+// succeededRevisionParts returns a Transition Record and a Revision whose
+// Provenance carries an Actor, for the authority matrix below.
+func succeededRevisionParts(t *testing.T, artifactID string, withActor bool) (TransitionRecord, core.ArtifactRevision) {
+	t.Helper()
+	record, err := NewTransitionRecord(mustTransitionRecordArtifact(t, artifactID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if withActor {
+		return record, mustTransitionRecordArtifactRevision(t, artifactID, "REV-1")
+	}
+	return record, mustTransitionRecordRevisionWithProvenance(t, artifactID, "REV-1", mustProvenanceWithoutActor(t))
+}
+
+// TestSucceededTransitionRequiresActorAndAuthority covers the full 2x2 matrix
+// of the two independent obligations PEOS-003 states for a completed
+// Transition, and asserts that each failure names its own cause.
+func TestSucceededTransitionRequiresActorAndAuthority(t *testing.T) {
+	cases := []struct {
+		name          string
+		actor         bool
+		authority     bool
+		wantErr       error
+		wantNotErr    error
+		wantSucceeded bool
+	}{
+		{name: "actor and authority", actor: true, authority: true, wantSucceeded: true},
+		{name: "actor without authority", actor: true, authority: false, wantErr: ErrMissingTransitionAuthority, wantNotErr: ErrMissingResponsibleActor},
+		{name: "authority without actor", actor: false, authority: true, wantErr: ErrMissingResponsibleActor, wantNotErr: ErrMissingTransitionAuthority},
+		{name: "neither", actor: false, authority: false, wantErr: ErrMissingResponsibleActor},
+	}
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			record, revision := succeededRevisionParts(t, "TR-AUTH-"+string(rune('A'+i)), tc.actor)
+			content := mustSucceededContentWithoutAuthority(t)
+			if tc.authority {
+				content = mustSucceededContent(t)
+				if _, ok := content.Authority(); !ok {
+					t.Fatal("fixture lost its authority")
+				}
+			}
+
+			_, err := NewTransitionRecordRevision(record, revision, content)
+			if tc.wantSucceeded {
+				if err != nil {
+					t.Fatalf("valid succeeded revision rejected: %v", err)
+				}
+				return
+			}
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tc.wantErr)
+			}
+			// Both specific sentinels must remain matchable through the
+			// general revision-level sentinel.
+			if !errors.Is(err, ErrInvalidTransitionRecordRevision) {
+				t.Error("cause must be wrapped inside ErrInvalidTransitionRecordRevision")
+			}
+			if tc.wantNotErr != nil && errors.Is(err, tc.wantNotErr) {
+				t.Errorf("err also matched %v, which is satisfied in this case", tc.wantNotErr)
+			}
+		})
+	}
+}
+
+func TestNonSucceededOutcomesDoNotRequireAuthority(t *testing.T) {
+	for _, outcome := range []TransitionOutcome{
+		TransitionOutcomeFailed,
+		TransitionOutcomeInterrupted,
+		TransitionOutcomeIndeterminate,
+	} {
+		t.Run(outcome.String(), func(t *testing.T) {
+			record, err := NewTransitionRecord(mustTransitionRecordArtifact(t, "TR-AUTH-N"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			// No Actor and no Authority: neither obligation applies, because
+			// PEOS-003 states both only for a completed Transition.
+			revision := mustTransitionRecordRevisionWithProvenance(t, "TR-AUTH-N", "REV-1", mustProvenanceWithoutActor(t))
+			content := mustOutcomeContent(t, outcome)
+			if _, ok := content.Authority(); ok {
+				t.Fatal("fixture unexpectedly carries authority")
+			}
+			if _, err := NewTransitionRecordRevision(record, revision, content); err != nil {
+				t.Fatalf("%s outcome wrongly required an authority basis: %v", outcome, err)
+			}
+		})
+	}
+}
+
+func TestProductDefinedOutcomeDoesNotRequireAuthority(t *testing.T) {
+	vocab, err := core.NewVocabularyValue("acme", "compensated")
+	if err != nil {
+		t.Fatal(err)
+	}
+	subject, definitionVersion, transition, fromAssignment, attemptedAt := baseContentParts(t)
+	content, err := NewTransitionRecordContent(subject, definitionVersion, transition, fromAssignment, attemptedAt, NewTransitionOutcome(vocab))
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := NewTransitionRecord(mustTransitionRecordArtifact(t, "TR-AUTH-P"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	revision := mustTransitionRecordRevisionWithProvenance(t, "TR-AUTH-P", "REV-1", mustProvenanceWithoutActor(t))
+	// A Product-declared outcome follows the documented rule: this package has
+	// no normative basis to constrain it, so neither obligation is imposed.
+	if _, err := NewTransitionRecordRevision(record, revision, content); err != nil {
+		t.Fatalf("product-defined outcome wrongly required an authority basis: %v", err)
+	}
+}
+
+func TestTransitionRecordRevisionDecodeRejectsSucceededWithoutAuthority(t *testing.T) {
+	record, revision := succeededRevisionParts(t, "TR-AUTH-D", true)
+	valid, err := NewTransitionRecordRevision(record, revision, mustSucceededContent(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Strip the authority key from the encoded content and re-decode.
+	var outer map[string]json.RawMessage
+	if err := json.Unmarshal(data, &outer); err != nil {
+		t.Fatal(err)
+	}
+	var inner map[string]json.RawMessage
+	if err := json.Unmarshal(outer["content"], &inner); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := inner["authority"]; !ok {
+		t.Fatal("valid succeeded content did not encode an authority key")
+	}
+	delete(inner, "authority")
+	if outer["content"], err = json.Marshal(inner); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := json.Marshal(outer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	receiver := valid
+	err = json.Unmarshal(payload, &receiver)
+	if !errors.Is(err, ErrMissingTransitionAuthority) {
+		t.Fatalf("err = %v, want ErrMissingTransitionAuthority", err)
+	}
+	if !errors.Is(err, ErrInvalidTransitionRecordRevision) {
+		t.Error("decode cause must be wrapped inside ErrInvalidTransitionRecordRevision")
+	}
+	if _, ok := receiver.Content().Authority(); !ok {
+		t.Error("receiver mutated by a failed decode")
+	}
+}
+
+// TestConstructorAndDecodePathsAgreeOnAuthority proves the invariant is not
+// enforced on only one path: the same content/revision pair must be accepted
+// or rejected identically whether it is constructed or decoded.
+func TestConstructorAndDecodePathsAgreeOnAuthority(t *testing.T) {
+	record, revision := succeededRevisionParts(t, "TR-AUTH-E", true)
+
+	// A valid pair encodes, decodes, and round-trips byte-identically with its
+	// authority retained.
+	valid, err := NewTransitionRecordRevision(record, revision, mustSucceededContent(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded TransitionRecordRevision
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("constructor accepted but decode rejected: %v", err)
+	}
+	gotAuthority, ok := decoded.Content().Authority()
+	if !ok {
+		t.Fatal("authority lost through the round trip")
+	}
+	wantAuthority, _ := valid.Content().Authority()
+	if gotAuthority != wantAuthority {
+		t.Errorf("Authority() = %v, want %v", gotAuthority, wantAuthority)
+	}
+	again, err := json.Marshal(decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(again) != string(encoded) {
+		t.Errorf("round trip not byte-identical:\n got %s\nwant %s", again, encoded)
+	}
+
+	// An invalid pair is rejected by the constructor, and the equivalent
+	// payload is rejected by the decoder with the same sentinel.
+	_, ctorErr := NewTransitionRecordRevision(record, revision, mustSucceededContentWithoutAuthority(t))
+	if !errors.Is(ctorErr, ErrMissingTransitionAuthority) {
+		t.Fatalf("constructor err = %v, want ErrMissingTransitionAuthority", ctorErr)
+	}
+}
+
+func TestTransitionRecordContentAuthorityExplicitNullRejected(t *testing.T) {
+	// authority has an optional wire representation (omitted when absent), so
+	// an explicit null is a malformed payload rather than "absent" -- the same
+	// treatment every other optional field in this content receives. It is
+	// rejected before the succeeded-outcome authority invariant is reached.
+	data, err := json.Marshal(mustSucceededContent(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	raw["authority"] = json.RawMessage("null")
+	payload, err := json.Marshal(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := mustSucceededContent(t)
+	receiver := original
+	if err := json.Unmarshal(payload, &receiver); err == nil {
+		t.Fatal("explicit null authority accepted")
+	}
+	got, ok := receiver.Authority()
+	want, _ := original.Authority()
+	if !ok || got != want {
 		t.Error("receiver mutated by a failed decode")
 	}
 }

@@ -121,4 +121,26 @@ var (
 	// interrupted, or left indeterminate, and states no Actor obligation
 	// for those.
 	ErrMissingResponsibleActor = errors.New("lifecycle: completed transition requires a responsible actor in the revision provenance")
+
+	// ErrMissingTransitionAuthority is returned when a TransitionRecordRevision
+	// whose content declares a succeeded outcome carries no Authority.
+	// PEOS-003 lists "authority basis" unqualified among the items a
+	// Transition Record MUST identify, and states an Authority Invariant: "A
+	// completed Transition has an identifiable authority basis."
+	//
+	// It is always wrapped inside ErrInvalidTransitionRecordRevision, so a
+	// caller may match either the general revision-level sentinel or this
+	// specific cause -- the same nesting convention as
+	// ErrMissingResponsibleActor.
+	//
+	// It is distinct from ErrMissingResponsibleActor because PEOS-003 states
+	// "Actor identity and transition authority are distinct": neither
+	// substitutes for the other, and a record missing both surfaces the Actor
+	// cause first, in the order the two invariants are checked.
+	//
+	// Like the Actor rule, its scope is exactly the succeeded outcome. A
+	// Transition Attempt that failed, was interrupted, or was left
+	// indeterminate is not a completed Transition, and PEOS-003 states no
+	// authority obligation for one.
+	ErrMissingTransitionAuthority = errors.New("lifecycle: completed transition requires an identifiable authority basis")
 )
