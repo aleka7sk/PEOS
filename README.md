@@ -2,9 +2,9 @@
 
 > **Every implementation decision should be traceable to an approved product need.**
 
-**Status: v1.0.0 release candidate.** All ten specifications are implemented and
-accepted; no `v1.0.0` tag has been created yet. See "Release contract" below for what
-that will mean once tagged.
+**Status: v1.0.0.** All ten specifications are implemented and accepted. Current version
+is `v1.0.0` (see `VERSION`), governed by the compatibility contract in "Release contract"
+below. This commit is the `v1.0.0` release-finalization commit and annotated tag target.
 
 PEOS is a set of ten normative specifications describing how software product engineering
 state is modeled — artifacts, revisions, lifecycles, decisions, requirements, validation,
@@ -72,10 +72,12 @@ through `core` reference types without importing each other.
 └── README.md
 ```
 
-`templates/`, `runtimes/`, and `tools/` remain **empty placeholder directories** for
-future work. `examples/` now contains one real compiling example (`crosspackage/`)
-alongside three empty product-scenario placeholder subdirectories
-(`mobile-app`, `saas-platform`, `simple-api`).
+The tree above shows only what is actually tracked in the repository. `templates/`,
+`runtimes/`, `tools/`, and three additional `examples/` subdirectories
+(`mobile-app/`, `saas-platform/`, `simple-api/`) are **planned extension areas, not
+current repository contents** — Git does not track empty directories, so none of them
+exist in a fresh clone. `examples/crosspackage/` is the only example directory that
+exists today.
 
 ---
 
@@ -148,8 +150,8 @@ assertions locking the converse directions.
 ## Release contract
 
 This is the public compatibility contract for the PEOS Go SDK, effective from the
-`v1.0.0` tag once created. Nothing below claims compatibility with a prior release — no
-version of this SDK has been published before.
+`v1.0.0` tag targeting this commit. Nothing below claims compatibility with a prior
+release — no version of this SDK has been published before.
 
 1. **The normative specifications are PEOS-000 through PEOS-009.** They are the source of
    truth for engineering semantics; this repository's `CLAUDE.md` states the full
@@ -240,7 +242,7 @@ query engine, execution engine, renderer, workflow orchestrator, or CLI. Those a
 Product concerns, and several are explicitly assigned elsewhere by the specifications
 themselves — see `docs/consumer-guide.md` section 6.
 
-See **CHANGELOG.md** for what changed in this release candidate.
+See **CHANGELOG.md** for what changed in this release.
 
 ---
 

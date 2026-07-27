@@ -5,11 +5,11 @@ All notable changes to the PEOS Go SDK are recorded here. Format loosely follows
 [Semantic Versioning](https://semver.org/), as detailed in README.md's "Release contract"
 section.
 
-This project has not yet had a tagged release. The entry below describes the v1.0.0
-release candidate baseline — what a consumer gets on day one — not a migration from any
-prior published version.
+This is the project's first tagged release. The entry below describes the v1.0.0
+baseline — what a consumer gets on day one — not a migration from any prior published
+version, since none exists.
 
-## [1.0.0] — Unreleased
+## [1.0.0] — 2026-07-28
 
 ### Added
 
@@ -59,9 +59,9 @@ prior published version.
 
 ### Pre-release corrections
 
-These changes were made during architecture review, before any tag existed. They are
-part of the v1.0.0 baseline, not migrations from a previously released version — no prior
-version of this SDK was ever published.
+These changes were made during architecture review, before this first tag was created.
+They are part of the v1.0.0 baseline, not migrations from a previously released version —
+no prior version of this SDK was ever published.
 
 - The Transition Record source field changed from `from_state` (a `StateID`) to
   `source_state_assignment` (a `core.StateAssignmentRef`), because PEOS-003 requires a
@@ -74,5 +74,5 @@ version of this SDK was ever published.
   obligation and Authority Invariant. Neither is duplicated into the other; both are
   distinct concepts.
 
-No `v1.0.0` tag exists yet. This entry describes the release candidate; see
-`docs/implementation-progress.md` for the current, exact repository state.
+This entry describes the v1.0.0 release-finalization commit and its annotated tag target;
+see `docs/implementation-progress.md` for the current, exact repository state.

@@ -320,16 +320,23 @@ A fully compiling version of this workflow lives at
 
 ## 9. Correction workflows
 
-Six record families carry a documented correction path:
-`validation.ExecutionRecord`, `validation.Claim`, `quality.MeasurementRecord`,
+Six record families expose `WithCorrection(core.RecordCorrectionRef[T])` and
+`WithoutCorrection()` directly: `validation.ExecutionRecord`, `validation.Claim`,
 `quality.Claim`, `runtime.BindingRecord`, `runtime.UnbindingRecord`, and
 `template.ApplicationRecord`.
 
-Each exposes `WithCorrection(core.RecordCorrectionRef[T])` and `WithoutCorrection()`. The
-correction reference names three things: which kind of correction it is
+The correction reference contains two elements: which kind of correction it is
 (`core.CorrectionKind` — correct, replace, or invalidate, per PEOS-006's "Claim
 Correction, Replacement, and Invalidation" section), and which earlier record of the same
 family it points at.
+
+`quality.MeasurementRecord` is not a seventh family with its own correction methods —
+it composes a `validation.ExecutionRecord` by named field, and that composed
+`ExecutionRecord` is where correction, replacement, and invalidation are represented, the
+same way it is for any other `ExecutionRecord`. Recording a correction there does not
+mutate or rewrite the `MeasurementRecord` that composed it: the `MeasurementRecord` is
+itself immutable and unaffected, and a new `ExecutionRecord` (with its own correction
+reference) is what gets constructed and recorded alongside it.
 
 The earlier record is **never mutated, deleted, or rewritten.** Recording a correction
 means constructing a *new* record of the same family, with `WithCorrection` naming the one
@@ -364,7 +371,7 @@ version.
 
 ## 11. Compatibility expectations
 
-This SDK targets a v1.0.0 release candidate. README.md's "Release contract" section is the
+This SDK is at v1.0.0. README.md's "Release contract" section is the
 authoritative statement of what is public and stable, what semantic versioning means for
 this project, and the JSON compatibility policy. In summary: the public v1 surface
 (package paths, exported types/constructors/methods/sentinels, vocabulary constants, JSON
