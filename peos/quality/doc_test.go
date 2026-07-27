@@ -428,6 +428,32 @@ func TestMeasurementRecordExposesNoForbiddenMethod(t *testing.T) {
 	}
 }
 
+// TestProfileContentExactModifierSet is Packet I.3.B's optional hardening for
+// finding I3-04 (blocklist-only absence coverage): an exact-set assertion
+// catches a newly *added* modifier, which the blocklist in
+// TestProfileContentExposesNoMandatoryStateModifier cannot. In particular this
+// locks that Packet I.3.B's removal of the two ≥1 collection minimums added no
+// new modifier (such as a WithCharacteristics or WithMeasures) to compensate.
+func TestProfileContentExactModifierSet(t *testing.T) {
+	typ := reflect.TypeOf(ProfileContent{})
+	var modifiers []string
+	for i := range typ.NumMethod() {
+		name := typ.Method(i).Name
+		if strings.HasPrefix(name, "With") {
+			modifiers = append(modifiers, name)
+		}
+	}
+	slices.Sort(modifiers)
+	want := []string{
+		"WithAggregationRules", "WithAuthority", "WithConstraints", "WithExtension",
+		"WithNormalizationRules", "WithSubjectTypes", "WithSubjects", "WithTargets",
+		"WithThresholds", "WithoutAuthority", "WithoutExtension",
+	}
+	if !slices.Equal(modifiers, want) {
+		t.Errorf("ProfileContent modifiers = %v, want exactly %v", modifiers, want)
+	}
+}
+
 // TestQualityClaimExposesNoForbiddenMethod audits Claim over its public API.
 // The Claim Type must be unreachable by any modifier, no mandatory field may be
 // settable, and there must be no WithoutCriteria (WithCriteria(nil) already

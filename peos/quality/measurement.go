@@ -159,6 +159,17 @@ func validateMeasurementRecord(
 // and interpreting it against its unit and scale, is Product-owned -- the same
 // treatment core.Scope gives a scope expression.
 //
+// observedValue must describe an actual observed value: it is non-empty after
+// trimming, exactly like every other mandatory string field this package
+// validates. It is not, and must not be used as, an indeterminate-value
+// sentinel -- an execution that could not determine a value is represented
+// through the composed validation.ExecutionRecord's own PEOS-006 fields
+// instead: its core.ExecutionOutcome (for example "indeterminate" or
+// "failed"), its Uncertainty, and its Limitations. Those fields already exist
+// for exactly this case and are inherited unchanged; inventing a second,
+// PEOS-007-local "no value" representation in observedValue would duplicate
+// them.
+//
 // Nothing beyond the four arguments is required. PEOS-006 already governs the
 // composed record's own mandatory fields, and the remaining items on PEOS-007's
 // SHALL-identify list are satisfied by fields the composed record either

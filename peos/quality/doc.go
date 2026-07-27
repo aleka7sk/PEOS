@@ -62,6 +62,30 @@
 // exclusive -- a value carrying both would have two competing sources of
 // meaning, and one carrying neither would have none.
 //
+// # No minimum cardinality on Profile-owned collections
+//
+// None of the seven collections ProfileContent carries -- Characteristics,
+// Measures, Thresholds, Targets, Constraints, Normalization Rules, or
+// Aggregation Rules -- requires a non-empty collection. PEOS-007 lists all
+// seven without a qualifier (Normalization and Aggregation Rules add "where
+// applicable"), and the word "one" never appears alongside any of them; an
+// empty collection identifies that the Revision defines or references none
+// of that kind, which is the same reading this repository already ships for
+// validation.PlannedActivity's own unqualified "criteria", "Evidence
+// expected", and "execution prerequisites" items.
+//
+// A Quality Profile Revision may therefore contain only Quality Constraints,
+// only Quality Characteristics, only Normalization or Aggregation Rules, or
+// no content at all. Coherence for the collections that do reference
+// something is preserved by conditional dependencies, not by a cardinality
+// floor: a Measure's Characteristic key must resolve, a Measure's optional
+// Normalization Rule key must resolve if present, and a Threshold's or a
+// Target's Measure key must resolve. A Measure-only, Threshold-only, or
+// Target-only Revision therefore remains rejected -- not by any minimum on
+// Characteristics or Measures, but because that reference cannot resolve
+// against an empty target collection. Whether a given Revision is complete
+// enough to publish or apply is repository- and Product-owned.
+//
 // # Per-kind profile-local key namespaces
 //
 // Every owned value carries a core.LocalKey that is meaningful only within its
@@ -344,6 +368,22 @@
 // own test asserting so is correct and untouched. The stricter PEOS-007 rule
 // lives here, which is the whole point of the wrapper.
 //
-// PEOS-007 is not yet closed: Packet I.3 is the consolidated audit and Packet
-// I.4 the closure. Nothing in this package has an accepted audit verdict.
+// Packet I.3's consolidated audit found one MAJOR finding: ProfileContent's
+// original ≥1 Characteristic and ≥1 Measure minimums were an unjustified
+// strengthening, since PEOS-007 states no minimum cardinality for any
+// Profile-owned collection and the qualified/unqualified wording contrast
+// used to justify them did not in fact distinguish Characteristics and
+// Measures from Thresholds, Targets, and Constraints -- all six equally
+// unqualified. Packet I.3.A confirmed the finding independently, against the
+// cross-specification drafting convention (see "No minimum cardinality on
+// Profile-owned collections" above) and against the already-shipped
+// validation.PlannedActivity precedent for the same reading. Packet I.3.B
+// removed both minimums; no replacement aggregate minimum was introduced, and
+// every conditional reference resolution (Measure -> Characteristic, Measure
+// -> Normalization Rule, Threshold -> Measure, Target -> Measure) is
+// unchanged.
+//
+// PEOS-007 is not yet closed: Packet I.3.C is the focused re-audit of this
+// relaxation, and Packet I.4 the closure. Nothing in this package has an
+// accepted audit verdict.
 package quality

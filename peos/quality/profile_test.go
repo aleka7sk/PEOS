@@ -568,22 +568,6 @@ func TestNewProfileContentRejectsMissingMandatoryState(t *testing.T) {
 			t.Errorf("error = %v, want %v", err, ErrInvalidQualityProfile)
 		}
 	})
-	t.Run("no characteristics", func(t *testing.T) {
-		for _, empty := range [][]Characteristic{nil, {}} {
-			_, err := NewProfileContent(scope, app, prov, empty, measures, nil)
-			if !errors.Is(err, ErrInvalidQualityProfile) {
-				t.Errorf("error = %v, want %v", err, ErrInvalidQualityProfile)
-			}
-		}
-	})
-	t.Run("no measures", func(t *testing.T) {
-		for _, empty := range [][]Measure{nil, {}} {
-			_, err := NewProfileContent(scope, app, prov, chars, empty, nil)
-			if !errors.Is(err, ErrInvalidQualityProfile) {
-				t.Errorf("error = %v, want %v", err, ErrInvalidQualityProfile)
-			}
-		}
-	})
 	t.Run("zero characteristic element", func(t *testing.T) {
 		_, err := NewProfileContent(scope, app, prov, []Characteristic{{}}, measures, nil)
 		if !errors.Is(err, ErrInvalidQualityCharacteristic) {
@@ -1325,10 +1309,12 @@ func TestProfileContentJSONForbiddenKeysAbsent(t *testing.T) {
 		"measurement_records", "claims", "executions", "outcome")
 }
 
-// TestProfileContentJSONMandatoryCollectionMatrix asserts that absent, null,
-// and [] all reject for the two mandatory collections, through the same
-// at-least-one invariant.
-func TestProfileContentJSONMandatoryCollectionMatrix(t *testing.T) {
+// TestProfileContentJSONMandatoryScalarMatrix asserts that absent, null, and
+// [] are all accepted for every collection -- characteristics and measures
+// included, since PEOS-007 states no minimum cardinality for any of them --
+// while the three mandatory scalars (scope, applicability, provenance) are
+// still rejected when absent.
+func TestProfileContentJSONMandatoryScalarMatrix(t *testing.T) {
 	const head = `{"scope":{"kind":"peos:component","expression":"s"},` +
 		`"applicability":{"kind":"unrestricted"},` +
 		`"provenance":{"actor":{"namespace":"peos-cli","identifier":"svc-1"},"recorded_at":"2026-07-27T00:00:00Z"},`
@@ -1341,24 +1327,44 @@ func TestProfileContentJSONMandatoryCollectionMatrix(t *testing.T) {
 		t.Fatalf("valid document rejected: %v", err)
 	}
 
+	// characteristics and measures behave exactly like every other
+	// collection: absent, null, and [] are all equivalent to "defines none of
+	// this kind" and are all accepted. When characteristics is empty, measures
+	// must be too -- not because of any cardinality rule, but because a Measure
+	// with no matching Characteristic is a dangling reference, exactly as
+	// TestProfileContentDependencyChainNegatives asserts separately.
 	for name, doc := range map[string]string{
-		"characteristics absent": head + `"measures":[{"key":"m","characteristic":"c","unit":"product-x:ms","scale":"product-x:ratio","method":"product-x:test"}]}`,
-		"characteristics null":   head + `"characteristics":null,"measures":[{"key":"m","characteristic":"c","unit":"product-x:ms","scale":"product-x:ratio","method":"product-x:test"}]}`,
-		"characteristics empty":  head + `"characteristics":[],"measures":[{"key":"m","characteristic":"c","unit":"product-x:ms","scale":"product-x:ratio","method":"product-x:test"}]}`,
+		"characteristics absent": head + `"measures":[]}`,
+		"characteristics null":   head + `"characteristics":null,"measures":[]}`,
+		"characteristics empty":  head + `"characteristics":[],"measures":[]}`,
 		"measures absent":        head + `"characteristics":[{"kind":"profile","key":"c","term":"t"}]}`,
 		"measures null":          head + `"characteristics":[{"kind":"profile","key":"c","term":"t"}],"measures":null}`,
 		"measures empty":         head + `"characteristics":[{"kind":"profile","key":"c","term":"t"}],"measures":[]}`,
+		"both absent":            head[:len(head)-1] + `}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			var c ProfileContent
-			if err := json.Unmarshal([]byte(doc), &c); !errors.Is(err, ErrInvalidQualityProfile) {
-				t.Errorf("error = %v, want %v", err, ErrInvalidQualityProfile)
+			if err := json.Unmarshal([]byte(doc), &c); err != nil {
+				t.Errorf("a document with no minimum-cardinality violation was rejected: %v", err)
 			}
-			if !c.IsZero() {
-				t.Error("receiver modified by a failed decode")
+			if c.IsZero() {
+				t.Error("a decoded content with valid mandatory scalars reported IsZero() = true")
 			}
 		})
 	}
+
+	// A malformed element inside an otherwise-empty collection is still
+	// rejected: emptiness is permitted, malformed content is not.
+	t.Run("malformed characteristic element rejected", func(t *testing.T) {
+		doc := head + `"characteristics":[{}],"measures":[]}`
+		before := ok
+		if err := json.Unmarshal([]byte(doc), &ok); !errors.Is(err, ErrInvalidQualityCharacteristic) {
+			t.Errorf("error = %v, want %v", err, ErrInvalidQualityCharacteristic)
+		}
+		if ok.IsZero() != before.IsZero() {
+			t.Error("receiver modified by a failed decode")
+		}
+	})
 
 	// Optional collections: absent, null, and [] are all equivalent to
 	// "defines none".
@@ -1539,4 +1545,459 @@ func TestZeroValuesAreNeverSilentlyValid(t *testing.T) {
 	if _, err := NewThreshold(mustLocalKey(t, "t"), mustLocalKey(t, "m"), ThresholdOperator{}, "1"); err == nil {
 		t.Error("a zero ThresholdOperator was accepted by NewThreshold")
 	}
+}
+
+// --- ProfileContent: cardinality relaxation (Packet I.3.B) -------------------
+//
+// Packet I.3 found that ProfileContent's original ≥1 Characteristic and ≥1
+// Measure minimums were an unjustified strengthening: PEOS-007 states no
+// minimum cardinality for any Profile-owned collection, and the
+// qualified/unqualified wording contrast used to justify them did not in
+// fact separate Characteristics and Measures from Thresholds, Targets, and
+// Constraints -- all six equally unqualified. Packet I.3.A confirmed this
+// against the cross-specification drafting convention and the already-shipped
+// validation.PlannedActivity precedent for the same reading. The tests below
+// prove the relaxation is exact: every normatively valid shape newly accepted,
+// and every shape that fails only because a conditional reference cannot
+// resolve -- Measure-only, Threshold-only, Target-only -- still rejected, not
+// by any cardinality rule but by the same reference-resolution mechanism that
+// already governs Threshold, Target, and Constraint.
+
+// TestEmptyProfileContent verifies that a ProfileContent carrying only its
+// three mandatory scalars, with all seven owned-value collections empty, is
+// valid: normatively, a Quality Profile Revision that identifies an empty set
+// for every kind has identified that set.
+func TestEmptyProfileContent(t *testing.T) {
+	c, err := NewProfileContent(
+		mustScope(t, "s"), NewUnrestrictedProfileApplicability(), mustProvenance(t),
+		nil, nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("empty content rejected: %v", err)
+	}
+	if c.IsZero() {
+		t.Error("IsZero() = true for a valid empty-content aggregate; mandatory scalar state must distinguish it from the Go zero value")
+	}
+	for name, empty := range map[string]bool{
+		"Characteristics":    c.Characteristics() == nil,
+		"Measures":           c.Measures() == nil,
+		"Thresholds":         c.Thresholds() == nil,
+		"Targets":            c.Targets() == nil,
+		"Constraints":        c.Constraints() == nil,
+		"NormalizationRules": c.NormalizationRules() == nil,
+		"AggregationRules":   c.AggregationRules() == nil,
+	} {
+		if !empty {
+			t.Errorf("%s() is non-nil for an empty content", name)
+		}
+	}
+
+	data, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded ProfileContent
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("empty content failed to round-trip: %v", err)
+	}
+	if decoded.IsZero() {
+		t.Error("decoded empty content reported IsZero() = true")
+	}
+
+	// A modifier that touches only optional state still succeeds on empty
+	// content -- emptiness of the mandatory-argument collections is not a
+	// defect the rest of the aggregate must work around.
+	withAuthority, err := c.WithAuthority(mustAuthority(t))
+	if err != nil {
+		t.Fatalf("WithAuthority on empty content rejected: %v", err)
+	}
+	if _, ok := withAuthority.Authority(); !ok {
+		t.Error("WithAuthority did not set on empty content")
+	}
+}
+
+// TestConstraintOnlyProfileContent is the decisive counterexample Packet
+// I.3.A relied on: a Quality Constraint (`:196`) depends on no Characteristic
+// or Measure and is independently citable as a
+// core.CriterionKindQualityConstraint criterion, so a Profile Revision
+// carrying only Constraints must be representable.
+func TestConstraintOnlyProfileContent(t *testing.T) {
+	c, err := NewProfileContent(
+		mustScope(t, "s"), NewUnrestrictedProfileApplicability(), mustProvenance(t),
+		nil, nil, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err = c.WithConstraints([]Constraint{mustConstraint(t, "co", "no plaintext secrets")})
+	if err != nil {
+		t.Fatalf("constraint-only content rejected: %v", err)
+	}
+	if len(c.Characteristics()) != 0 || len(c.Measures()) != 0 {
+		t.Error("a constraint-only content unexpectedly carries characteristics or measures")
+	}
+	if c.IsZero() {
+		t.Error("IsZero() = true for a constraint-only content")
+	}
+
+	got, ok := c.Constraint(mustLocalKey(t, "co"))
+	if !ok || got.Statement() != "no plaintext secrets" {
+		t.Error("Constraint lookup failed")
+	}
+
+	data, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded ProfileContent
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("constraint-only content failed to round-trip: %v", err)
+	}
+	if len(decoded.Constraints()) != 1 {
+		t.Error("constraint lost in round trip")
+	}
+	if len(decoded.Characteristics()) != 0 || len(decoded.Measures()) != 0 {
+		t.Error("decode introduced an implicit characteristic or measure")
+	}
+}
+
+// TestConstraintOnlyProfileCitedAsCriterion demonstrates that a Constraint
+// owned by a Constraint-only Profile Revision is directly citable as a Quality
+// Claim criterion, exactly as any other Profile-owned Constraint would be.
+// This is the value layer only: no repository resolution is introduced here.
+func TestConstraintOnlyProfileCitedAsCriterion(t *testing.T) {
+	profile := mustProfile(t, "QP-1")
+	revision := mustArtifactRevision(t, "QP-1", "REV-1")
+	content, err := NewProfileContent(mustScope(t, "s"), NewUnrestrictedProfileApplicability(), mustProvenance(t), nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err = content.WithConstraints([]Constraint{mustConstraint(t, "co", "no plaintext secrets")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := NewProfileRevision(profile, revision, content)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	revRef, err := r.Ref()
+	if err != nil {
+		t.Fatal(err)
+	}
+	elementRef, err := core.NewQualityElementCriterionRef(revRef, mustLocalKey(t, "co"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	criterion, err := core.CriterionRefFromQualityConstraint(elementRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if criterion.Kind() != core.CriterionKindQualityConstraint {
+		t.Errorf("Kind() = %q, want %q", criterion.Kind(), core.CriterionKindQualityConstraint)
+	}
+	got, ok := criterion.AsQualityConstraint()
+	if !ok || got.Profile() != revRef || got.Element() != mustLocalKey(t, "co") {
+		t.Error("criterion does not identify the exact revision and key")
+	}
+
+	data, err := json.Marshal(criterion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded core.CriterionRef
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	gotDecoded, ok := decoded.AsQualityConstraint()
+	if !ok || gotDecoded != got {
+		t.Error("criterion did not round-trip")
+	}
+}
+
+// TestCharacteristicOnlyProfileContent verifies that a Profile Revision
+// defining a controlled term with no Measure yet designed is valid: `:146`
+// makes a Characteristic a complete definitional act on its own, and it is
+// independently citable as a core.CriterionKindQualityCharacteristic
+// criterion regardless of whether any Measure exists.
+func TestCharacteristicOnlyProfileContent(t *testing.T) {
+	c, err := NewProfileContent(
+		mustScope(t, "s"), NewUnrestrictedProfileApplicability(), mustProvenance(t),
+		[]Characteristic{mustProfileCharacteristic(t, "latency", "Response latency")},
+		nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("characteristic-only content rejected: %v", err)
+	}
+	if len(c.Measures()) != 0 {
+		t.Error("a characteristic-only content unexpectedly carries measures")
+	}
+	if c.IsZero() {
+		t.Error("IsZero() = true for a characteristic-only content")
+	}
+
+	got, ok := c.Characteristic(mustLocalKey(t, "latency"))
+	if !ok {
+		t.Fatal("Characteristic lookup failed")
+	}
+	if term, _ := got.Term(); term != "Response latency" {
+		t.Errorf("Term() = %q", term)
+	}
+
+	data, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded ProfileContent
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("characteristic-only content failed to round-trip: %v", err)
+	}
+	if len(decoded.Characteristics()) != 1 || len(decoded.Measures()) != 0 {
+		t.Error("characteristic-only shape not preserved by round trip")
+	}
+
+	// Direct citability as a criterion, with no Measure in existence.
+	profileRef, err := core.NewArtifactRevisionRef(mustArtifactID(t, "QP-1"), mustArtifactRevisionID(t, "REV-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	elementRef, err := core.NewQualityElementCriterionRef(profileRef, mustLocalKey(t, "latency"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	criterion, err := core.CriterionRefFromQualityCharacteristic(elementRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if criterion.Kind() != core.CriterionKindQualityCharacteristic {
+		t.Errorf("Kind() = %q, want %q", criterion.Kind(), core.CriterionKindQualityCharacteristic)
+	}
+}
+
+// TestRulesOnlyProfileContent verifies that Normalization and Aggregation
+// Rules are independently valid content: neither is referenced by anything
+// unless a Measure (for Normalization) or an aggregation consumer (for
+// Aggregation) chooses to, and PEOS-007 does not require reachability.
+func TestRulesOnlyProfileContent(t *testing.T) {
+	c, err := NewProfileContent(
+		mustScope(t, "s"), NewUnrestrictedProfileApplicability(), mustProvenance(t),
+		nil, nil,
+		[]NormalizationRule{mustNormalizationRule(t, "n", "divide by baseline")},
+	)
+	if err != nil {
+		t.Fatalf("rules-only content (normalization) rejected: %v", err)
+	}
+	c, err = c.WithAggregationRules([]AggregationRule{mustAggregationRule(t, "a", "weighted mean")})
+	if err != nil {
+		t.Fatalf("adding an aggregation rule to a rules-only content rejected: %v", err)
+	}
+	if len(c.Characteristics()) != 0 || len(c.Measures()) != 0 {
+		t.Error("a rules-only content unexpectedly carries characteristics or measures")
+	}
+	if c.IsZero() {
+		t.Error("IsZero() = true for a rules-only content")
+	}
+	// The rules need not be referenced by anything to be valid.
+	if len(c.NormalizationRules()) != 1 || len(c.AggregationRules()) != 1 {
+		t.Error("rules not preserved")
+	}
+
+	data, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded ProfileContent
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatalf("rules-only content failed to round-trip: %v", err)
+	}
+	if len(decoded.NormalizationRules()) != 1 || len(decoded.AggregationRules()) != 1 {
+		t.Error("rules lost in round trip")
+	}
+}
+
+// TestProfileContentCandidateShapeMatrix is the table-driven test covering
+// Packet I.3.A's eight candidate profile shapes. Measure-only, Threshold-only,
+// and Target-only remain rejected -- not by any cardinality rule on
+// Characteristics or Measures, but because the reference each of them carries
+// cannot resolve against an empty target collection. This is the direct
+// demonstration that removing the two global minimums admits no dangling
+// reference.
+func TestProfileContentCandidateShapeMatrix(t *testing.T) {
+	scope := mustScope(t, "s")
+	app := NewUnrestrictedProfileApplicability()
+	prov := mustProvenance(t)
+
+	characteristic := mustProfileCharacteristic(t, "latency", "Response latency")
+	measure := mustMeasure(t, "latency-p99", "latency")
+	threshold := mustThreshold(t, "th", "latency-p99")
+	target := mustTarget(t, "tg", "latency-p99")
+	constraint := mustConstraint(t, "co", "no plaintext secrets")
+	normRule := mustNormalizationRule(t, "n", "d")
+	aggRule := mustAggregationRule(t, "a", "d")
+
+	build := func(chars []Characteristic, measures []Measure, thresholds []Threshold, targets []Target, constraints []Constraint, normRules []NormalizationRule, aggRules []AggregationRule) (ProfileContent, error) {
+		c, err := NewProfileContent(scope, app, prov, chars, measures, normRules)
+		if err != nil {
+			return ProfileContent{}, err
+		}
+		if len(thresholds) > 0 {
+			if c, err = c.WithThresholds(thresholds); err != nil {
+				return ProfileContent{}, err
+			}
+		}
+		if len(targets) > 0 {
+			if c, err = c.WithTargets(targets); err != nil {
+				return ProfileContent{}, err
+			}
+		}
+		if len(constraints) > 0 {
+			if c, err = c.WithConstraints(constraints); err != nil {
+				return ProfileContent{}, err
+			}
+		}
+		if len(aggRules) > 0 {
+			if c, err = c.WithAggregationRules(aggRules); err != nil {
+				return ProfileContent{}, err
+			}
+		}
+		return c, nil
+	}
+
+	cases := []struct {
+		name        string
+		accept      bool
+		chars       []Characteristic
+		measures    []Measure
+		thresholds  []Threshold
+		targets     []Target
+		constraints []Constraint
+		normRules   []NormalizationRule
+		aggRules    []AggregationRule
+	}{
+		{name: "1 empty", accept: true},
+		{name: "2 constraint-only", accept: true, constraints: []Constraint{constraint}},
+		{name: "3 characteristic-only", accept: true, chars: []Characteristic{characteristic}},
+		{name: "4 characteristic+measure", accept: true, chars: []Characteristic{characteristic}, measures: []Measure{measure}},
+		{name: "5 measure-only", accept: false, measures: []Measure{measure}},
+		{name: "6 threshold-only", accept: false, thresholds: []Threshold{threshold}},
+		{name: "7 target-only", accept: false, targets: []Target{target}},
+		{name: "8 rules-only", accept: true, normRules: []NormalizationRule{normRule}, aggRules: []AggregationRule{aggRule}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := build(tc.chars, tc.measures, tc.thresholds, tc.targets, tc.constraints, tc.normRules, tc.aggRules)
+			if tc.accept {
+				if err != nil {
+					t.Fatalf("expected acceptance, got error: %v", err)
+				}
+				if c.IsZero() {
+					t.Error("an accepted content reported IsZero() = true")
+				}
+			} else {
+				if err == nil {
+					t.Fatal("expected rejection, got success")
+				}
+				if !errors.Is(err, ErrUnknownProfileLocalKey) {
+					t.Errorf("error = %v, want %v (a dangling reference, not a cardinality rule)", err, ErrUnknownProfileLocalKey)
+				}
+			}
+		})
+	}
+}
+
+// TestProfileContentIsZeroDistinguishesEmptyContentFromZeroValue is the
+// dedicated IsZero() proof Packet I.3.A required: the method was not changed
+// by this packet, and this test locks why it did not need to be. Mandatory
+// scalar state (scope, applicability, provenance) makes every one of these
+// shapes distinguishable from the Go zero value through IsZero()'s existing
+// all-terms-zero check.
+func TestProfileContentIsZeroDistinguishesEmptyContentFromZeroValue(t *testing.T) {
+	if !(ProfileContent{}).IsZero() {
+		t.Error("the Go zero value must report IsZero() = true")
+	}
+
+	empty, err := NewProfileContent(mustScope(t, "s"), NewUnrestrictedProfileApplicability(), mustProvenance(t), nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if empty.IsZero() {
+		t.Error("a valid empty-content aggregate must report IsZero() = false")
+	}
+
+	constraintOnly, err := empty.WithConstraints([]Constraint{mustConstraint(t, "co", "s")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if constraintOnly.IsZero() {
+		t.Error("a constraint-only content must report IsZero() = false")
+	}
+
+	characteristicOnly, err := NewProfileContent(mustScope(t, "s"), NewUnrestrictedProfileApplicability(), mustProvenance(t),
+		[]Characteristic{mustProfileCharacteristic(t, "latency", "Response latency")}, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if characteristicOnly.IsZero() {
+		t.Error("a characteristic-only content must report IsZero() = false")
+	}
+
+	rulesOnly, err := NewProfileContent(mustScope(t, "s"), NewUnrestrictedProfileApplicability(), mustProvenance(t),
+		nil, nil, []NormalizationRule{mustNormalizationRule(t, "n", "d")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rulesOnly.IsZero() {
+		t.Error("a rules-only content must report IsZero() = false")
+	}
+}
+
+// TestProfileContentDependencyChainNegatives locks the conditional
+// dependencies that provide coherence in place of the removed global
+// minimums: Measure -> Characteristic, Threshold -> Measure, and
+// Target -> Measure all remain mandatory and must resolve in their own
+// namespace, never in another kind's.
+func TestProfileContentDependencyChainNegatives(t *testing.T) {
+	scope := mustScope(t, "s")
+	app := NewUnrestrictedProfileApplicability()
+	prov := mustProvenance(t)
+
+	t.Run("measure references a key present only as a constraint", func(t *testing.T) {
+		// "shared" is a legitimate key -- it names a Constraint in one content
+		// -- but Characteristic and Constraint are different namespaces, so a
+		// Measure naming it as a Characteristic must not resolve.
+		constraintOnly, err := NewProfileContent(scope, app, prov, nil, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if constraintOnly, err = constraintOnly.WithConstraints([]Constraint{mustConstraint(t, "shared", "statement")}); err != nil {
+			t.Fatal(err)
+		}
+		if constraintOnly.IsZero() {
+			t.Fatal("the constraint-only content used to prove 'shared' is a legitimate key is itself invalid")
+		}
+
+		_, err = NewProfileContent(scope, app, prov, nil, []Measure{mustMeasure(t, "m", "shared")}, nil)
+		assertUnknownKey(t, err, "measure", "shared", "characteristic")
+	})
+
+	t.Run("measure-only profile rejected", func(t *testing.T) {
+		_, err := NewProfileContent(scope, app, prov, nil, []Measure{mustMeasure(t, "m", "latency")}, nil)
+		assertUnknownKey(t, err, "measure", "latency", "characteristic")
+	})
+
+	t.Run("threshold's measure itself lacks a resolvable characteristic", func(t *testing.T) {
+		// The Measure "m" references "absent", which no Characteristic
+		// collection defines. The Measure fails to resolve before the
+		// Threshold referencing "m" is even reached -- proving a Threshold
+		// can never "reach" a coherent Measure state that itself lacks its
+		// Characteristic.
+		_, err := NewProfileContent(scope, app, prov, nil, []Measure{mustMeasure(t, "m", "absent")}, nil)
+		assertUnknownKey(t, err, "measure", "absent", "characteristic")
+	})
+
+	t.Run("target's measure itself lacks a resolvable characteristic", func(t *testing.T) {
+		_, err := NewProfileContent(scope, app, prov, nil, []Measure{mustMeasure(t, "m", "absent")}, nil)
+		assertUnknownKey(t, err, "measure", "absent", "characteristic")
+	})
 }

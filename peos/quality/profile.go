@@ -327,16 +327,43 @@ func resolveProfileLocalKey(caller, referringKind, referringKey, targetKind stri
 // exposes no WithScope, WithoutScope, WithApplicability,
 // WithoutApplicability, WithProvenance, or WithoutProvenance.
 //
-// characteristics and measures are likewise mandatory, and must each contain
-// at least one element. This minimum is a *derived* strengthening, not an
-// explicit PEOS-007 clause: the specification lists both without a qualifier,
-// and a Quality Profile Revision defining no Characteristic and no Measure
-// would configure nothing at all, making it normatively vacuous -- it could
-// not supply a single criterion to any Quality Claim. The same strengthening
-// is deliberately *not* applied to Thresholds, Targets, or Constraints: a
-// Profile Revision that defines Characteristics and Measures but has not yet
-// set boundaries is meaningful, and for those collections an empty list is
-// already an unambiguous "defines none" rather than a third unstated state.
+// characteristics and measures are constructor arguments, but -- unlike
+// scope, applicability, and provenance -- neither requires a non-empty
+// collection. PEOS-007 lists both without a qualifier, but that wording is
+// identical in form to Subjects, Thresholds, Targets, and Quality
+// Constraints (also unqualified) and to Normalization and Aggregation Rules
+// ("where applicable"), all six of which this package already treats as
+// satisfied by an empty collection. Nothing in the specification states any
+// minimum cardinality for a Quality Profile Revision's content -- the word
+// "one" never appears alongside any of these seven items -- so a Revision
+// that identifies an empty set of Characteristics, of Measures, or of both
+// has identified that set, exactly as it does for the other five kinds.
+// This repository already ships and audits this exact reading elsewhere:
+// validation.PlannedActivity treats its own unqualified "criteria", "Evidence
+// expected", and "execution prerequisites" items the same way.
+//
+// A Quality Profile Revision containing only Quality Constraints, only
+// Quality Characteristics, only Normalization or Aggregation Rules, or no
+// content at all is therefore normatively valid: a Quality Constraint (`:196`)
+// depends on no Characteristic or Measure and is independently citable as a
+// core.CriterionKindQualityConstraint criterion; a Characteristic (`:146`) is
+// a complete definitional act on its own and is independently citable as
+// core.CriterionKindQualityCharacteristic; and neither Normalization nor
+// Aggregation Rules are referenced by anything unless a Measure or an
+// Aggregation consumer chooses to. Whether a given Revision is complete
+// enough to publish, apply, or approve is repository- and Product-owned, not
+// a PEOS-007 value-layer concern -- the same boundary this package already
+// draws for unit semantics, threshold comparison, and aggregation execution.
+//
+// Coherence for the collections that do reference something is preserved by
+// conditional dependencies, not by a global minimum: every Measure's
+// Characteristic key must resolve among characteristics; every Measure's
+// optional Normalization Rule key, if present, must resolve among
+// normalizationRules; every Threshold's and every Target's Measure key must
+// resolve among measures. A Measure-only, Threshold-only, or Target-only
+// Revision is therefore still rejected -- not by a cardinality rule on
+// Characteristics or Measures, but because the reference each of them
+// carries cannot resolve against an empty target collection.
 //
 // normalizationRules is a constructor argument even though it is optional
 // content that may legitimately be empty. It has to be, because a Measure MAY
@@ -416,12 +443,6 @@ func validateProfileContent(caller string, c ProfileContent) error {
 	}
 	if c.provenance.IsZero() {
 		return fmt.Errorf("quality: %s: %w: provenance must not be zero", caller, ErrInvalidQualityProfile)
-	}
-	if len(c.characteristics) == 0 {
-		return fmt.Errorf("quality: %s: %w: at least one quality characteristic is required", caller, ErrInvalidQualityProfile)
-	}
-	if len(c.measures) == 0 {
-		return fmt.Errorf("quality: %s: %w: at least one quality measure is required", caller, ErrInvalidQualityProfile)
 	}
 
 	characteristicKeys := make(map[string]bool, len(c.characteristics))
@@ -532,11 +553,12 @@ func validateProfileContent(caller string, c ProfileContent) error {
 //
 // scope, applicability, and provenance must all be non-zero; applicability
 // must be explicitly stated (use NewUnrestrictedProfileApplicability to
-// declare an explicit absence of restriction). characteristics and measures
-// must each contain at least one element and no zero-value element.
-// normalizationRules may be empty, but must be supplied here rather than
-// later whenever any Measure references a Normalization Rule -- see the type
-// documentation for why.
+// declare an explicit absence of restriction). characteristics, measures, and
+// normalizationRules may each be empty or nil -- PEOS-007 states no minimum
+// cardinality for any Profile-owned collection -- but no element within a
+// non-empty collection may be zero-valued. normalizationRules must be
+// supplied here rather than later whenever any Measure references a
+// Normalization Rule -- see the type documentation for why.
 //
 // Within each collection, profile-local keys must be unique. Across
 // collections they need not be: the same key may name a Characteristic and a
@@ -729,11 +751,11 @@ func (c ProfileContent) Applicability() ProfileApplicability { return c.applicab
 func (c ProfileContent) Provenance() core.Provenance { return c.provenance }
 
 // Characteristics returns a defensive copy of c's Quality Characteristics, in
-// declaration order. A valid ProfileContent always has at least one.
+// declaration order. May be empty: PEOS-007 states no minimum cardinality.
 func (c ProfileContent) Characteristics() []Characteristic { return copySlice(c.characteristics) }
 
 // Measures returns a defensive copy of c's Quality Measures, in declaration
-// order. A valid ProfileContent always has at least one.
+// order. May be empty: PEOS-007 states no minimum cardinality.
 func (c ProfileContent) Measures() []Measure { return copySlice(c.measures) }
 
 // Thresholds returns a defensive copy of c's Thresholds, in declaration
@@ -876,12 +898,14 @@ type profileContentJSON struct {
 // bytes so an explicit JSON null can be distinguished from an absent key and
 // rejected -- the json.RawMessage probe technique Packet D.1 established.
 //
-// No mandatory key needs that treatment: for each of scope, applicability,
-// provenance, characteristics, and measures, an absent key and an explicit
-// null both yield a zero value or an empty slice that
-// validateProfileContent rejects, so the two cases converge on the same error
-// and need not be told apart. The optional collections do not need it either:
-// absent, null, and [] all denote the same valid state, "defines none".
+// scope, applicability, and provenance need no such treatment: an absent key
+// and an explicit null both yield a zero value that validateProfileContent
+// rejects, so the two cases converge on the same error and need not be told
+// apart. Every collection -- characteristics and measures included -- needs
+// no such treatment either, but for the opposite reason: absent, null, and []
+// all denote the same valid state, "defines none of this kind", exactly as
+// for thresholds, targets, constraints, normalization_rules, aggregation_rules,
+// subjects, and subject_types.
 type profileContentUnmarshalJSON struct {
 	Scope              core.Scope                   `json:"scope"`
 	Applicability      ProfileApplicability         `json:"applicability"`
@@ -899,8 +923,12 @@ type profileContentUnmarshalJSON struct {
 	Extension          *core.Extension              `json:"extension,omitempty"`
 }
 
-// MarshalJSON encodes c with its five mandatory keys always present, plus
-// whichever optional keys are set.
+// MarshalJSON encodes c with scope, applicability, provenance, characteristics,
+// and measures always present as keys, plus whichever optional keys are set.
+// Of those five, only scope, applicability, and provenance carry mandatory
+// (non-empty) content -- characteristics and measures are serialized
+// unconditionally (no omitempty) but may legitimately be null, exactly like
+// the optional collections below them.
 //
 // There is no "relation", "source", "target", lifecycle, "state", "status",
 // "version", "score", "quality_score", "current", "latest", "effective",
@@ -957,12 +985,13 @@ func (c ProfileContent) MarshalJSON() ([]byte, error) {
 //     differ.
 //   - applicability: both a missing key and an explicit null yield an empty
 //     kind, rejected with ErrInvalidProfileApplicability.
-//   - characteristics, measures: a missing key, an explicit null, and an
-//     empty array all yield an empty slice, all rejected with
-//     ErrInvalidQualityProfile by the same at-least-one invariant.
-//   - thresholds, targets, constraints, normalization_rules,
-//     aggregation_rules, subjects, subject_types: absent, explicit null, and
-//     empty array are equivalent and all mean "defines none".
+//   - characteristics, measures, thresholds, targets, constraints,
+//     normalization_rules, aggregation_rules, subjects, subject_types: absent,
+//     explicit null, and empty array are all equivalent and all mean "defines
+//     none of this kind" -- PEOS-007 states no minimum cardinality for any of
+//     them. A non-empty collection is still validated element by element, and
+//     the conditional references a Measure, Threshold, or Target carries must
+//     still resolve.
 //   - authority: a missing key means absent; an explicit null is rejected
 //     rather than silently treated as absent.
 //   - extension: null is equivalent to absent, per core.Extension's own
