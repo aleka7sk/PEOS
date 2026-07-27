@@ -3,6 +3,7 @@ package runtime
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/aleka7sk/PEOS/peos/core"
@@ -388,26 +389,16 @@ func TestViolationWithLimitations(t *testing.T) {
 	}
 }
 
-func TestViolationWithApplicableWaiver(t *testing.T) {
-	v := mustObservationTriggeredViolation(t, "VIOL-1")
-	v2, err := v.WithApplicableWaiver("waived per incident INC-42 until 2026-08-01")
-	if err != nil {
-		t.Fatal(err)
+// TestViolationHasNoApplicableWaiverAPI documents audit finding J3-04's
+// resolution: Violation carries no applicable-Waiver field, accessor, or
+// modifier of any kind. Waiver applicability is entirely repository-owned,
+// computed as an input to derived Runtime Compliance -- see doc.go's RJ-1
+// note.
+func TestViolationHasNoApplicableWaiverAPI(t *testing.T) {
+	forbidden := []string{
+		"ApplicableWaiver", "WithApplicableWaiver", "WithoutApplicableWaiver",
 	}
-	got, ok := v2.ApplicableWaiver()
-	if !ok || got != "waived per incident INC-42 until 2026-08-01" {
-		t.Errorf("ApplicableWaiver() = (%q, %v)", got, ok)
-	}
-	if _, ok := v.ApplicableWaiver(); ok {
-		t.Error("original Violation mutated by WithApplicableWaiver")
-	}
-	if _, err := v.WithApplicableWaiver("   "); !errors.Is(err, ErrInvalidRuntimeViolation) {
-		t.Errorf("whitespace-only: error = %v, want %v", err, ErrInvalidRuntimeViolation)
-	}
-	cleared := v2.WithoutApplicableWaiver()
-	if _, ok := cleared.ApplicableWaiver(); ok {
-		t.Error("WithoutApplicableWaiver did not clear the field")
-	}
+	assertNoMethods(t, "Violation", reflect.TypeOf(Violation{}), forbidden)
 }
 
 func TestViolationWithRelatedClaims(t *testing.T) {
@@ -491,10 +482,6 @@ func TestViolationJSONRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err = v.WithApplicableWaiver("waived per incident INC-42")
-	if err != nil {
-		t.Fatal(err)
-	}
 	ext, err := core.NewExtension().With("product", json.RawMessage(`{"k":"v"}`))
 	if err != nil {
 		t.Fatal(err)
@@ -561,10 +548,6 @@ func TestViolationUnmarshalFieldSpecificRejections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err = v.WithApplicableWaiver("waived per incident INC-42")
-	if err != nil {
-		t.Fatal(err)
-	}
 	claimRef, err := core.NewValidationClaimRef(mustValidationClaimID(t, "CLAIM-1"))
 	if err != nil {
 		t.Fatal(err)
@@ -596,8 +579,6 @@ func TestViolationUnmarshalFieldSpecificRejections(t *testing.T) {
 		{"malformed severity", "severity", json.RawMessage(`123`)},
 		{"null uncertainty", "uncertainty", json.RawMessage("null")},
 		{"empty uncertainty", "uncertainty", json.RawMessage(`""`)},
-		{"null applicable_waiver", "applicable_waiver", json.RawMessage("null")},
-		{"whitespace applicable_waiver", "applicable_waiver", json.RawMessage(`"   "`)},
 		{"malformed related_claims", "related_claims", json.RawMessage(`[123]`)},
 		{"zero related_claims element", "related_claims", json.RawMessage(`[{}]`)},
 		{"malformed related_decisions", "related_decisions", json.RawMessage(`[123]`)},
@@ -651,6 +632,7 @@ func TestViolationNoForbiddenWireKeys(t *testing.T) {
 	forbidden := []string{
 		"status", "state", "lifecycle", "resolved", "closed",
 		"outcome_authority", "incident", "compliant", "compliance",
+		"applicable_waiver",
 	}
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(data, &m); err != nil {

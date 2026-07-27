@@ -466,24 +466,115 @@ func (r *RequirementReference) UnmarshalJSON(data []byte) error {
 
 // --- runtime-local key namespace ---------------------------------------------
 
-// Owned-value kind label, used in duplicate-key error messages. PEOS-008's
-// only owned-value collection keyed in Packet J.1 is Assertions;
-// classification rules, if a later packet keys them, would add a sibling
-// label here.
-const kindAssertion = "assertion"
+// Runtime local-key namespaces are criterion-kind namespaces, not one
+// namespace per Go collection. PEOS-008 gives a Runtime Contract Revision
+// exactly two citable, locally-keyed collections of content --
+// core.CriterionKindRuntimeAssertion and
+// core.CriterionKindRuntimeContractRule -- and this package's key
+// namespaces mirror that two-way split exactly, not the four Go
+// collections the four Contract Rule categories happen to be stored in.
+const (
+	kindAssertion    = "assertion"
+	kindContractRule = "runtime contract rule"
+)
 
 // addRuntimeLocalKey records key in set, rejecting a repeat within that one
-// collection. Uniqueness is per owned-value kind, not across kinds -- the
-// same derivation quality.addProfileLocalKey documents: PEOS-008 states no
-// key uniqueness rule at all, and the necessary derived rule is only that a
-// criterion citing an Assertion by key must resolve to exactly one
-// Assertion.
+// namespace. Uniqueness is per criterion-kind namespace, not per Go
+// collection -- the same derivation quality.addProfileLocalKey documents:
+// PEOS-008 states no key uniqueness rule at all, and the necessary derived
+// rule is only that a criterion citing an owned value by key must resolve
+// to exactly one such value within its own criterion kind.
 func addRuntimeLocalKey(caller, kind string, set map[string]bool, key core.LocalKey) error {
 	s := key.String()
 	if set[s] {
 		return fmt.Errorf("runtime: %s: %s key %q: %w", caller, kind, s, ErrDuplicateRuntimeLocalKey)
 	}
 	set[s] = true
+	return nil
+}
+
+// --- ContractRule ----------------------------------------------------------
+
+// ContractRule is a PEOS-008 Runtime Contract Revision-owned declarative
+// rule value, used for observation requirements, violation classification
+// rules, Waiver handling rules, and enforcement expectations alike. It
+// carries a runtime-local key naming it within the
+// core.CriterionKindRuntimeContractRule namespace (shared across all four
+// categories, since core.RuntimeRuleCriterionRef's payload carries no
+// rule-category discriminator of its own -- see "runtime-local key
+// namespace" above) and an opaque, trimmed rule text.
+//
+// ContractRule carries no independent identity, no Revision, and no
+// lifecycle of its own -- it is Revision-owned content, exactly like
+// Assertion. It carries no rule-category field: the collection it is
+// stored in (observation requirements, violation classification rules,
+// Waiver handling rules, or enforcement expectations) already supplies
+// that, and duplicating it inside the value would be redundant, not
+// additional structure. It carries no expression language, no executable
+// behaviour, and no evaluation result -- PEOS-008 defines none of these
+// for any Contract Rule category, and this package does not resolve a
+// ContractRule's criterion citation against any repository.
+type ContractRule struct {
+	key  core.LocalKey
+	text string
+}
+
+// NewContractRule validates key and text and returns a ContractRule.
+//
+// Both are mandatory. key must be non-zero, and text must be non-empty
+// after trimming; the trimmed value is stored. text is the declarative
+// rule itself, an opaque string: PEOS-008 defines no rule grammar or
+// expression language for any of the four categories it names.
+func NewContractRule(key core.LocalKey, text string) (ContractRule, error) {
+	if key.IsZero() {
+		return ContractRule{}, fmt.Errorf("runtime: NewContractRule: %w: key must not be zero", ErrInvalidRuntimeContractRule)
+	}
+	trimmed, err := trimmedRequired("NewContractRule", "text", text, ErrInvalidRuntimeContractRule)
+	if err != nil {
+		return ContractRule{}, err
+	}
+	return ContractRule{key: key, text: trimmed}, nil
+}
+
+// Key returns r's runtime-local key. It is meaningful only within the
+// combined Runtime Contract Rule namespace of its owning ContractContent.
+func (r ContractRule) Key() core.LocalKey { return r.key }
+
+// Text returns r's declarative rule text, uninterpreted.
+func (r ContractRule) Text() string { return r.text }
+
+// IsZero reports whether r is the zero value.
+func (r ContractRule) IsZero() bool { return r.key.IsZero() && r.text == "" }
+
+type contractRuleJSON struct {
+	Key  core.LocalKey `json:"key"`
+	Text string        `json:"text"`
+}
+
+// MarshalJSON encodes r as {"key":...,"text":...}. There is no "category"
+// key -- the collection r is stored in supplies that -- and no "result",
+// "outcome", "satisfied", or "evaluation" key: a ContractRule declares a
+// rule and never records whether it held.
+func (r ContractRule) MarshalJSON() ([]byte, error) {
+	if r.IsZero() {
+		return nil, fmt.Errorf("runtime: marshal ContractRule: %w", ErrInvalidRuntimeContractRule)
+	}
+	return json.Marshal(contractRuleJSON{Key: r.key, Text: r.text})
+}
+
+// UnmarshalJSON decodes r from its JSON form, applying the same validation
+// as NewContractRule. The receiver is left untouched unless every check
+// passes.
+func (r *ContractRule) UnmarshalJSON(data []byte) error {
+	var raw contractRuleJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("runtime: unmarshal ContractRule: %w: %w", ErrInvalidRuntimeContractRule, err)
+	}
+	result, err := NewContractRule(raw.Key, raw.Text)
+	if err != nil {
+		return err
+	}
+	*r = result
 	return nil
 }
 
@@ -522,12 +613,18 @@ func addRuntimeLocalKey(caller, kind string, set map[string]bool, key core.Local
 // "execution prerequisites"; Quality Profile Revisions are explicitly
 // "where required"; and enforcement expectations are likewise unqualified.
 //
-// assertions is a constructor argument, unlike the four rule/expectation
-// collections, only because it is the one collection this package gives
-// typed structure and per-kind key uniqueness to -- see "runtime-local key
-// namespace" above -- so it must be validated by the same shared path as
-// every other field, not modified afterward through a separate,
-// unvalidated path.
+// assertions is a constructor argument, unlike the four Contract Rule
+// collections, only because it is validated together with them by the same
+// shared path every other field uses -- not modified afterward through a
+// separate, unvalidated path. All five owned-value collections (assertions
+// plus the four ContractRule categories) are keyed and participate in the
+// runtime-local key namespace rules documented above: assertions form the
+// core.CriterionKindRuntimeAssertion namespace, and the four Contract Rule
+// categories together form one combined core.CriterionKindRuntimeContractRule
+// namespace, because PEOS-008 ":423"/":475" require a "Runtime Contract
+// rule" to be citable as a criterion, and core.RuntimeRuleCriterionRef's
+// (Revision, LocalKey) payload carries no rule-category discriminator to
+// separate the four collections at the criterion level.
 //
 // # No derived state
 //
@@ -547,10 +644,10 @@ type ContractContent struct {
 
 	assertions []Assertion
 
-	observationRequirements      []string
-	violationClassificationRules []string
-	waiverHandlingRules          []string
-	enforcementExpectations      []string
+	observationRequirements      []ContractRule
+	violationClassificationRules []ContractRule
+	waiverHandlingRules          []ContractRule
+	enforcementExpectations      []ContractRule
 	qualityProfileRevisions      []core.ArtifactRevisionRef
 
 	extension core.Extension
@@ -595,6 +692,44 @@ func validateContractContent(caller string, c ContractContent) error {
 			return fmt.Errorf("runtime: %s: %w: assertion must not be zero", caller, ErrInvalidRuntimeAssertion)
 		}
 		if err := addRuntimeLocalKey(caller, kindAssertion, assertionKeys, v.Key()); err != nil {
+			return err
+		}
+	}
+
+	// The four Contract Rule categories share one combined
+	// core.CriterionKindRuntimeContractRule namespace -- see "runtime-local
+	// key namespace" above -- so their keys are validated together against
+	// a single set, not one set per Go collection.
+	contractRuleKeys := make(map[string]bool, len(c.observationRequirements)+len(c.violationClassificationRules)+len(c.waiverHandlingRules)+len(c.enforcementExpectations))
+	for _, v := range c.observationRequirements {
+		if v.IsZero() {
+			return fmt.Errorf("runtime: %s: %w: observation requirement must not be zero", caller, ErrInvalidRuntimeContractRule)
+		}
+		if err := addRuntimeLocalKey(caller, kindContractRule, contractRuleKeys, v.Key()); err != nil {
+			return err
+		}
+	}
+	for _, v := range c.violationClassificationRules {
+		if v.IsZero() {
+			return fmt.Errorf("runtime: %s: %w: violation classification rule must not be zero", caller, ErrInvalidRuntimeContractRule)
+		}
+		if err := addRuntimeLocalKey(caller, kindContractRule, contractRuleKeys, v.Key()); err != nil {
+			return err
+		}
+	}
+	for _, v := range c.waiverHandlingRules {
+		if v.IsZero() {
+			return fmt.Errorf("runtime: %s: %w: waiver handling rule must not be zero", caller, ErrInvalidRuntimeContractRule)
+		}
+		if err := addRuntimeLocalKey(caller, kindContractRule, contractRuleKeys, v.Key()); err != nil {
+			return err
+		}
+	}
+	for _, v := range c.enforcementExpectations {
+		if v.IsZero() {
+			return fmt.Errorf("runtime: %s: %w: enforcement expectation must not be zero", caller, ErrInvalidRuntimeContractRule)
+		}
+		if err := addRuntimeLocalKey(caller, kindContractRule, contractRuleKeys, v.Key()); err != nil {
 			return err
 		}
 	}
@@ -652,17 +787,15 @@ func NewContractContent(
 }
 
 // WithObservationRequirements returns a copy of c with its observation
-// requirement descriptions set to exactly the values given, in the order
-// given. Each entry is trimmed and must be non-empty after trimming.
+// requirements set to exactly the ContractRule values given, in the order
+// given. A zero-value element is rejected, and every key must be unique
+// within the combined Runtime Contract Rule namespace shared with the
+// other three categories (see "runtime-local key namespace" above).
 // Passing an empty or nil slice declares none, which is why there is no
 // WithoutObservationRequirements: WithObservationRequirements(nil) already
 // expresses removal.
-func (c ContractContent) WithObservationRequirements(descriptions []string) (ContractContent, error) {
-	cp, err := trimmedStringSlice("ContractContent.WithObservationRequirements", "observation requirement", descriptions, ErrInvalidRuntimeContract)
-	if err != nil {
-		return ContractContent{}, err
-	}
-	c.observationRequirements = cp
+func (c ContractContent) WithObservationRequirements(rules []ContractRule) (ContractContent, error) {
+	c.observationRequirements = copySlice(rules)
 	if err := validateContractContent("ContractContent.WithObservationRequirements", c); err != nil {
 		return ContractContent{}, err
 	}
@@ -670,35 +803,29 @@ func (c ContractContent) WithObservationRequirements(descriptions []string) (Con
 }
 
 // WithViolationClassificationRules returns a copy of c with its violation
-// classification rule descriptions set to exactly the values given, in the
-// order given. Each entry is trimmed and must be non-empty after trimming.
-// Passing an empty or nil slice declares none.
-func (c ContractContent) WithViolationClassificationRules(rules []string) (ContractContent, error) {
-	cp, err := trimmedStringSlice("ContractContent.WithViolationClassificationRules", "violation classification rule", rules, ErrInvalidRuntimeContract)
-	if err != nil {
-		return ContractContent{}, err
-	}
-	c.violationClassificationRules = cp
+// classification rules set to exactly the ContractRule values given, in
+// the order given. A zero-value element is rejected, and every key must be
+// unique within the combined Runtime Contract Rule namespace. Passing an
+// empty or nil slice declares none.
+func (c ContractContent) WithViolationClassificationRules(rules []ContractRule) (ContractContent, error) {
+	c.violationClassificationRules = copySlice(rules)
 	if err := validateContractContent("ContractContent.WithViolationClassificationRules", c); err != nil {
 		return ContractContent{}, err
 	}
 	return c, nil
 }
 
-// WithWaiverHandlingRules returns a copy of c with its Waiver handling rule
-// descriptions set to exactly the values given, in the order given. Each
-// entry is trimmed and must be non-empty after trimming. Passing an empty
-// or nil slice declares none.
+// WithWaiverHandlingRules returns a copy of c with its Waiver handling
+// rules set to exactly the ContractRule values given, in the order given.
+// A zero-value element is rejected, and every key must be unique within
+// the combined Runtime Contract Rule namespace. Passing an empty or nil
+// slice declares none.
 //
-// These are descriptions of how an applicable PEOS-005 Waiver is to be
-// handled; PEOS-008 consumes PEOS-005 Waiver semantics without redefining
-// them, and this package does not import peos/requirement (see doc.go).
-func (c ContractContent) WithWaiverHandlingRules(rules []string) (ContractContent, error) {
-	cp, err := trimmedStringSlice("ContractContent.WithWaiverHandlingRules", "waiver handling rule", rules, ErrInvalidRuntimeContract)
-	if err != nil {
-		return ContractContent{}, err
-	}
-	c.waiverHandlingRules = cp
+// These describe how an applicable PEOS-005 Waiver is to be handled;
+// PEOS-008 consumes PEOS-005 Waiver semantics without redefining them, and
+// this package does not import peos/requirement (see doc.go).
+func (c ContractContent) WithWaiverHandlingRules(rules []ContractRule) (ContractContent, error) {
+	c.waiverHandlingRules = copySlice(rules)
 	if err := validateContractContent("ContractContent.WithWaiverHandlingRules", c); err != nil {
 		return ContractContent{}, err
 	}
@@ -706,15 +833,12 @@ func (c ContractContent) WithWaiverHandlingRules(rules []string) (ContractConten
 }
 
 // WithEnforcementExpectations returns a copy of c with its enforcement
-// expectation descriptions set to exactly the values given, in the order
-// given. Each entry is trimmed and must be non-empty after trimming.
-// Passing an empty or nil slice declares none.
-func (c ContractContent) WithEnforcementExpectations(expectations []string) (ContractContent, error) {
-	cp, err := trimmedStringSlice("ContractContent.WithEnforcementExpectations", "enforcement expectation", expectations, ErrInvalidRuntimeContract)
-	if err != nil {
-		return ContractContent{}, err
-	}
-	c.enforcementExpectations = cp
+// expectations set to exactly the ContractRule values given, in the order
+// given. A zero-value element is rejected, and every key must be unique
+// within the combined Runtime Contract Rule namespace. Passing an empty or
+// nil slice declares none.
+func (c ContractContent) WithEnforcementExpectations(rules []ContractRule) (ContractContent, error) {
+	c.enforcementExpectations = copySlice(rules)
 	if err := validateContractContent("ContractContent.WithEnforcementExpectations", c); err != nil {
 		return ContractContent{}, err
 	}
@@ -816,25 +940,57 @@ func (c ContractContent) Assertion(key core.LocalKey) (Assertion, bool) {
 }
 
 // ObservationRequirements returns a defensive copy of c's observation
-// requirement descriptions, in declaration order.
-func (c ContractContent) ObservationRequirements() []string {
+// requirements, in declaration order.
+func (c ContractContent) ObservationRequirements() []ContractRule {
 	return copySlice(c.observationRequirements)
 }
 
 // ViolationClassificationRules returns a defensive copy of c's violation
-// classification rule descriptions, in declaration order.
-func (c ContractContent) ViolationClassificationRules() []string {
+// classification rules, in declaration order.
+func (c ContractContent) ViolationClassificationRules() []ContractRule {
 	return copySlice(c.violationClassificationRules)
 }
 
-// WaiverHandlingRules returns a defensive copy of c's Waiver handling rule
-// descriptions, in declaration order.
-func (c ContractContent) WaiverHandlingRules() []string { return copySlice(c.waiverHandlingRules) }
+// WaiverHandlingRules returns a defensive copy of c's Waiver handling
+// rules, in declaration order.
+func (c ContractContent) WaiverHandlingRules() []ContractRule {
+	return copySlice(c.waiverHandlingRules)
+}
 
 // EnforcementExpectations returns a defensive copy of c's enforcement
-// expectation descriptions, in declaration order.
-func (c ContractContent) EnforcementExpectations() []string {
+// expectations, in declaration order.
+func (c ContractContent) EnforcementExpectations() []ContractRule {
 	return copySlice(c.enforcementExpectations)
+}
+
+// ContractRule returns the ContractRule in c whose runtime-local key
+// equals key, and whether one was found. The lookup spans all four
+// Contract Rule categories -- observation requirements, violation
+// classification rules, Waiver handling rules, and enforcement
+// expectations -- because they share one combined
+// core.CriterionKindRuntimeContractRule namespace (see "runtime-local key
+// namespace" above), so a key resolves to at most one ContractRule across
+// all four collections together. This performs local resolution only
+// within an already-loaded ContractContent; it does not load another
+// Revision, verify the referenced Contract Revision exists, or evaluate
+// the rule.
+func (c ContractContent) ContractRule(key core.LocalKey) (ContractRule, bool) {
+	if key.IsZero() {
+		return ContractRule{}, false
+	}
+	for _, categories := range [][]ContractRule{
+		c.observationRequirements,
+		c.violationClassificationRules,
+		c.waiverHandlingRules,
+		c.enforcementExpectations,
+	} {
+		for _, v := range categories {
+			if v.Key() == key {
+				return v, true
+			}
+		}
+	}
+	return ContractRule{}, false
 }
 
 // QualityProfileRevisions returns a defensive copy of c's applicable
@@ -861,10 +1017,10 @@ type contractContentJSON struct {
 	Provenance                   core.Provenance            `json:"provenance"`
 	Authority                    core.AuthorityRef          `json:"authority"`
 	Assertions                   []Assertion                `json:"assertions,omitempty"`
-	ObservationRequirements      []string                   `json:"observation_requirements,omitempty"`
-	ViolationClassificationRules []string                   `json:"violation_classification_rules,omitempty"`
-	WaiverHandlingRules          []string                   `json:"waiver_handling_rules,omitempty"`
-	EnforcementExpectations      []string                   `json:"enforcement_expectations,omitempty"`
+	ObservationRequirements      []ContractRule             `json:"observation_requirements,omitempty"`
+	ViolationClassificationRules []ContractRule             `json:"violation_classification_rules,omitempty"`
+	WaiverHandlingRules          []ContractRule             `json:"waiver_handling_rules,omitempty"`
+	EnforcementExpectations      []ContractRule             `json:"enforcement_expectations,omitempty"`
 	QualityProfileRevisions      []core.ArtifactRevisionRef `json:"quality_profile_revisions,omitempty"`
 	Extension                    *core.Extension            `json:"extension,omitempty"`
 }
@@ -924,10 +1080,10 @@ type contractContentUnmarshalJSON struct {
 	Provenance                   core.Provenance            `json:"provenance"`
 	Authority                    json.RawMessage            `json:"authority"`
 	Assertions                   []Assertion                `json:"assertions"`
-	ObservationRequirements      []string                   `json:"observation_requirements"`
-	ViolationClassificationRules []string                   `json:"violation_classification_rules"`
-	WaiverHandlingRules          []string                   `json:"waiver_handling_rules"`
-	EnforcementExpectations      []string                   `json:"enforcement_expectations"`
+	ObservationRequirements      []ContractRule             `json:"observation_requirements"`
+	ViolationClassificationRules []ContractRule             `json:"violation_classification_rules"`
+	WaiverHandlingRules          []ContractRule             `json:"waiver_handling_rules"`
+	EnforcementExpectations      []ContractRule             `json:"enforcement_expectations"`
 	QualityProfileRevisions      []core.ArtifactRevisionRef `json:"quality_profile_revisions"`
 	Extension                    *core.Extension            `json:"extension,omitempty"`
 }

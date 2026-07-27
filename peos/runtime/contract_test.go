@@ -38,6 +38,15 @@ func mustLocalKey(t *testing.T, value string) core.LocalKey {
 	return k
 }
 
+func mustContractRule(t *testing.T, key, text string) ContractRule {
+	t.Helper()
+	r, err := NewContractRule(mustLocalKey(t, key), text)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r
+}
+
 func mustVocabularyValue(t *testing.T, namespace, value string) core.VocabularyValue {
 	t.Helper()
 	v, err := core.NewVocabularyValue(namespace, value)
@@ -566,22 +575,22 @@ func TestContractContentCardinalityMatrix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.WithObservationRequirements([]string{"observe cpu"}); err != nil {
+	if _, err := c.WithObservationRequirements([]ContractRule{mustContractRule(t, "observe-cpu", "observe cpu")}); err != nil {
 		t.Errorf("observation-requirements-only: unexpected error %v", err)
 	}
 
 	// Requirement reference plus only classification rules -- accept.
-	if _, err := c.WithViolationClassificationRules([]string{"latency breach"}); err != nil {
+	if _, err := c.WithViolationClassificationRules([]ContractRule{mustContractRule(t, "latency-breach", "latency breach")}); err != nil {
 		t.Errorf("classification-rules-only: unexpected error %v", err)
 	}
 
 	// Requirement reference plus only waiver handling rules -- accept.
-	if _, err := c.WithWaiverHandlingRules([]string{"defer to on-call"}); err != nil {
+	if _, err := c.WithWaiverHandlingRules([]ContractRule{mustContractRule(t, "defer-oncall", "defer to on-call")}); err != nil {
 		t.Errorf("waiver-rules-only: unexpected error %v", err)
 	}
 
 	// Requirement reference plus only enforcement expectations -- accept.
-	if _, err := c.WithEnforcementExpectations([]string{"page on-call"}); err != nil {
+	if _, err := c.WithEnforcementExpectations([]ContractRule{mustContractRule(t, "page-oncall", "page on-call")}); err != nil {
 		t.Errorf("enforcement-expectations-only: unexpected error %v", err)
 	}
 
@@ -674,13 +683,13 @@ func TestContractContentMandatoryFieldRejections(t *testing.T) {
 func TestContractContentDefensiveCopy(t *testing.T) {
 	reqs := []RequirementReference{mustRequirementIdentityReference(t, "REQ-1")}
 	c := mustMinimalContractContent(t)
-	c2, err := c.WithObservationRequirements([]string{"a", "b"})
+	c2, err := c.WithObservationRequirements([]ContractRule{mustContractRule(t, "a", "a"), mustContractRule(t, "b", "b")})
 	if err != nil {
 		t.Fatal(err)
 	}
 	returned := c2.ObservationRequirements()
-	returned[0] = "mutated"
-	if c2.ObservationRequirements()[0] == "mutated" {
+	returned[0] = mustContractRule(t, "mutated", "mutated")
+	if c2.ObservationRequirements()[0].Key() == mustLocalKey(t, "mutated") {
 		t.Error("ObservationRequirements() accessor did not return a defensive copy")
 	}
 
@@ -708,19 +717,19 @@ func TestContractContentAccessors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err = c.WithObservationRequirements([]string{"observe cpu"})
+	c, err = c.WithObservationRequirements([]ContractRule{mustContractRule(t, "observe-cpu", "observe cpu")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err = c.WithViolationClassificationRules([]string{"latency breach"})
+	c, err = c.WithViolationClassificationRules([]ContractRule{mustContractRule(t, "latency-breach", "latency breach")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err = c.WithWaiverHandlingRules([]string{"defer to on-call"})
+	c, err = c.WithWaiverHandlingRules([]ContractRule{mustContractRule(t, "defer-oncall", "defer to on-call")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err = c.WithEnforcementExpectations([]string{"page on-call"})
+	c, err = c.WithEnforcementExpectations([]ContractRule{mustContractRule(t, "page-oncall", "page on-call")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -769,13 +778,16 @@ func TestContractContentAccessors(t *testing.T) {
 	if _, ok := c.Assertion(mustLocalKey(t, "does-not-exist")); ok {
 		t.Error("Assertion(unknown key) should return ok=false")
 	}
-	if got := c.ViolationClassificationRules(); len(got) != 1 || got[0] != "latency breach" {
+	if got := c.ObservationRequirements(); len(got) != 1 || got[0].Text() != "observe cpu" {
+		t.Errorf("ObservationRequirements() = %v", got)
+	}
+	if got := c.ViolationClassificationRules(); len(got) != 1 || got[0].Text() != "latency breach" {
 		t.Errorf("ViolationClassificationRules() = %v", got)
 	}
-	if got := c.WaiverHandlingRules(); len(got) != 1 || got[0] != "defer to on-call" {
+	if got := c.WaiverHandlingRules(); len(got) != 1 || got[0].Text() != "defer to on-call" {
 		t.Errorf("WaiverHandlingRules() = %v", got)
 	}
-	if got := c.EnforcementExpectations(); len(got) != 1 || got[0] != "page on-call" {
+	if got := c.EnforcementExpectations(); len(got) != 1 || got[0].Text() != "page on-call" {
 		t.Errorf("EnforcementExpectations() = %v", got)
 	}
 	if got := c.QualityProfileRevisions(); len(got) != 1 || got[0] != qpRef {
@@ -783,6 +795,16 @@ func TestContractContentAccessors(t *testing.T) {
 	}
 	if c.Extension().IsZero() {
 		t.Error("Extension() is zero")
+	}
+	got2, ok := c.ContractRule(mustLocalKey(t, "latency-breach"))
+	if !ok || got2.Text() != "latency breach" {
+		t.Errorf("ContractRule(key) lookup failed: got (%v, %v)", got2, ok)
+	}
+	if _, ok := c.ContractRule(core.LocalKey{}); ok {
+		t.Error("ContractRule(zero key) should return ok=false")
+	}
+	if _, ok := c.ContractRule(mustLocalKey(t, "does-not-exist")); ok {
+		t.Error("ContractRule(unknown key) should return ok=false")
 	}
 }
 
@@ -802,22 +824,270 @@ func TestContractContentWithoutExtension(t *testing.T) {
 	}
 }
 
-func TestContractContentTrimmedStringSliceRejections(t *testing.T) {
+func TestContractContentZeroContractRuleRejections(t *testing.T) {
 	c := mustMinimalContractContent(t)
-	if _, err := c.WithObservationRequirements([]string{"  "}); !errors.Is(err, ErrInvalidRuntimeContract) {
-		t.Errorf("whitespace-only observation requirement: error = %v, want %v", err, ErrInvalidRuntimeContract)
+	if _, err := c.WithObservationRequirements([]ContractRule{{}}); !errors.Is(err, ErrInvalidRuntimeContractRule) {
+		t.Errorf("zero observation requirement: error = %v, want %v", err, ErrInvalidRuntimeContractRule)
 	}
-	if _, err := c.WithViolationClassificationRules([]string{""}); !errors.Is(err, ErrInvalidRuntimeContract) {
-		t.Errorf("empty classification rule: error = %v, want %v", err, ErrInvalidRuntimeContract)
+	if _, err := c.WithViolationClassificationRules([]ContractRule{{}}); !errors.Is(err, ErrInvalidRuntimeContractRule) {
+		t.Errorf("zero classification rule: error = %v, want %v", err, ErrInvalidRuntimeContractRule)
 	}
-	if _, err := c.WithWaiverHandlingRules([]string{"  "}); !errors.Is(err, ErrInvalidRuntimeContract) {
-		t.Errorf("whitespace-only waiver rule: error = %v, want %v", err, ErrInvalidRuntimeContract)
+	if _, err := c.WithWaiverHandlingRules([]ContractRule{{}}); !errors.Is(err, ErrInvalidRuntimeContractRule) {
+		t.Errorf("zero waiver rule: error = %v, want %v", err, ErrInvalidRuntimeContractRule)
 	}
-	if _, err := c.WithEnforcementExpectations([]string{""}); !errors.Is(err, ErrInvalidRuntimeContract) {
-		t.Errorf("empty enforcement expectation: error = %v, want %v", err, ErrInvalidRuntimeContract)
+	if _, err := c.WithEnforcementExpectations([]ContractRule{{}}); !errors.Is(err, ErrInvalidRuntimeContractRule) {
+		t.Errorf("zero enforcement expectation: error = %v, want %v", err, ErrInvalidRuntimeContractRule)
 	}
 	if _, err := c.WithQualityProfileRevisions([]core.ArtifactRevisionRef{{}}); !errors.Is(err, ErrInvalidRuntimeContract) {
 		t.Errorf("zero quality profile revision: error = %v, want %v", err, ErrInvalidRuntimeContract)
+	}
+}
+
+// --- ContractRule ------------------------------------------------------------
+
+func TestNewContractRule(t *testing.T) {
+	r, err := NewContractRule(mustLocalKey(t, "observe-cpu"), "  observe cpu utilization  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Key() != mustLocalKey(t, "observe-cpu") {
+		t.Errorf("Key() = %v, want observe-cpu", r.Key())
+	}
+	if r.Text() != "observe cpu utilization" {
+		t.Errorf("Text() = %q, want trimmed text", r.Text())
+	}
+	if r.IsZero() {
+		t.Error("valid ContractRule reports IsZero() = true")
+	}
+}
+
+func TestNewContractRuleMandatoryFieldRejections(t *testing.T) {
+	t.Run("zero key", func(t *testing.T) {
+		if _, err := NewContractRule(core.LocalKey{}, "text"); !errors.Is(err, ErrInvalidRuntimeContractRule) {
+			t.Errorf("error = %v, want %v", err, ErrInvalidRuntimeContractRule)
+		}
+	})
+	t.Run("empty text", func(t *testing.T) {
+		if _, err := NewContractRule(mustLocalKey(t, "k"), ""); !errors.Is(err, ErrInvalidRuntimeContractRule) {
+			t.Errorf("error = %v, want %v", err, ErrInvalidRuntimeContractRule)
+		}
+	})
+	t.Run("whitespace-only text", func(t *testing.T) {
+		if _, err := NewContractRule(mustLocalKey(t, "k"), "   "); !errors.Is(err, ErrInvalidRuntimeContractRule) {
+			t.Errorf("error = %v, want %v", err, ErrInvalidRuntimeContractRule)
+		}
+	})
+}
+
+func TestContractRuleJSONRoundTrip(t *testing.T) {
+	r := mustContractRule(t, "observe-cpu", "observe cpu utilization")
+	data, err := json.Marshal(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded ContractRule
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded != r {
+		t.Errorf("round trip mismatch: got %+v, want %+v", decoded, r)
+	}
+}
+
+func TestContractRuleUnmarshalToleratesUnknownFields(t *testing.T) {
+	var r ContractRule
+	err := json.Unmarshal([]byte(`{"key":"observe-cpu","text":"observe cpu","category":"observation"}`), &r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Key() != mustLocalKey(t, "observe-cpu") || r.Text() != "observe cpu" {
+		t.Errorf("r = %+v, want key=observe-cpu text=%q", r, "observe cpu")
+	}
+}
+
+func TestContractRuleMarshalZero(t *testing.T) {
+	var r ContractRule
+	if _, err := json.Marshal(r); !errors.Is(err, ErrInvalidRuntimeContractRule) {
+		t.Errorf("zero marshal: error = %v, want %v", err, ErrInvalidRuntimeContractRule)
+	}
+}
+
+func TestContractRuleUnmarshalRejections(t *testing.T) {
+	tests := []struct {
+		name string
+		json string
+	}{
+		{"missing key", `{"text":"observe cpu"}`},
+		{"null key", `{"key":null,"text":"observe cpu"}`},
+		{"missing text", `{"key":"observe-cpu"}`},
+		{"null text", `{"key":"observe-cpu","text":null}`},
+		{"empty text", `{"key":"observe-cpu","text":""}`},
+		{"whitespace text", `{"key":"observe-cpu","text":"   "}`},
+		{"malformed JSON", `not json`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var r ContractRule
+			if err := json.Unmarshal([]byte(tt.json), &r); err == nil {
+				t.Errorf("%s accepted, want error", tt.json)
+			}
+		})
+	}
+}
+
+func TestContractRuleUnmarshalPreservesReceiverOnFailure(t *testing.T) {
+	r := mustContractRule(t, "observe-cpu", "observe cpu")
+	before := r
+	if err := json.Unmarshal([]byte(`{"key":"","text":"x"}`), &r); err == nil {
+		t.Fatal("expected error")
+	}
+	if r != before {
+		t.Errorf("receiver mutated on failed decode: got %+v, want %+v", r, before)
+	}
+}
+
+// --- Runtime Contract Rule combined namespace --------------------------------
+
+// TestContractContentRuleNamespaceCollisions exercises J3-03's corrective
+// combined namespace: all four ContractRule collections
+// (observationRequirements, violationClassificationRules,
+// waiverHandlingRules, enforcementExpectations) share exactly one
+// runtime-local key namespace, distinct from the Assertion namespace.
+func TestContractContentRuleNamespaceCollisions(t *testing.T) {
+	type rules struct {
+		observation, classification, waiver, enforcement []ContractRule
+	}
+	base := func() rules {
+		return rules{
+			observation:    []ContractRule{mustContractRule(t, "observe-cpu", "observe cpu")},
+			classification: []ContractRule{mustContractRule(t, "latency-breach", "latency breach")},
+			waiver:         []ContractRule{mustContractRule(t, "defer-oncall", "defer to on-call")},
+			enforcement:    []ContractRule{mustContractRule(t, "page-oncall", "page on-call")},
+		}
+	}
+	build := func(r rules) (ContractContent, error) {
+		c := mustMinimalContractContent(t)
+		var err error
+		if c, err = c.WithObservationRequirements(r.observation); err != nil {
+			return ContractContent{}, err
+		}
+		if c, err = c.WithViolationClassificationRules(r.classification); err != nil {
+			return ContractContent{}, err
+		}
+		if c, err = c.WithWaiverHandlingRules(r.waiver); err != nil {
+			return ContractContent{}, err
+		}
+		if c, err = c.WithEnforcementExpectations(r.enforcement); err != nil {
+			return ContractContent{}, err
+		}
+		return c, nil
+	}
+
+	t.Run("1 duplicate within observation requirements", func(t *testing.T) {
+		r := base()
+		r.observation = append(r.observation, mustContractRule(t, "observe-cpu", "observe cpu again"))
+		if _, err := build(r); !errors.Is(err, ErrDuplicateRuntimeLocalKey) {
+			t.Errorf("error = %v, want %v", err, ErrDuplicateRuntimeLocalKey)
+		}
+	})
+	t.Run("2 duplicate within violation classification rules", func(t *testing.T) {
+		r := base()
+		r.classification = append(r.classification, mustContractRule(t, "latency-breach", "latency breach again"))
+		if _, err := build(r); !errors.Is(err, ErrDuplicateRuntimeLocalKey) {
+			t.Errorf("error = %v, want %v", err, ErrDuplicateRuntimeLocalKey)
+		}
+	})
+	t.Run("3 duplicate within waiver handling rules", func(t *testing.T) {
+		r := base()
+		r.waiver = append(r.waiver, mustContractRule(t, "defer-oncall", "defer again"))
+		if _, err := build(r); !errors.Is(err, ErrDuplicateRuntimeLocalKey) {
+			t.Errorf("error = %v, want %v", err, ErrDuplicateRuntimeLocalKey)
+		}
+	})
+	t.Run("4 duplicate within enforcement expectations", func(t *testing.T) {
+		r := base()
+		r.enforcement = append(r.enforcement, mustContractRule(t, "page-oncall", "page again"))
+		if _, err := build(r); !errors.Is(err, ErrDuplicateRuntimeLocalKey) {
+			t.Errorf("error = %v, want %v", err, ErrDuplicateRuntimeLocalKey)
+		}
+	})
+	t.Run("5 observation vs classification", func(t *testing.T) {
+		r := base()
+		r.classification = []ContractRule{mustContractRule(t, "observe-cpu", "collides with observation")}
+		if _, err := build(r); !errors.Is(err, ErrDuplicateRuntimeLocalKey) {
+			t.Errorf("error = %v, want %v", err, ErrDuplicateRuntimeLocalKey)
+		}
+	})
+	t.Run("6 observation vs waiver", func(t *testing.T) {
+		r := base()
+		r.waiver = []ContractRule{mustContractRule(t, "observe-cpu", "collides with observation")}
+		if _, err := build(r); !errors.Is(err, ErrDuplicateRuntimeLocalKey) {
+			t.Errorf("error = %v, want %v", err, ErrDuplicateRuntimeLocalKey)
+		}
+	})
+	t.Run("7 observation vs enforcement", func(t *testing.T) {
+		r := base()
+		r.enforcement = []ContractRule{mustContractRule(t, "observe-cpu", "collides with observation")}
+		if _, err := build(r); !errors.Is(err, ErrDuplicateRuntimeLocalKey) {
+			t.Errorf("error = %v, want %v", err, ErrDuplicateRuntimeLocalKey)
+		}
+	})
+	t.Run("8 classification vs waiver", func(t *testing.T) {
+		r := base()
+		r.waiver = []ContractRule{mustContractRule(t, "latency-breach", "collides with classification")}
+		if _, err := build(r); !errors.Is(err, ErrDuplicateRuntimeLocalKey) {
+			t.Errorf("error = %v, want %v", err, ErrDuplicateRuntimeLocalKey)
+		}
+	})
+	t.Run("9 classification vs enforcement", func(t *testing.T) {
+		r := base()
+		r.enforcement = []ContractRule{mustContractRule(t, "latency-breach", "collides with classification")}
+		if _, err := build(r); !errors.Is(err, ErrDuplicateRuntimeLocalKey) {
+			t.Errorf("error = %v, want %v", err, ErrDuplicateRuntimeLocalKey)
+		}
+	})
+	t.Run("10 waiver vs enforcement", func(t *testing.T) {
+		r := base()
+		r.enforcement = []ContractRule{mustContractRule(t, "defer-oncall", "collides with waiver")}
+		if _, err := build(r); !errors.Is(err, ErrDuplicateRuntimeLocalKey) {
+			t.Errorf("error = %v, want %v", err, ErrDuplicateRuntimeLocalKey)
+		}
+	})
+	// Case 11 (ContractRule and Assertion sharing a key is accepted) is
+	// covered by TestContractContentAssertionAndContractRuleShareKeyAccepted
+	// below: it needs a full NewContractContent call (Assertions are a
+	// constructor argument, not a With* collection) and so does not fit
+	// this table's build() helper.
+}
+
+// TestContractContentAssertionAndContractRuleShareKeyAccepted documents that
+// the Assertion namespace and the combined Runtime Contract Rule namespace
+// are independent: the same core.LocalKey may be used once for an Assertion
+// and once for a ContractRule without triggering ErrDuplicateRuntimeLocalKey.
+func TestContractContentAssertionAndContractRuleShareKeyAccepted(t *testing.T) {
+	a := mustAssertion(t, "shared-key")
+	c, err := NewContractContent(
+		[]RequirementReference{mustRequirementIdentityReference(t, "REQ-1")},
+		mustRuntimeSubjectRef(t, "kubernetes", "pod-1"),
+		mustEnvironment(t, "production"),
+		mustScope(t, "cluster=prod-1"),
+		NewUnrestrictedContractApplicability(),
+		mustProvenance(t),
+		mustAuthority(t),
+		[]Assertion{a},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err = c.WithObservationRequirements([]ContractRule{mustContractRule(t, "shared-key", "an observation requirement")})
+	if err != nil {
+		t.Errorf("Assertion and ContractRule sharing a key: unexpected error %v", err)
+	}
+	if _, ok := c.Assertion(mustLocalKey(t, "shared-key")); !ok {
+		t.Error("Assertion(shared-key) lookup failed")
+	}
+	if _, ok := c.ContractRule(mustLocalKey(t, "shared-key")); !ok {
+		t.Error("ContractRule(shared-key) lookup failed")
 	}
 }
 
@@ -834,6 +1104,127 @@ func TestContractContentAssertionZeroRejected(t *testing.T) {
 	)
 	if !errors.Is(err, ErrInvalidRuntimeAssertion) {
 		t.Errorf("zero assertion: error = %v, want %v", err, ErrInvalidRuntimeAssertion)
+	}
+}
+
+// TestContractContentRuleCollectionJSONBehavior verifies, for each of the
+// four ContractRule collections independently, that an absent key, an
+// explicit null, and an empty array are all equivalent to "declares none",
+// that one or several valid elements decode correctly, that an invalid
+// element is rejected, and that the receiver is preserved on a failed
+// decode -- per Packet J.2.A section 9's per-collection JSON matrix.
+func TestContractContentRuleCollectionJSONBehavior(t *testing.T) {
+	fields := []string{
+		"observation_requirements",
+		"violation_classification_rules",
+		"waiver_handling_rules",
+		"enforcement_expectations",
+	}
+
+	baseMap := func(t *testing.T) map[string]json.RawMessage {
+		t.Helper()
+		data, err := json.Marshal(mustMinimalContractContent(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m map[string]json.RawMessage
+		if err := json.Unmarshal(data, &m); err != nil {
+			t.Fatal(err)
+		}
+		return m
+	}
+
+	for _, field := range fields {
+		t.Run(field, func(t *testing.T) {
+			t.Run("absent", func(t *testing.T) {
+				m := baseMap(t)
+				delete(m, field)
+				data, err := json.Marshal(m)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var c ContractContent
+				if err := json.Unmarshal(data, &c); err != nil {
+					t.Errorf("absent %s rejected: %v", field, err)
+				}
+			})
+			t.Run("null", func(t *testing.T) {
+				m := baseMap(t)
+				m[field] = json.RawMessage(`null`)
+				data, err := json.Marshal(m)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var c ContractContent
+				if err := json.Unmarshal(data, &c); err != nil {
+					t.Errorf("null %s rejected: %v", field, err)
+				}
+			})
+			t.Run("empty array", func(t *testing.T) {
+				m := baseMap(t)
+				m[field] = json.RawMessage(`[]`)
+				data, err := json.Marshal(m)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var c ContractContent
+				if err := json.Unmarshal(data, &c); err != nil {
+					t.Errorf("empty array %s rejected: %v", field, err)
+				}
+			})
+			t.Run("one valid element", func(t *testing.T) {
+				m := baseMap(t)
+				m[field] = json.RawMessage(`[{"key":"k1","text":"rule one"}]`)
+				data, err := json.Marshal(m)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var c ContractContent
+				if err := json.Unmarshal(data, &c); err != nil {
+					t.Fatalf("one valid element rejected: %v", err)
+				}
+			})
+			t.Run("multiple valid elements", func(t *testing.T) {
+				m := baseMap(t)
+				m[field] = json.RawMessage(`[{"key":"k1","text":"rule one"},{"key":"k2","text":"rule two"}]`)
+				data, err := json.Marshal(m)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var c ContractContent
+				if err := json.Unmarshal(data, &c); err != nil {
+					t.Fatalf("multiple valid elements rejected: %v", err)
+				}
+			})
+			t.Run("invalid element", func(t *testing.T) {
+				m := baseMap(t)
+				m[field] = json.RawMessage(`[{"key":"","text":"rule one"}]`)
+				data, err := json.Marshal(m)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var c ContractContent
+				if err := json.Unmarshal(data, &c); err == nil {
+					t.Error("invalid element accepted, want error")
+				}
+			})
+			t.Run("receiver preservation", func(t *testing.T) {
+				c := mustMinimalContractContent(t)
+				m := baseMap(t)
+				m[field] = json.RawMessage(`[{"key":"","text":"rule one"}]`)
+				data, err := json.Marshal(m)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := json.Unmarshal(data, &c); err == nil {
+					t.Fatal("invalid element accepted, want error")
+				}
+				if len(c.ObservationRequirements()) != 0 || len(c.ViolationClassificationRules()) != 0 ||
+					len(c.WaiverHandlingRules()) != 0 || len(c.EnforcementExpectations()) != 0 {
+					t.Error("receiver mutated on failed decode")
+				}
+			})
+		})
 	}
 }
 

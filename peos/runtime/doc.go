@@ -26,6 +26,7 @@
 //	    ContractContent            the Revision's typed declared content
 //	      RequirementReference     Revision-owned value (two participant levels)
 //	      Assertion                Revision-owned value
+//	      ContractRule             Revision-owned value (four categories, one namespace)
 //
 //	BindingRecord                 immutable record, not an Artifact
 //	UnbindingRecord                immutable record, not an Artifact
@@ -40,7 +41,7 @@
 // Contract is the only type in this package with a PEOS identity, and that
 // identity is an ordinary core.ArtifactID -- there is no Runtime Contract
 // Version, and no independent identity for a Runtime Requirement
-// Reference or a Runtime Assertion.
+// Reference, a Runtime Assertion, or a Runtime Contract Rule.
 //
 // # Runtime Contract Artifact semantics
 //
@@ -72,15 +73,18 @@
 // every collection modifier enforce len(requirements) >= 1 through the
 // single shared validation path validateContractContent.
 //
-// No other collection has any minimum. Assertions, observation
-// requirements, violation classification rules, Waiver handling rules,
-// enforcement expectations, and applicable Quality Profile Revisions may
-// all be empty -- PEOS-008 lists each without a cardinality qualifier
-// (Quality Profile Revisions are explicitly "where required"), the same
-// unqualified form this repository already reads as permitting emptiness
-// for validation.PlannedActivity's own "criteria", "Evidence expected",
-// and "execution prerequisites" items, and for quality.ProfileContent's
-// seven owned-value collections after Packet I.3.B's correction.
+// No other collection has any minimum. Assertions, the four ContractRule
+// categories (observation requirements, violation classification rules,
+// Waiver handling rules, enforcement expectations), and applicable Quality
+// Profile Revisions may all be empty -- PEOS-008 lists each without a
+// cardinality qualifier (Quality Profile Revisions are explicitly "where
+// required"), the same unqualified form this repository already reads as
+// permitting emptiness for validation.PlannedActivity's own "criteria",
+// "Evidence expected", and "execution prerequisites" items, and for
+// quality.ProfileContent's seven owned-value collections after Packet
+// I.3.B's correction. Packet J.2.A, which introduced ContractRule in place
+// of the four categories' original opaque []string representation,
+// introduced no new aggregate minimum either.
 //
 // # Exact Requirement participant level
 //
@@ -96,15 +100,50 @@
 //
 // # Runtime-local key namespace
 //
-// Assertion is the one owned-value collection this package keys, using
-// core.LocalKey. Keys are unique within the Assertions collection;
-// PEOS-008 states no key uniqueness rule at all, so this is a minimal
-// derived rule -- the same derivation quality.addProfileLocalKey documents
-// for its own per-kind namespaces: a criterion citing an Assertion by key
-// must resolve to exactly one Assertion. This package does not perform
-// repository resolution of an Assertion's core.CriterionRef: whether the
-// Requirement, Runtime Contract rule, Quality element, or external rule it
-// names actually exists is repository-owned.
+// Runtime local-key namespaces are criterion-kind namespaces, not one
+// namespace per Go collection. PEOS-008 gives a Runtime Contract Revision
+// exactly two citable, locally-keyed collections of content, matching the
+// two dedicated core.CriterionRef arms peos/core already carries --
+// core.CriterionKindRuntimeAssertion and
+// core.CriterionKindRuntimeContractRule, both taking a
+// core.RuntimeRuleCriterionRef payload of (Revision, LocalKey) with no
+// further discriminator -- and this package's key namespaces mirror that
+// two-way split exactly:
+//
+//   - the Assertion namespace is exactly ContractContent.assertions;
+//   - the Runtime Contract Rule namespace spans all four ContractRule
+//     categories combined -- observation requirements, violation
+//     classification rules, Waiver handling rules, and enforcement
+//     expectations -- because core.RuntimeRuleCriterionRef's payload
+//     carries no rule-category discriminator to tell the four categories
+//     apart at the criterion level, so a key must resolve to at most one
+//     ContractRule across all four collections together, not once per
+//     collection.
+//
+// Uniqueness is enforced *within* each of these two namespaces; PEOS-008
+// states no key uniqueness rule at all, so this is a minimal derived
+// rule -- the same derivation quality.addProfileLocalKey documents for its
+// own per-kind namespaces: a criterion citing an owned value by key must
+// resolve to exactly one such value. The two namespaces are independent of
+// each other, so the same key may be used once by an Assertion and once by
+// a ContractRule without conflict (the criterion kind, not the key,
+// determines which namespace is consulted) -- but a key may not repeat
+// twice within the Assertion namespace, nor twice across any two of the
+// four Contract Rule categories.
+//
+// This package does not perform repository resolution of an Assertion's
+// or a ContractRule's core.CriterionRef: whether the Requirement, Runtime
+// Contract rule, Quality element, or external rule it names actually
+// exists is repository-owned. ContractContent.ContractRule(key) and
+// ContractContent.Assertion(key) perform only local resolution within an
+// already-loaded ContractContent.
+//
+// Before Packet J.2.A, the four Contract Rule categories were represented
+// as opaque []string with no key of any kind, which left
+// core.CriterionKindRuntimeContractRule -- already shipped in peos/core --
+// with no resolvable target anywhere in this package (audit finding
+// J3-03). ContractRule and the combined namespace above are the
+// correction.
 //
 // # No execution or invocation record
 //
@@ -156,9 +195,9 @@
 //     opaque, Product-defined namespaced identifier);
 //   - an Assertion's evaluation rule and expected result -- both opaque,
 //     trimmed strings, because PEOS-008 defines no expression language;
-//   - observation requirements, violation classification rules, Waiver
-//     handling rules, and enforcement expectations -- all opaque, trimmed
-//     string descriptions;
+//   - a ContractRule's text, across all four categories (observation
+//     requirements, violation classification rules, Waiver handling
+//     rules, enforcement expectations) -- opaque, trimmed strings;
 //   - core.Scope's expression, in a Contract's deployment scope, an
 //     Assertion's scope, or applicability.
 //
@@ -209,10 +248,12 @@
 //   - deriving Current Runtime Binding from Binding and Unbinding Record
 //     history, and Runtime Compliance from applicable, non-replaced,
 //     non-invalidated Compliance Claims, Violations, and Waivers;
-//   - evaluating an Assertion's criterion against whatever it names, and
-//     evaluating PEOS-005 Waiver applicability (scope, authority,
-//     temporal, and -- where PEOS-005 comes to define them -- attached
-//     conditions);
+//   - evaluating an Assertion's or a ContractRule's criterion against
+//     whatever it names, and evaluating PEOS-005 Waiver applicability
+//     (scope, authority, temporal, and -- where PEOS-005 comes to define
+//     them -- attached conditions) as an input to derived Runtime
+//     Compliance -- this package stores no Waiver reference of any kind
+//     (see RJ-1 below);
 //   - actual runtime execution, deployment, scheduling, and monitoring,
 //     all Product-owned and out of scope for this package.
 //
@@ -225,42 +266,64 @@
 // ViolationClassification, ViolationSeverity), plus the additive
 // peos/core change described above.
 //
-// Packet J.2 (this update) added the four immutable enforcement records
-// and the Compliance Claim helper: BindingRecord and UnbindingRecord
+// Packet J.2 added the four immutable enforcement records and the
+// Compliance Claim helper: BindingRecord and UnbindingRecord
 // (correction-bearing, via core.RecordCorrectionRef[core.RuntimeBindingRecordRef]
 // and core.RecordCorrectionRef[core.RuntimeUnbindingRecordRef]
 // respectively); Observation (no correction reference; explicit,
 // non-automatic Evidence citation via []core.EvidenceArtifactRevisionRef);
 // ViolationTrigger (a closed two-arm union naming the exact Observation or
 // Evidence that triggered a Violation) and Violation itself (no correction
-// reference; its applicable-Waiver field is an opaque description, not a
-// typed reference, because peos/requirement.Waiver has no independent
-// identity to reference -- see RJ-1 below); and NewComplianceClaim, which
-// delegates to validation.NewClaim with the Claim Type fixed to
-// core.ClaimTypeCompliance and returns an ordinary validation.Claim -- no
-// ComplianceClaim type exists, because PEOS-008 imposes no rule on a
-// Compliance Claim beyond what PEOS-006 already enforces. All four
-// sentinels J.1 reserved for this work
-// (ErrInvalidRuntimeBindingRecord, ErrInvalidRuntimeUnbindingRecord,
-// ErrInvalidRuntimeObservation, ErrInvalidRuntimeViolation) are now active;
-// no new sentinel was declared, following the convention Packet H.1/I.1
-// established.
+// reference); and NewComplianceClaim, which delegates to
+// validation.NewClaim with the Claim Type fixed to core.ClaimTypeCompliance
+// and returns an ordinary validation.Claim -- no ComplianceClaim type
+// exists, because PEOS-008 imposes no rule on a Compliance Claim beyond
+// what PEOS-006 already enforces. All four sentinels J.1 reserved for this
+// work (ErrInvalidRuntimeBindingRecord, ErrInvalidRuntimeUnbindingRecord,
+// ErrInvalidRuntimeObservation, ErrInvalidRuntimeViolation) became active.
 //
-// # RJ-1 -- Waiver representation limitation
+// Packet J.3's independent, read-only Consolidated Audit returned AUDIT
+// PASS WITH CORRECTIVE PACKET REQUIRED: 0 BLOCKER, 3 MAJOR, 2 MINOR, 5
+// NOTE. Packet J.2.A (this update) implemented the three MAJOR and two
+// MINOR corrections:
 //
-// PEOS-008 ":524-530" lets a Runtime Violation identify "an applicable
-// Waiver, if any" and a Compliance Claim's criteria "include... applicable
-// Waiver conditions." peos/requirement.Waiver, as PEOS-005 defines and
-// implements it, has no independent identity, no Ref type, and no
-// conditions field -- so no exact core.CriterionRef arm or dedicated
-// reference type can cite one, and this package does not add either
-// without modifying peos/requirement or peos/core, which is out of this
-// packet's scope. Violation.WithApplicableWaiver therefore accepts only an
-// opaque, trimmed description, not a typed reference. This limitation is
-// already recorded in the tracker under NOTE G-05 and is not a new gap
-// introduced here; Packet J.3 should independently re-confirm it remains
-// non-blocking.
+//   - J3-01: Observation had no scope field at all, though PEOS-008 ":236"
+//     requires every Runtime Binding Record, Runtime Observation, Runtime
+//     Violation, and Compliance Claim to identify "its exact runtime
+//     subject and subject scope". Observation now takes a mandatory
+//     core.Scope constructor argument and exposes Scope().
+//   - J3-02: Observation's environment was optional though PEOS-008
+//     ":384" states "environment or context" unqualified, in the same
+//     SHALL-identify list as two genuinely conditional items, and
+//     BindingRecord's identically-unqualified environment (":273") is
+//     mandatory in this same package. Environment is now a mandatory
+//     Observation constructor argument; WithEnvironment and
+//     WithoutEnvironment no longer exist.
+//   - J3-03: core.CriterionKindRuntimeContractRule had no resolvable
+//     target, because none of the four Contract Rule categories were
+//     keyed. ContractRule (a new Revision-owned value, with its own
+//     sentinel ErrInvalidRuntimeContractRule) now carries a core.LocalKey,
+//     and all four categories share one combined criterion-kind namespace
+//     -- see "Runtime-local key namespace" above.
+//   - J3-04 (RJ-1): Violation.applicableWaiver -- an opaque, unresolvable
+//     description standing in for an "identify" obligation PEOS-005's
+//     Waiver has no identity to satisfy -- has been removed outright, not
+//     renamed or replaced. Waiver applicability remains exactly what
+//     PEOS-008 ":531" says it is: an input to derived Runtime Compliance,
+//     computed by a repository, never a stored value-layer field. This
+//     does not reduce PEOS-008 conformance: the removed field never
+//     satisfied ":429" as an identification in the first place.
+//   - J3-05: the tracker previously recorded J.1 and J.2 as "uncommitted"
+//     with no commit hash; both are now recorded with their exact hashes.
 //
-// No PEOS-008 packet has an accepted audit verdict yet; Packet J.3 is the
-// consolidated audit and Packet J.4 the closure.
+// RJ-2 (whether Contract Revision authority, unqualified at ":196", is
+// genuinely mandatory) was independently re-derived by Packet J.3 and
+// closed in favor of the shipped behavior: PEOS-008 itself qualifies
+// authority "where required" for both Binding Record (":278") and
+// Unbinding Record (":312"), so the Contract Revision's own unqualified
+// authority is a deliberate intra-document contrast, not an oversight.
+// Authority remains mandatory; no change was made.
+//
+// Packet J.3.A (a focused re-audit of exactly these five corrections) is
+// the next step; Packet J.4 is the closure.
 package runtime

@@ -14,6 +14,8 @@ func mustObservation(t *testing.T, id string) Observation {
 	o, err := NewObservation(
 		mustRuntimeObservationID(t, id),
 		mustRuntimeSubjectRef(t, "kubernetes", "pod-1"),
+		mustScope(t, "cluster=prod-1"),
+		mustEnvironment(t, "production"),
 		mustTimestampAt(t, 0),
 		"latency=142ms",
 		"http-probe",
@@ -53,8 +55,11 @@ func TestNewObservation(t *testing.T) {
 	if _, ok := o.UnitScaleOrEventType(); ok {
 		t.Error("new Observation should have no unit/scale/event type")
 	}
-	if _, ok := o.Environment(); ok {
-		t.Error("new Observation should have no environment")
+	if o.Scope() != mustScope(t, "cluster=prod-1") {
+		t.Error("Scope() mismatch")
+	}
+	if o.Environment() != mustEnvironment(t, "production") {
+		t.Error("Environment() mismatch")
 	}
 	if _, ok := o.Uncertainty(); ok {
 		t.Error("new Observation should have no uncertainty")
@@ -85,29 +90,37 @@ func TestNewObservation(t *testing.T) {
 func TestNewObservationMandatoryFieldRejections(t *testing.T) {
 	id := mustRuntimeObservationID(t, "OBS-1")
 	subject := mustRuntimeSubjectRef(t, "kubernetes", "pod-1")
+	scope := mustScope(t, "cluster=prod-1")
+	environment := mustEnvironment(t, "production")
 	observedAt := mustTimestampAt(t, 0)
 	source := mustActor(t, "peos-cli", "svc-1")
 	provenance := mustProvenance(t)
 
-	if _, err := NewObservation(core.RuntimeObservationID{}, subject, observedAt, "value", "method", source, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
+	if _, err := NewObservation(core.RuntimeObservationID{}, subject, scope, environment, observedAt, "value", "method", source, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
 		t.Errorf("zero id: error = %v, want %v", err, ErrInvalidRuntimeObservation)
 	}
-	if _, err := NewObservation(id, core.RuntimeSubjectRef{}, observedAt, "value", "method", source, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
+	if _, err := NewObservation(id, core.RuntimeSubjectRef{}, scope, environment, observedAt, "value", "method", source, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
 		t.Errorf("zero subject: error = %v, want %v", err, ErrInvalidRuntimeObservation)
 	}
-	if _, err := NewObservation(id, subject, core.Timestamp{}, "value", "method", source, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
+	if _, err := NewObservation(id, subject, core.Scope{}, environment, observedAt, "value", "method", source, provenance); !errors.Is(err, core.ErrInvalidScope) {
+		t.Errorf("zero scope: error = %v, want %v", err, core.ErrInvalidScope)
+	}
+	if _, err := NewObservation(id, subject, scope, Environment{}, observedAt, "value", "method", source, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
+		t.Errorf("zero environment: error = %v, want %v", err, ErrInvalidRuntimeObservation)
+	}
+	if _, err := NewObservation(id, subject, scope, environment, core.Timestamp{}, "value", "method", source, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
 		t.Errorf("zero observed-at: error = %v, want %v", err, ErrInvalidRuntimeObservation)
 	}
-	if _, err := NewObservation(id, subject, observedAt, "   ", "method", source, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
+	if _, err := NewObservation(id, subject, scope, environment, observedAt, "   ", "method", source, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
 		t.Errorf("whitespace-only observed value: error = %v, want %v", err, ErrInvalidRuntimeObservation)
 	}
-	if _, err := NewObservation(id, subject, observedAt, "value", "", source, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
+	if _, err := NewObservation(id, subject, scope, environment, observedAt, "value", "", source, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
 		t.Errorf("empty collection method: error = %v, want %v", err, ErrInvalidRuntimeObservation)
 	}
-	if _, err := NewObservation(id, subject, observedAt, "value", "method", core.ActorRef{}, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
+	if _, err := NewObservation(id, subject, scope, environment, observedAt, "value", "method", core.ActorRef{}, provenance); !errors.Is(err, ErrInvalidRuntimeObservation) {
 		t.Errorf("zero source: error = %v, want %v", err, ErrInvalidRuntimeObservation)
 	}
-	if _, err := NewObservation(id, subject, observedAt, "value", "method", source, core.Provenance{}); !errors.Is(err, ErrInvalidRuntimeObservation) {
+	if _, err := NewObservation(id, subject, scope, environment, observedAt, "value", "method", source, core.Provenance{}); !errors.Is(err, ErrInvalidRuntimeObservation) {
 		t.Errorf("zero provenance: error = %v, want %v", err, ErrInvalidRuntimeObservation)
 	}
 }
@@ -173,26 +186,6 @@ func TestObservationWithUnitScaleOrEventType(t *testing.T) {
 	cleared := o2.WithoutUnitScaleOrEventType()
 	if _, ok := cleared.UnitScaleOrEventType(); ok {
 		t.Error("WithoutUnitScaleOrEventType did not clear the field")
-	}
-}
-
-func TestObservationWithEnvironment(t *testing.T) {
-	o := mustObservation(t, "OBS-1")
-	env := mustEnvironment(t, "production")
-	o2, err := o.WithEnvironment(env)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, ok := o2.Environment()
-	if !ok || got != env {
-		t.Errorf("Environment() = (%v, %v)", got, ok)
-	}
-	if _, err := o.WithEnvironment(Environment{}); !errors.Is(err, ErrInvalidRuntimeObservation) {
-		t.Errorf("zero environment: error = %v, want %v", err, ErrInvalidRuntimeObservation)
-	}
-	cleared := o2.WithoutEnvironment()
-	if _, ok := cleared.Environment(); ok {
-		t.Error("WithoutEnvironment did not clear the field")
 	}
 }
 
@@ -319,10 +312,6 @@ func TestObservationJSONRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	o, err = o.WithEnvironment(mustEnvironment(t, "production"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	o, err = o.WithUncertainty("+/- 5ms")
 	if err != nil {
 		t.Fatal(err)
@@ -348,6 +337,9 @@ func TestObservationJSONRoundTrip(t *testing.T) {
 	var decoded Observation
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatal(err)
+	}
+	if decoded.Scope() != o.Scope() || decoded.Environment() != o.Environment() {
+		t.Error("round trip lost scope or environment")
 	}
 	data2, err := json.Marshal(decoded)
 	if err != nil {
@@ -419,10 +411,6 @@ func TestObservationUnmarshalFieldSpecificRejections(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	o, err = o.WithEnvironment(mustEnvironment(t, "production"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	o, err = o.WithUncertainty("+/- 5ms")
 	if err != nil {
 		t.Fatal(err)
@@ -449,6 +437,8 @@ func TestObservationUnmarshalFieldSpecificRejections(t *testing.T) {
 		{"null unit_scale_or_event_type", "unit_scale_or_event_type", json.RawMessage("null")},
 		{"malformed unit_scale_or_event_type", "unit_scale_or_event_type", json.RawMessage(`123`)},
 		{"whitespace-only unit_scale_or_event_type", "unit_scale_or_event_type", json.RawMessage(`"   "`)},
+		{"null scope", "scope", json.RawMessage("null")},
+		{"malformed scope", "scope", json.RawMessage(`123`)},
 		{"null environment", "environment", json.RawMessage("null")},
 		{"malformed environment", "environment", json.RawMessage(`123`)},
 		{"null uncertainty", "uncertainty", json.RawMessage("null")},
@@ -468,6 +458,36 @@ func TestObservationUnmarshalFieldSpecificRejections(t *testing.T) {
 			var decoded Observation
 			if err := json.Unmarshal(modified, &decoded); err == nil {
 				t.Errorf("%s accepted, want error", tt.name)
+			}
+		})
+	}
+}
+
+func TestObservationUnmarshalMissingMandatoryFieldsRejected(t *testing.T) {
+	base := mustObservation(t, "OBS-1")
+	data, err := json.Marshal(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]json.RawMessage
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, key := range []string{"scope", "environment"} {
+		t.Run("missing "+key, func(t *testing.T) {
+			mCopy := make(map[string]json.RawMessage, len(m))
+			for k, v := range m {
+				mCopy[k] = v
+			}
+			delete(mCopy, key)
+			modified, err := json.Marshal(mCopy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var decoded Observation
+			if err := json.Unmarshal(modified, &decoded); err == nil {
+				t.Errorf("missing %s accepted, want error", key)
 			}
 		})
 	}

@@ -173,14 +173,16 @@ func (t *ViolationTrigger) UnmarshalJSON(data []byte) error {
 // for Violation, and no core.RuntimeViolationRef type exists to serve as
 // one (see doc.go's core-impact discussion).
 //
-// The applicable-Waiver field is represented as an opaque, trimmed
-// description, not a typed Waiver reference: PEOS-005's Waiver
-// (peos/requirement.Waiver) has no independent identity or Ref type by
-// design, so no exact reference to it can be constructed without
-// modifying peos/requirement or peos/core, which this packet does not do.
-// This is a disclosed representational limitation (RJ-1), not a silent
-// omission -- Waiver applicability is otherwise repository-derived, per
-// doc.go.
+// Violation carries no applicable-Waiver field of any kind (removed by
+// Packet J.2.A, correcting audit finding J3-04/RJ-1). PEOS-005's Waiver
+// has no independent identity, so no exact reference to it can be
+// constructed without modifying peos/requirement or peos/core, and an
+// opaque description would satisfy PEOS-008 ":429"'s "identify" obligation
+// in name only, not in substance. PEOS-008 ":531" is explicit that a
+// Waiver "affects only the derived interpretation of compliance" --
+// Waiver applicability is therefore entirely repository-owned, computed as
+// an input to derived Runtime Compliance, and never a stored value-layer
+// field on Violation. See doc.go's RJ-1 note.
 type Violation struct {
 	id             core.RuntimeViolationID
 	subject        core.RuntimeSubjectRef
@@ -196,7 +198,6 @@ type Violation struct {
 	severity         ViolationSeverity
 	uncertainty      string
 	limitations      []string
-	applicableWaiver string
 	relatedClaims    []core.ValidationClaimRef
 	relatedDecisions []core.DecisionRef
 	extension        core.Extension
@@ -377,29 +378,6 @@ func (v Violation) WithLimitations(limitations []string) (Violation, error) {
 	return v, nil
 }
 
-// WithApplicableWaiver returns a copy of v with an opaque description of
-// an applicable PEOS-005 Waiver set. description must be non-empty after
-// trimming. Use WithoutApplicableWaiver to clear it.
-//
-// This is a trimmed description, not a typed Waiver reference: see the
-// type documentation above for why one cannot be constructed without
-// modifying peos/requirement or peos/core.
-func (v Violation) WithApplicableWaiver(description string) (Violation, error) {
-	trimmed, err := trimmedRequired("Violation.WithApplicableWaiver", "applicable waiver", description, ErrInvalidRuntimeViolation)
-	if err != nil {
-		return Violation{}, err
-	}
-	v.applicableWaiver = trimmed
-	return v, nil
-}
-
-// WithoutApplicableWaiver returns a copy of v with its applicable-Waiver
-// description cleared.
-func (v Violation) WithoutApplicableWaiver() Violation {
-	v.applicableWaiver = ""
-	return v
-}
-
 // WithRelatedClaims returns a copy of v with its related Validation Claim
 // references set to exactly the values given, in the order given. A
 // zero-value element is rejected. Passing an empty or nil slice declares
@@ -492,12 +470,6 @@ func (v Violation) Uncertainty() (string, bool) { return v.uncertainty, v.uncert
 // descriptions, in declaration order.
 func (v Violation) Limitations() []string { return copySlice(v.limitations) }
 
-// ApplicableWaiver returns v's opaque applicable-Waiver description, and
-// whether one is set.
-func (v Violation) ApplicableWaiver() (string, bool) {
-	return v.applicableWaiver, v.applicableWaiver != ""
-}
-
 // RelatedClaims returns a defensive copy of v's related Validation Claim
 // references, in declaration order.
 func (v Violation) RelatedClaims() []core.ValidationClaimRef { return copySlice(v.relatedClaims) }
@@ -529,7 +501,6 @@ type violationJSON struct {
 	Severity         *ViolationSeverity            `json:"severity,omitempty"`
 	Uncertainty      string                        `json:"uncertainty,omitempty"`
 	Limitations      []string                      `json:"limitations,omitempty"`
-	ApplicableWaiver string                        `json:"applicable_waiver,omitempty"`
 	RelatedClaims    []core.ValidationClaimRef     `json:"related_claims,omitempty"`
 	RelatedDecisions []core.DecisionRef            `json:"related_decisions,omitempty"`
 	Extension        *core.Extension               `json:"extension,omitempty"`
@@ -549,7 +520,6 @@ type violationUnmarshalJSON struct {
 	Severity         json.RawMessage           `json:"severity"`
 	Uncertainty      json.RawMessage           `json:"uncertainty"`
 	Limitations      []string                  `json:"limitations"`
-	ApplicableWaiver json.RawMessage           `json:"applicable_waiver"`
 	RelatedClaims    []core.ValidationClaimRef `json:"related_claims"`
 	RelatedDecisions []core.DecisionRef        `json:"related_decisions"`
 	Extension        *core.Extension           `json:"extension,omitempty"`
@@ -576,7 +546,6 @@ func (v Violation) MarshalJSON() ([]byte, error) {
 		Provenance:       v.provenance,
 		Uncertainty:      v.uncertainty,
 		Limitations:      v.limitations,
-		ApplicableWaiver: v.applicableWaiver,
 		RelatedClaims:    v.relatedClaims,
 		RelatedDecisions: v.relatedDecisions,
 	}
@@ -657,18 +626,6 @@ func (v *Violation) UnmarshalJSON(data []byte) error {
 	}
 	if len(raw.Limitations) > 0 {
 		if result, err = result.WithLimitations(raw.Limitations); err != nil {
-			return err
-		}
-	}
-	if len(raw.ApplicableWaiver) > 0 {
-		if err = rejectNullRaw("Violation", "applicable waiver", raw.ApplicableWaiver, ErrInvalidRuntimeViolation); err != nil {
-			return err
-		}
-		var description string
-		if err = json.Unmarshal(raw.ApplicableWaiver, &description); err != nil {
-			return fmt.Errorf("runtime: unmarshal Violation: %w: %w", ErrInvalidRuntimeViolation, err)
-		}
-		if result, err = result.WithApplicableWaiver(description); err != nil {
 			return err
 		}
 	}

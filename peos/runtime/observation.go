@@ -17,18 +17,28 @@ import (
 
 // Observation is a PEOS-008 Runtime Observation.
 //
-// Mandatory state: identity, the runtime subject, the observation
-// timestamp, the observed value or event, the collection method, and the
-// actor or system source, plus provenance -- for each of these, a zero
-// value is ambiguous between "unstated" and a legitimate value, so none
-// may be established only by a later With* call.
+// Mandatory state: identity, the runtime subject, subject scope, the
+// environment or context, the observation timestamp, the observed value
+// or event, the collection method, and the actor or system source, plus
+// provenance -- for each of these, a zero value is ambiguous between
+// "unstated" and a legitimate value, so none may be established only by a
+// later With* call.
+//
+// scope and environment were added by Packet J.2.A, correcting audit
+// findings J3-01 and J3-02: PEOS-008 ":236" requires every Runtime Binding
+// Record, Runtime Observation, Runtime Violation, and Compliance Claim to
+// identify "its exact runtime subject and subject scope", and ":384"
+// states "environment or context" without the qualifier the same
+// SHALL-identify list applies to its two genuinely conditional items --
+// the same unqualified form BindingRecord's own environment (":273")
+// already treats as mandatory in this package.
 //
 // Optional state: the exact Runtime Binding Record (where applicable), an
 // interval end (representing "timestamp or time interval" alongside the
 // mandatory single timestamp), a descriptor for unit/scale/event type,
-// environment, known uncertainty, known limitations, and explicit Evidence
-// Artifact Revision citations. For each, an empty/zero value already means
-// "none declared" unambiguously, the same reasoning
+// known uncertainty, known limitations, and explicit Evidence Artifact
+// Revision citations. For each, an empty/zero value already means "none
+// declared" unambiguously, the same reasoning
 // quality.Measure.RequiredEvidence and
 // quality.Measure.UncertaintyHandling apply to their own optional fields.
 //
@@ -46,6 +56,8 @@ import (
 type Observation struct {
 	id               core.RuntimeObservationID
 	subject          core.RuntimeSubjectRef
+	scope            core.Scope
+	environment      Environment
 	observedAt       core.Timestamp
 	observedValue    string
 	collectionMethod string
@@ -55,17 +67,16 @@ type Observation struct {
 	binding          core.RuntimeBindingRecordRef
 	intervalEnd      core.Timestamp
 	unitScaleOrEvent string
-	environment      Environment
 	uncertainty      string
 	limitations      []string
 	evidence         []core.EvidenceArtifactRevisionRef
 	extension        core.Extension
 }
 
-// NewObservation validates its seven mandatory arguments and returns an
+// NewObservation validates its nine mandatory arguments and returns an
 // Observation with no Binding reference, interval end, unit/scale/event
-// descriptor, environment, uncertainty, limitations, Evidence, or
-// extension. Use the With* methods to add those.
+// descriptor, uncertainty, limitations, Evidence, or extension. Use the
+// With* methods to add those.
 //
 // observedValue and collectionMethod must each be non-empty after
 // trimming; the trimmed values are stored. observedValue is an opaque
@@ -79,6 +90,8 @@ type Observation struct {
 func NewObservation(
 	id core.RuntimeObservationID,
 	subject core.RuntimeSubjectRef,
+	scope core.Scope,
+	environment Environment,
 	observedAt core.Timestamp,
 	observedValue string,
 	collectionMethod string,
@@ -90,6 +103,12 @@ func NewObservation(
 	}
 	if subject.IsZero() {
 		return Observation{}, fmt.Errorf("runtime: NewObservation: %w: subject must not be zero", ErrInvalidRuntimeObservation)
+	}
+	if scope.IsZero() {
+		return Observation{}, fmt.Errorf("runtime: NewObservation: %w: scope must not be zero", core.ErrInvalidScope)
+	}
+	if environment.IsZero() {
+		return Observation{}, fmt.Errorf("runtime: NewObservation: %w: environment must not be zero", ErrInvalidRuntimeObservation)
 	}
 	if observedAt.IsZero() {
 		return Observation{}, fmt.Errorf("runtime: NewObservation: %w: observed-at timestamp must not be zero", ErrInvalidRuntimeObservation)
@@ -111,6 +130,8 @@ func NewObservation(
 	return Observation{
 		id:               id,
 		subject:          subject,
+		scope:            scope,
+		environment:      environment,
 		observedAt:       observedAt,
 		observedValue:    trimmedValue,
 		collectionMethod: trimmedMethod,
@@ -180,22 +201,6 @@ func (o Observation) WithUnitScaleOrEventType(value string) (Observation, error)
 // event-type descriptor cleared.
 func (o Observation) WithoutUnitScaleOrEventType() Observation {
 	o.unitScaleOrEvent = ""
-	return o
-}
-
-// WithEnvironment returns a copy of o with its environment or context set.
-// environment must be non-zero. Use WithoutEnvironment to clear it.
-func (o Observation) WithEnvironment(environment Environment) (Observation, error) {
-	if environment.IsZero() {
-		return Observation{}, fmt.Errorf("runtime: Observation.WithEnvironment: %w: environment must not be zero", ErrInvalidRuntimeObservation)
-	}
-	o.environment = environment
-	return o, nil
-}
-
-// WithoutEnvironment returns a copy of o with its environment cleared.
-func (o Observation) WithoutEnvironment() Observation {
-	o.environment = Environment{}
 	return o
 }
 
@@ -269,6 +274,14 @@ func (o Observation) Ref() (core.RuntimeObservationRef, error) {
 // Subject returns the runtime subject o was observed on.
 func (o Observation) Subject() core.RuntimeSubjectRef { return o.subject }
 
+// Scope returns o's declared subject scope. It is mandatory and therefore
+// never absent on a valid Observation.
+func (o Observation) Scope() core.Scope { return o.scope }
+
+// Environment returns o's declared environment or context. It is
+// mandatory and therefore never absent on a valid Observation.
+func (o Observation) Environment() Environment { return o.environment }
+
 // ObservedAt returns o's observation timestamp (or interval start).
 func (o Observation) ObservedAt() core.Timestamp { return o.observedAt }
 
@@ -301,11 +314,6 @@ func (o Observation) UnitScaleOrEventType() (string, bool) {
 	return o.unitScaleOrEvent, o.unitScaleOrEvent != ""
 }
 
-// Environment returns o's environment or context, and whether one is set.
-func (o Observation) Environment() (Environment, bool) {
-	return o.environment, !o.environment.IsZero()
-}
-
 // Uncertainty returns o's statement of known uncertainty, and whether one
 // is set.
 func (o Observation) Uncertainty() (string, bool) { return o.uncertainty, o.uncertainty != "" }
@@ -324,13 +332,16 @@ func (o Observation) Extension() core.Extension { return o.extension }
 
 // IsZero reports whether o is the zero value.
 func (o Observation) IsZero() bool {
-	return o.id.IsZero() && o.subject.IsZero() && o.observedAt.IsZero() &&
-		o.observedValue == "" && o.collectionMethod == "" && o.source.IsZero() && o.provenance.IsZero()
+	return o.id.IsZero() && o.subject.IsZero() && o.scope.IsZero() && o.environment.IsZero() &&
+		o.observedAt.IsZero() && o.observedValue == "" && o.collectionMethod == "" &&
+		o.source.IsZero() && o.provenance.IsZero()
 }
 
 type observationJSON struct {
 	ID               core.RuntimeObservationID          `json:"id"`
 	Subject          core.RuntimeSubjectRef             `json:"subject"`
+	Scope            core.Scope                         `json:"scope"`
+	Environment      Environment                        `json:"environment"`
 	ObservedAt       core.Timestamp                     `json:"observed_at"`
 	ObservedValue    string                             `json:"observed_value"`
 	CollectionMethod string                             `json:"collection_method"`
@@ -339,7 +350,6 @@ type observationJSON struct {
 	Binding          *core.RuntimeBindingRecordRef      `json:"binding,omitempty"`
 	IntervalEnd      *core.Timestamp                    `json:"interval_end,omitempty"`
 	UnitScaleOrEvent string                             `json:"unit_scale_or_event_type,omitempty"`
-	Environment      *Environment                       `json:"environment,omitempty"`
 	Uncertainty      string                             `json:"uncertainty,omitempty"`
 	Limitations      []string                           `json:"limitations,omitempty"`
 	Evidence         []core.EvidenceArtifactRevisionRef `json:"evidence,omitempty"`
@@ -349,6 +359,8 @@ type observationJSON struct {
 type observationUnmarshalJSON struct {
 	ID               core.RuntimeObservationID          `json:"id"`
 	Subject          core.RuntimeSubjectRef             `json:"subject"`
+	Scope            core.Scope                         `json:"scope"`
+	Environment      Environment                        `json:"environment"`
 	ObservedAt       core.Timestamp                     `json:"observed_at"`
 	ObservedValue    string                             `json:"observed_value"`
 	CollectionMethod string                             `json:"collection_method"`
@@ -357,14 +369,13 @@ type observationUnmarshalJSON struct {
 	Binding          json.RawMessage                    `json:"binding"`
 	IntervalEnd      json.RawMessage                    `json:"interval_end"`
 	UnitScaleOrEvent json.RawMessage                    `json:"unit_scale_or_event_type"`
-	Environment      json.RawMessage                    `json:"environment"`
 	Uncertainty      json.RawMessage                    `json:"uncertainty"`
 	Limitations      []string                           `json:"limitations"`
 	Evidence         []core.EvidenceArtifactRevisionRef `json:"evidence"`
 	Extension        *core.Extension                    `json:"extension,omitempty"`
 }
 
-// MarshalJSON encodes o with its seven mandatory keys always present, plus
+// MarshalJSON encodes o with its nine mandatory keys always present, plus
 // whichever optional keys are set. There is no "execution", "invocation",
 // "result", "outcome", "success", or "failure" key: an Observation records
 // what was observed, never the execution of an activity.
@@ -375,6 +386,8 @@ func (o Observation) MarshalJSON() ([]byte, error) {
 	raw := observationJSON{
 		ID:               o.id,
 		Subject:          o.subject,
+		Scope:            o.scope,
+		Environment:      o.environment,
 		ObservedAt:       o.observedAt,
 		ObservedValue:    o.observedValue,
 		CollectionMethod: o.collectionMethod,
@@ -391,9 +404,6 @@ func (o Observation) MarshalJSON() ([]byte, error) {
 	if !o.intervalEnd.IsZero() {
 		raw.IntervalEnd = &o.intervalEnd
 	}
-	if !o.environment.IsZero() {
-		raw.Environment = &o.environment
-	}
 	if !o.extension.IsZero() {
 		raw.Extension = &o.extension
 	}
@@ -404,6 +414,14 @@ func (o Observation) MarshalJSON() ([]byte, error) {
 // as NewObservation and each With* method. The receiver is left untouched
 // unless every check passes.
 //
+// scope and environment: a missing key leaves the field zero and is
+// rejected through its owning sentinel (core.ErrInvalidScope,
+// ErrInvalidRuntimeObservation). An explicit null invokes that nested
+// type's own UnmarshalJSON where it has one (core.Scope fails there); for
+// Environment a null leaves the wrapped vocabulary value zero, which
+// NewObservation then rejects. Both are rejected; the sentinel sets
+// differ.
+//
 // evidence: absent, explicit null, and empty array are all equivalent and
 // all mean "no Evidence cited" -- the same reading as every other optional
 // collection in this package.
@@ -412,7 +430,7 @@ func (o *Observation) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return fmt.Errorf("runtime: unmarshal Observation: %w: %w", ErrInvalidRuntimeObservation, err)
 	}
-	result, err := NewObservation(raw.ID, raw.Subject, raw.ObservedAt, raw.ObservedValue, raw.CollectionMethod, raw.Source, raw.Provenance)
+	result, err := NewObservation(raw.ID, raw.Subject, raw.Scope, raw.Environment, raw.ObservedAt, raw.ObservedValue, raw.CollectionMethod, raw.Source, raw.Provenance)
 	if err != nil {
 		return err
 	}
@@ -449,18 +467,6 @@ func (o *Observation) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("runtime: unmarshal Observation: %w: %w", ErrInvalidRuntimeObservation, err)
 		}
 		if result, err = result.WithUnitScaleOrEventType(value); err != nil {
-			return err
-		}
-	}
-	if len(raw.Environment) > 0 {
-		if err = rejectNullRaw("Observation", "environment", raw.Environment, ErrInvalidRuntimeObservation); err != nil {
-			return err
-		}
-		var environment Environment
-		if err = json.Unmarshal(raw.Environment, &environment); err != nil {
-			return fmt.Errorf("runtime: unmarshal Observation: %w: %w", ErrInvalidRuntimeObservation, err)
-		}
-		if result, err = result.WithEnvironment(environment); err != nil {
 			return err
 		}
 	}

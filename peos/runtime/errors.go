@@ -77,6 +77,26 @@ var (
 	// observation-input entry after trimming, or a zero-value marshal.
 	ErrInvalidRuntimeAssertion = errors.New("runtime: runtime assertion is invalid")
 
+	// ErrInvalidRuntimeContractRule is the aggregate sentinel for
+	// ContractRule -- the Revision-owned, locally-keyed declarative value
+	// PEOS-008 requires for observation requirements, violation
+	// classification rules, Waiver handling rules, and enforcement
+	// expectations (Packet J.2.A / audit finding J3-03). It is returned
+	// when a ContractRule is constructed or decoded with a zero key or an
+	// empty rule text after trimming, or a zero-value marshal.
+	//
+	// This sentinel was not part of Packet J.1's originally declared set
+	// because J.1 modelled all four Contract Rule categories as opaque,
+	// unkeyed []string -- a reading later proven incorrect: PEOS-008
+	// ":423" and ":475" require a "Runtime Contract rule" to be citable as
+	// a criterion via core.CriterionKindRuntimeContractRule, whose payload
+	// (core.RuntimeRuleCriterionRef) is a (Revision, LocalKey) pair with no
+	// resolvable target unless at least one Contract-owned collection is
+	// keyed. A genuinely new aggregate owned-value type is therefore
+	// required, and it needs its own sentinel for the same reason
+	// ErrInvalidRuntimeAssertion is distinct from ErrInvalidRuntimeContract.
+	ErrInvalidRuntimeContractRule = errors.New("runtime: runtime contract rule is invalid")
+
 	// ErrInvalidRuntimeBindingRecord is reserved for Packet J.2. It will be
 	// the aggregate sentinel for BindingRecord -- the PEOS-008 Runtime
 	// Binding Record. It is not used by Packet J.1.
@@ -97,17 +117,25 @@ var (
 	// is not used by Packet J.1.
 	ErrInvalidRuntimeViolation = errors.New("runtime: runtime violation is invalid")
 
-	// ErrDuplicateRuntimeLocalKey is returned when one owned-value
-	// collection of a single ContractContent contains the same
-	// core.LocalKey more than once. Uniqueness is enforced per owned-value
-	// kind, not across kinds -- the same derivation quality.
-	// ErrDuplicateProfileLocalKey documents: a criterion citing an Assertion
-	// by key must resolve to exactly one Assertion, which is the only
-	// necessary rule PEOS-008's silence on uniqueness supports.
+	// ErrDuplicateRuntimeLocalKey is returned when a core.LocalKey repeats
+	// within a single criterion-kind namespace of one ContractContent.
+	// Uniqueness is enforced per criterion-kind namespace, not per Go
+	// collection: the Assertion namespace (core.CriterionKindRuntimeAssertion)
+	// is exactly ContractContent.assertions, but the Runtime Contract Rule
+	// namespace (core.CriterionKindRuntimeContractRule) spans all four
+	// Contract Rule categories combined -- observation requirements,
+	// violation classification rules, Waiver handling rules, and
+	// enforcement expectations -- because core.RuntimeRuleCriterionRef
+	// carries no rule-category discriminator, so a key must resolve to
+	// exactly one ContractRule across all four collections together. A key
+	// may therefore be reused once by an Assertion and once by a
+	// ContractRule (the two namespaces are independent), but not twice
+	// within either namespace, and not twice across the four Contract Rule
+	// categories.
 	//
-	// The wrapped message always names the owned-value kind and the
-	// offending key, so a caller need not branch on a per-kind sentinel to
-	// report which collection failed.
+	// The wrapped message always names the namespace and the offending
+	// key, so a caller need not branch on a per-namespace sentinel to
+	// report which one failed.
 	ErrDuplicateRuntimeLocalKey = errors.New("runtime: duplicate runtime-local key")
 
 	// ErrUnknownRuntimeLocalKey is returned when an internal reference

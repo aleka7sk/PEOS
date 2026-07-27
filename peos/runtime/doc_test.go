@@ -447,6 +447,64 @@ func TestPacketJ2TypesNowDeclared(t *testing.T) {
 	}
 }
 
+// TestPacketJ2AContractRuleDeclared is the positive counterpart
+// documenting audit finding J3-03's resolution: ContractRule and its
+// sentinel must now exist, and ErrInvalidRuntimeContractRule (not a new
+// per-field sentinel) must be the aggregate error for it.
+func TestPacketJ2AContractRuleDeclared(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared := make(map[string]bool)
+	fset := token.NewFileSet()
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+		for declName := range file.Scope.Objects {
+			declared[declName] = true
+		}
+	}
+	for _, name := range []string{"ContractRule", "NewContractRule", "ErrInvalidRuntimeContractRule"} {
+		if !declared[name] {
+			t.Errorf("%q is not declared; Packet J.2.A must implement it", name)
+		}
+	}
+}
+
+// TestContractRuleExposesNoForbiddenMethod audits ContractRule: no
+// identity, no revision, no lifecycle, no rule-category field (the owning
+// collection supplies that), and no modifier of any kind -- ContractRule
+// is an immutable value with only a constructor, matching Assertion's own
+// no-key-modifier discipline.
+func TestContractRuleExposesNoForbiddenMethod(t *testing.T) {
+	forbidden := []string{
+		"ID", "Ref", "ArtifactID", "RevisionID", "Revision",
+		"Lifecycle", "State", "Status",
+		"Category", "Kind", "WithKey", "WithoutKey",
+		"WithText", "WithoutText",
+	}
+	assertNoMethods(t, "ContractRule", reflect.TypeOf(ContractRule{}), forbidden)
+
+	typ := reflect.TypeOf(ContractRule{})
+	var modifiers []string
+	for i := range typ.NumMethod() {
+		name := typ.Method(i).Name
+		if strings.HasPrefix(name, "With") {
+			modifiers = append(modifiers, name)
+		}
+	}
+	if len(modifiers) != 0 {
+		t.Errorf("ContractRule modifiers = %v, want none", modifiers)
+	}
+}
+
 // recordForbiddenMethods are methods no PEOS-008 immutable enforcement
 // record may expose: Artifact/Revision identity (none of the four records
 // is an Artifact), lifecycle, relation, and every mutable/derived-state
@@ -531,8 +589,9 @@ func TestObservationExposesNoForbiddenMethod(t *testing.T) {
 		"Bound", "ActiveDeployment", "Deployed", "Compliant",
 		"Lifecycle", "State", "Status", "StateAssignment",
 		"Relation", "RelationType", "Target",
-		"WithSubject", "WithObservedAt", "WithObservedValue",
+		"WithSubject", "WithScope", "WithEnvironment", "WithObservedAt", "WithObservedValue",
 		"WithCollectionMethod", "WithSource", "WithProvenance",
+		"WithoutScope", "WithoutEnvironment",
 		"WithID", "WithoutID",
 		"WithCorrection", "WithoutCorrection",
 		"Outcome", "Result", "Success", "Failure", "ExecutionOutcome",
@@ -549,9 +608,9 @@ func TestObservationExposesNoForbiddenMethod(t *testing.T) {
 	}
 	slices.Sort(modifiers)
 	want := []string{
-		"WithBinding", "WithEnvironment", "WithEvidence", "WithExtension",
+		"WithBinding", "WithEvidence", "WithExtension",
 		"WithInterval", "WithLimitations", "WithUncertainty",
-		"WithUnitScaleOrEventType", "WithoutBinding", "WithoutEnvironment",
+		"WithUnitScaleOrEventType", "WithoutBinding",
 		"WithoutExtension", "WithoutInterval", "WithoutUncertainty",
 		"WithoutUnitScaleOrEventType",
 	}
@@ -583,6 +642,7 @@ func TestViolationExposesNoForbiddenMethod(t *testing.T) {
 		"WithCorrection", "WithoutCorrection",
 		"Resolved", "Closed", "Status", "RemediationAuthority",
 		"DecisionOutcome", "ComplianceClaim", "Outcome",
+		"ApplicableWaiver", "WithApplicableWaiver", "WithoutApplicableWaiver",
 	}, recordForbiddenMethods...)
 	assertNoMethods(t, "Violation", reflect.TypeOf(Violation{}), forbidden)
 
@@ -596,9 +656,9 @@ func TestViolationExposesNoForbiddenMethod(t *testing.T) {
 	}
 	slices.Sort(modifiers)
 	want := []string{
-		"WithApplicableWaiver", "WithBinding", "WithExtension", "WithInterval",
+		"WithBinding", "WithExtension", "WithInterval",
 		"WithLimitations", "WithRelatedClaims", "WithRelatedDecisions",
-		"WithSeverity", "WithUncertainty", "WithoutApplicableWaiver",
+		"WithSeverity", "WithUncertainty",
 		"WithoutBinding", "WithoutExtension", "WithoutInterval",
 		"WithoutSeverity", "WithoutUncertainty",
 	}
