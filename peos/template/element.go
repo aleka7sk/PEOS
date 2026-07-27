@@ -878,23 +878,48 @@ func (v *ParameterConstraint) UnmarshalJSON(data []byte) error {
 // boolean, no status, no CurrentCompatibility, no EffectiveCompatibility, and
 // no repository lookup anywhere in this package.
 //
+// # Two scoping dimensions are supplied by the owning Revision, not by fields
+//
+// PEOS-009's six scoping items are stated for the declaration as a whole, and a
+// compatibility declaration is always Revision-owned content: it is reached
+// only as TemplateRevision.Content().Compatibility(), so the Revision that owns
+// it is always in hand. Two of the six are therefore satisfied by that
+// ownership rather than by a field, and this is a deliberate architecture
+// decision recorded here rather than an omission (Packet K.3 findings K3-02 and
+// K3-03):
+//
+//   - **"exact Template Artifact Revisions."** The owning Revision is the
+//     declaration's implicit scope, always and without needing to be named.
+//     ApplicableRevisions() names *additional* exact Revisions the declaration
+//     also covers, so an empty collection means "this Revision alone" -- a
+//     complete, unambiguous statement, not an unstated one. Making the field
+//     mandatory was considered and rejected as unimplementable: TemplateContent
+//     is constructed before NewTemplateRevision pairs it with a Revision, so at
+//     NewCompatibilityDeclaration time the owning Revision reference does not
+//     exist yet, and requiring it would force a caller to know its own Revision
+//     ID before building the content it will revision -- inverting the
+//     construction order runtime.ContractContent, quality.ProfileContent, and
+//     validation.PlanContent all share.
+//
+//   - **"applicable constraints."** These are exactly the owning Revision's own
+//     ParameterConstraints, already keyed in the constraint namespace and
+//     resolvable through TemplateContent.Constraint(key). Restating them here
+//     would duplicate Revision-owned state, and introducing a subset-selection
+//     mechanism would invent a distinction PEOS-009 never draws -- it says
+//     "applicable constraints", not "a selected subset of the constraints".
+//
 // # Field mapping
 //
-// applicableRevisions maps "exact Template Artifact Revisions" -- the exact
-// Revisions this declaration speaks about; empty means the declaration is
-// scoped to its own owning Revision alone, which is the common case and the
-// only one statable at declaration time without naming another Revision.
 // applicableArtifactTypes maps "the consumer or generated Artifact Type".
 // parameterContract maps "the parameter contract" as an opaque trimmed
 // descriptor. productContract maps "the applicable Product contract", also an
 // opaque trimmed descriptor: a Product contract has no PEOS identity type, and
 // inventing a core reference for it would mint PEOS identity for a
 // Product-owned concept. migrationRequirements maps "migration requirements,
-// where applicable" -- optional, and an opaque descriptor rather than a typed
-// Migration, because PEOS-009 assigns Migration no ontology at all (see
-// doc.go's deferral note). "Applicable constraints" are the owning Revision's
-// own ParameterConstraints, already keyed and resolvable there, so this type
-// does not duplicate them.
+// where applicable" -- the one item of the six PEOS-009 qualifies, hence the
+// only one optional on its own terms, and an opaque descriptor rather than a
+// typed Migration, because PEOS-009 assigns Migration no ontology at all (see
+// doc.go's deferral note).
 type CompatibilityDeclaration struct {
 	applicableArtifactTypes []core.ArtifactType
 	parameterContract       string
@@ -995,10 +1020,23 @@ func (d CompatibilityDeclaration) ParameterContract() string { return d.paramete
 // ProductContract returns d's applicable Product contract, uninterpreted.
 func (d CompatibilityDeclaration) ProductContract() string { return d.productContract }
 
-// ApplicableRevisions returns a defensive copy of the exact Template Artifact
-// Revisions d is scoped to, in declaration order. May be empty.
+// ApplicableRevisions returns a defensive copy of the *additional* exact
+// Template Artifact Revisions d is scoped to, beyond the Revision that owns it,
+// in declaration order.
+//
+// An empty result does not mean "unscoped": the owning Revision is always d's
+// implicit scope, so empty means "this Revision alone". See the type comment for
+// why the owning Revision is not, and cannot be, named here.
 func (d CompatibilityDeclaration) ApplicableRevisions() []core.TemplateArtifactRevisionRef {
 	return copySlice(d.applicableRevisions)
+}
+
+// AppliesBeyondOwningRevision reports whether d names any Revision other than
+// the one that owns it. It is the readable form of len(ApplicableRevisions()) >
+// 0, and exists so a caller can ask the scoping question directly rather than
+// inferring it from an empty collection whose meaning is easy to misread.
+func (d CompatibilityDeclaration) AppliesBeyondOwningRevision() bool {
+	return len(d.applicableRevisions) > 0
 }
 
 // MigrationRequirements returns d's migration requirements, and whether any

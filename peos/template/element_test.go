@@ -3,6 +3,7 @@ package template
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"testing"
 
 	"github.com/aleka7sk/PEOS/peos/core"
@@ -1132,4 +1133,126 @@ func TestCompatibilityDeclarationStoresNoVerdict(t *testing.T) {
 		"status", "state", "verdict", "result", "outcome", "conformant",
 	}
 	assertNoWireKeys(t, "CompatibilityDeclaration", d, forbidden)
+}
+
+// --- K3-02 / K3-03 regression: compatibility scoping --------------------------
+
+// TestCompatibilityDeclarationOwningRevisionIsImplicitScope is the K3-02
+// regression guard. The owning Revision is a compatibility declaration's
+// implicit scope: an empty ApplicableRevisions() means "this Revision alone",
+// not "unscoped". ApplicableRevisions() names only *additional* Revisions.
+func TestCompatibilityDeclarationOwningRevisionIsImplicitScope(t *testing.T) {
+	d := mustCompatibilityDeclaration(t)
+	if len(d.ApplicableRevisions()) != 0 {
+		t.Fatal("a fresh declaration should name no additional revisions")
+	}
+	if d.AppliesBeyondOwningRevision() {
+		t.Error("AppliesBeyondOwningRevision() = true for a declaration scoped to its owner alone")
+	}
+
+	// Such a declaration is fully valid and usable as TemplateContent's
+	// mandatory compatibility declaration -- the implicit scope is complete.
+	c, err := NewTemplateContent(
+		[]core.ArtifactType{mustArtifactType(t, "requirement")},
+		"expand parameters", d, NewUnrestrictedTemplateApplicability(),
+		mustProvenance(t), nil, nil, nil,
+	)
+	if err != nil {
+		t.Fatalf("a declaration scoped to its owning Revision alone must be valid: %v", err)
+	}
+	if c.Compatibility().AppliesBeyondOwningRevision() {
+		t.Error("round trip through TemplateContent changed the scoping answer")
+	}
+
+	// Naming additional Revisions flips the answer and is preserved.
+	extended, err := d.WithApplicableRevisions([]core.TemplateArtifactRevisionRef{
+		mustTemplateRevisionRef(t, "TPL-2", "REV-1"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !extended.AppliesBeyondOwningRevision() {
+		t.Error("AppliesBeyondOwningRevision() = false after naming another Revision")
+	}
+	if len(extended.ApplicableRevisions()) != 1 {
+		t.Error("the additional Revision was not recorded")
+	}
+	if d.AppliesBeyondOwningRevision() {
+		t.Error("WithApplicableRevisions mutated its receiver")
+	}
+}
+
+// TestCompatibilityDeclarationConstructionOrderForbidsMandatoryRevisions
+// documents why K3-02 was resolved by the implicit-scope reading rather than by
+// making applicable revisions mandatory: a CompatibilityDeclaration is built
+// before the TemplateContent that holds it, which is itself built before the
+// TemplateRevision that gives it an identity. At declaration time the owning
+// Revision reference does not exist, so it cannot be required.
+func TestCompatibilityDeclarationConstructionOrderForbidsMandatoryRevisions(t *testing.T) {
+	// Step 1: the declaration exists with no Revision in sight.
+	d := mustCompatibilityDeclaration(t)
+	// Step 2: content is built from it -- still no Revision identity anywhere.
+	content, err := NewTemplateContent(
+		[]core.ArtifactType{mustArtifactType(t, "requirement")},
+		"expand parameters", d, NewUnrestrictedTemplateApplicability(),
+		mustProvenance(t), nil, nil, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Step 3: only now does the Revision -- and its reference -- come into being.
+	revision, err := NewTemplateRevision(mustTemplate(t, "TPL-1"), mustArtifactRevision(t, "TPL-1", "REV-1"), content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := revision.Ref()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.IsZero() {
+		t.Fatal("the owning Revision reference should now exist")
+	}
+	// The declaration reached through the Revision is the same one, still
+	// naming no additional Revisions -- and now demonstrably scoped to `ref`.
+	if revision.Content().Compatibility().AppliesBeyondOwningRevision() {
+		t.Error("the declaration should still be scoped to its owner alone")
+	}
+}
+
+// TestCompatibilityDeclarationConstraintsLiveOnTheOwningRevision is the K3-03
+// regression guard. "Applicable constraints" are exactly the owning Revision's
+// own ParameterConstraints, reachable through the constraint namespace; the
+// declaration deliberately stores no copy and no subset, so there is no
+// duplicated state to drift.
+func TestCompatibilityDeclarationConstraintsLiveOnTheOwningRevision(t *testing.T) {
+	content, err := NewTemplateContent(
+		[]core.ArtifactType{mustArtifactType(t, "requirement")},
+		"expand parameters", mustCompatibilityDeclaration(t),
+		NewUnrestrictedTemplateApplicability(), mustProvenance(t),
+		[]Parameter{mustParameter(t, "name", true)},
+		nil,
+		[]ParameterConstraint{mustParameterConstraint(t, "name-nonempty", "name")},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// The constraints scoping the declaration are the owning content's own,
+	// resolvable by key through the constraint namespace.
+	if got := content.Constraints(); len(got) != 1 {
+		t.Fatalf("Constraints() = %d, want 1", len(got))
+	}
+	if _, ok := content.Constraint(mustLocalKey(t, "name-nonempty")); !ok {
+		t.Error("the applicable constraint must resolve through the owning Revision's namespace")
+	}
+
+	// The declaration itself stores no constraint state at all -- no copy, no
+	// subset, nothing that could drift from the owning Revision.
+	assertNoMethods(t, "CompatibilityDeclaration", reflect.TypeOf(CompatibilityDeclaration{}), []string{
+		"Constraints", "ApplicableConstraints", "ConstraintKeys",
+		"WithConstraints", "WithApplicableConstraints",
+	})
+	assertNoWireKeys(t, "CompatibilityDeclaration", content.Compatibility(), []string{
+		"constraints", "applicable_constraints", "constraint_keys",
+	})
 }

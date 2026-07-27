@@ -650,15 +650,25 @@ func TestRelationWrappersExposeNoForbiddenMethod(t *testing.T) {
 		"Cycles", "Graph", "Traverse", "Transitive",
 		// Multiplicity/direction/cycle policy are properties of the relation
 		// type, not per-instance state.
-		"Multiplicity", "Direction", "CyclePolicy", "ParticipantLevels",
+		"Multiplicity", "Direction", "CyclePolicy",
 	}
 
-	assertNoMethods(t, "GeneratedFrom", reflect.TypeOf(GeneratedFrom{}), append(slices.Clone(shared), []string{
+	// ParticipantLevels is forbidden on exactly the two relation types whose
+	// participant levels PEOS-009 fixes -- Generated-From (generated Artifact
+	// Revision → Template Artifact Revision) and Composition (Revision on both
+	// sides). For those, a per-instance level accessor would report a constant.
+	// Specialization is the opposite case: PEOS-009 permits "the source Template
+	// **or** Template Artifact Revision" and separately requires the relation to
+	// identify "participant levels", so there the accessor is required, not
+	// forbidden -- see TestSpecializationSupportsBothParticipantLevels.
+	levelFixed := append(slices.Clone(shared), "ParticipantLevels")
+
+	assertNoMethods(t, "GeneratedFrom", reflect.TypeOf(GeneratedFrom{}), append(slices.Clone(levelFixed), []string{
 		// PEOS-009 states directly what a Generated-From SHALL NOT contain.
 		"ResolvedValues", "ResolvedValue", "Outcome", "Events", "EventHistory",
 		"AuthorityHistory", "Authority", "ApplicationRecord",
 	}...))
-	assertNoMethods(t, "Composition", reflect.TypeOf(Composition{}), shared)
+	assertNoMethods(t, "Composition", reflect.TypeOf(Composition{}), levelFixed)
 	assertNoMethods(t, "Specialization", reflect.TypeOf(Specialization{}), append(slices.Clone(shared), []string{
 		// The compatibility effect is declared, never computed.
 		"Compatible", "IsCompatible", "Compatibility",

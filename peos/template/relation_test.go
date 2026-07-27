@@ -3,6 +3,8 @@ package template
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/aleka7sk/PEOS/peos/core"
@@ -44,8 +46,8 @@ func mustComposition(t *testing.T) Composition {
 func mustSpecialization(t *testing.T) Specialization {
 	t.Helper()
 	s, err := NewSpecialization(
-		mustTemplateRevisionRef(t, "TPL-1", "REV-1"),
-		mustTemplateRevisionRef(t, "TPL-BASE", "REV-1"),
+		mustRevisionParticipant(t, "TPL-1", "REV-1"),
+		mustRevisionParticipant(t, "TPL-BASE", "REV-1"),
 		mustScope(t, "tenant=acme"),
 		mustProvenance(t),
 		"all base parameters and constraints",
@@ -56,6 +58,28 @@ func mustSpecialization(t *testing.T) Specialization {
 		t.Fatal(err)
 	}
 	return s
+}
+
+func mustRevisionParticipant(t *testing.T, artifactID, revisionID string) TemplateParticipant {
+	t.Helper()
+	p, err := NewTemplateParticipantFromRevision(mustTemplateRevisionRef(t, artifactID, revisionID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func mustTemplateParticipant(t *testing.T, artifactID string) TemplateParticipant {
+	t.Helper()
+	ref, err := core.NewTemplateRef(mustArtifactID(t, artifactID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := NewTemplateParticipantFromTemplate(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return p
 }
 
 // --- GeneratedFrom -----------------------------------------------------------
@@ -442,12 +466,16 @@ func TestNewSpecialization(t *testing.T) {
 		t.Errorf("RelationType() = %v", s.Relation().RelationType())
 	}
 	specializing, ok := s.Specializing()
-	if !ok || specializing != mustTemplateRevisionRef(t, "TPL-1", "REV-1") {
-		t.Error("Specializing() mismatch; the source must be the specializing Revision")
+	if !ok || specializing != mustRevisionParticipant(t, "TPL-1", "REV-1") {
+		t.Error("Specializing() mismatch; the source must be the specializing participant")
 	}
 	base, ok := s.Base()
-	if !ok || base != mustTemplateRevisionRef(t, "TPL-BASE", "REV-1") {
-		t.Error("Base() mismatch; the target must be the base Revision")
+	if !ok || base != mustRevisionParticipant(t, "TPL-BASE", "REV-1") {
+		t.Error("Base() mismatch; the target must be the base participant")
+	}
+	srcLevel, tgtLevel := s.ParticipantLevels()
+	if srcLevel != "revision" || tgtLevel != "revision" {
+		t.Errorf("ParticipantLevels() = (%q, %q), want (revision, revision)", srcLevel, tgtLevel)
 	}
 	if s.InheritedElements() == "" || s.OverriddenElements() == "" || s.CompatibilityEffect() == "" {
 		t.Error("all three descriptors must be preserved")
@@ -458,16 +486,16 @@ func TestNewSpecialization(t *testing.T) {
 }
 
 func TestNewSpecializationRejections(t *testing.T) {
-	specializing := mustTemplateRevisionRef(t, "TPL-1", "REV-1")
-	base := mustTemplateRevisionRef(t, "TPL-BASE", "REV-1")
+	specializing := mustRevisionParticipant(t, "TPL-1", "REV-1")
+	base := mustRevisionParticipant(t, "TPL-BASE", "REV-1")
 	scope := mustScope(t, "tenant=acme")
 	prov := mustProvenance(t)
 
-	if _, err := NewSpecialization(core.TemplateArtifactRevisionRef{}, base, scope, prov, "i", "o", "e"); !errors.Is(err, ErrInvalidTemplateRelation) {
-		t.Errorf("zero source: error = %v, want %v", err, ErrInvalidTemplateRelation)
+	if _, err := NewSpecialization(TemplateParticipant{}, base, scope, prov, "i", "o", "e"); !errors.Is(err, ErrInvalidTemplateParticipant) {
+		t.Errorf("zero source: error = %v, want %v", err, ErrInvalidTemplateParticipant)
 	}
-	if _, err := NewSpecialization(specializing, core.TemplateArtifactRevisionRef{}, scope, prov, "i", "o", "e"); !errors.Is(err, ErrInvalidTemplateRelation) {
-		t.Errorf("zero target: error = %v, want %v", err, ErrInvalidTemplateRelation)
+	if _, err := NewSpecialization(specializing, TemplateParticipant{}, scope, prov, "i", "o", "e"); !errors.Is(err, ErrInvalidTemplateParticipant) {
+		t.Errorf("zero target: error = %v, want %v", err, ErrInvalidTemplateParticipant)
 	}
 	if _, err := NewSpecialization(specializing, base, core.Scope{}, prov, "i", "o", "e"); !errors.Is(err, core.ErrInvalidScope) {
 		t.Errorf("zero scope: error = %v, want %v", err, core.ErrInvalidScope)
@@ -492,9 +520,20 @@ func TestNewSpecializationRejections(t *testing.T) {
 }
 
 func TestSpecializationRejectsDegenerateCycle(t *testing.T) {
-	same := mustTemplateRevisionRef(t, "TPL-1", "REV-1")
+	same := mustRevisionParticipant(t, "TPL-1", "REV-1")
 	if _, err := NewSpecialization(same, same, mustScope(t, "tenant=acme"), mustProvenance(t), "i", "o", "e"); !errors.Is(err, ErrInvalidSpecialization) {
-		t.Errorf("self-specialization: error = %v, want %v", err, ErrInvalidSpecialization)
+		t.Errorf("self-specialization at revision level: error = %v, want %v", err, ErrInvalidSpecialization)
+	}
+	sameTemplate := mustTemplateParticipant(t, "TPL-1")
+	if _, err := NewSpecialization(sameTemplate, sameTemplate, mustScope(t, "tenant=acme"), mustProvenance(t), "i", "o", "e"); !errors.Is(err, ErrInvalidSpecialization) {
+		t.Errorf("self-specialization at template level: error = %v, want %v", err, ErrInvalidSpecialization)
+	}
+	// Two Revisions of one Template are a distinct pair and are accepted --
+	// PEOS-009 prohibits cycles, not intra-Template specialization. This
+	// matches Composition's tested behaviour exactly.
+	other := mustRevisionParticipant(t, "TPL-1", "REV-2")
+	if _, err := NewSpecialization(same, other, mustScope(t, "tenant=acme"), mustProvenance(t), "i", "o", "e"); err != nil {
+		t.Errorf("two revisions of one template: unexpected error %v", err)
 	}
 }
 
@@ -806,5 +845,345 @@ func TestCompositionAndSpecializationPreserveExtensionOnDecode(t *testing.T) {
 	}
 	if decodedS.Extension().IsZero() {
 		t.Error("Specialization round trip lost the extension")
+	}
+}
+
+// --- K3-01 regression: Specialization participant levels ---------------------
+
+// TestSpecializationSupportsBothParticipantLevels is the K3-01 regression guard.
+// PEOS-009 requires a Specialization to identify "the source Template **or**
+// Template Artifact Revision" and "the target base Template **or** Template
+// Artifact Revision", so all four level combinations must be constructible, and
+// each must report its own level through ParticipantLevels().
+func TestSpecializationSupportsBothParticipantLevels(t *testing.T) {
+	tpl := func() TemplateParticipant { return mustTemplateParticipant(t, "TPL-1") }
+	baseTpl := func() TemplateParticipant { return mustTemplateParticipant(t, "TPL-BASE") }
+	rev := func() TemplateParticipant { return mustRevisionParticipant(t, "TPL-1", "REV-1") }
+	baseRev := func() TemplateParticipant { return mustRevisionParticipant(t, "TPL-BASE", "REV-1") }
+
+	for _, tt := range []struct {
+		name                      string
+		source, target            TemplateParticipant
+		wantSourceLvl, wantTgtLvl string
+	}{
+		{"template to template", tpl(), baseTpl(), "template", "template"},
+		{"template to revision", tpl(), baseRev(), "template", "revision"},
+		{"revision to template", rev(), baseTpl(), "revision", "template"},
+		{"revision to revision", rev(), baseRev(), "revision", "revision"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			s, err := NewSpecialization(
+				tt.source, tt.target,
+				mustScope(t, "tenant=acme"), mustProvenance(t),
+				"all base parameters", "the base statement", "remains compatible",
+			)
+			if err != nil {
+				t.Fatalf("PEOS-009 permits this participant pair: %v", err)
+			}
+			gotSrc, gotTgt := s.ParticipantLevels()
+			if gotSrc != tt.wantSourceLvl || gotTgt != tt.wantTgtLvl {
+				t.Errorf("ParticipantLevels() = (%q, %q), want (%q, %q)", gotSrc, gotTgt, tt.wantSourceLvl, tt.wantTgtLvl)
+			}
+
+			source, ok := s.Specializing()
+			if !ok || source != tt.source {
+				t.Error("Specializing() did not round-trip the source participant")
+			}
+			target, ok := s.Base()
+			if !ok || target != tt.target {
+				t.Error("Base() did not round-trip the target participant")
+			}
+
+			// The level survives a JSON round trip, since it is stated on the
+			// wire rather than inferred.
+			data, err := json.Marshal(s)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var decoded Specialization
+			if err := json.Unmarshal(data, &decoded); err != nil {
+				t.Fatalf("round trip failed: %v", err)
+			}
+			decSrc, decTgt := decoded.ParticipantLevels()
+			if decSrc != tt.wantSourceLvl || decTgt != tt.wantTgtLvl {
+				t.Errorf("after round trip ParticipantLevels() = (%q, %q), want (%q, %q)", decSrc, decTgt, tt.wantSourceLvl, tt.wantTgtLvl)
+			}
+			data2, err := json.Marshal(decoded)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != string(data2) {
+				t.Errorf("round trip byte mismatch:\n got %s\nwant %s", data2, data)
+			}
+		})
+	}
+}
+
+// TestSpecializationMixedLevelSameTemplateIsDistinct confirms the participant
+// equality rule is exact -- same level and same payload -- matching Composition.
+// A Template and one of its own Revisions are different participants, so the
+// pair is not the degenerate direct cycle.
+func TestSpecializationMixedLevelSameTemplateIsDistinct(t *testing.T) {
+	_, err := NewSpecialization(
+		mustTemplateParticipant(t, "TPL-1"),
+		mustRevisionParticipant(t, "TPL-1", "REV-1"),
+		mustScope(t, "tenant=acme"), mustProvenance(t),
+		"i", "o", "e",
+	)
+	if err != nil {
+		t.Errorf("a Template and its own Revision are distinct participants: %v", err)
+	}
+}
+
+// TestCompositionRemainsRevisionOnly is the other half of K3-01: PEOS-009 fixes
+// Composition's participants at Revision level explicitly and twice, so the
+// participant union must NOT be used there and no identity-level composition
+// may be representable.
+func TestCompositionRemainsRevisionOnly(t *testing.T) {
+	// Structural: the constructor's participant parameters are exact Revision
+	// references, not TemplateParticipant.
+	fnType := reflect.TypeOf(NewComposition)
+	wantRevisionRef := reflect.TypeOf(core.TemplateArtifactRevisionRef{})
+	for i := range 2 {
+		if got := fnType.In(i); got != wantRevisionRef {
+			t.Errorf("NewComposition parameter %d is %v, want %v — Composition must stay Revision-only", i, got, wantRevisionRef)
+		}
+	}
+	if participant := reflect.TypeOf(TemplateParticipant{}); fnType.In(0) == participant || fnType.In(1) == participant {
+		t.Error("NewComposition must not accept TemplateParticipant")
+	}
+
+	// Behavioural: a decoded Composition naming a Template at identity level is
+	// rejected, whichever side it appears on.
+	tplSubject, err := core.EngineeringSubjectRefFromTemplate(func() core.TemplateRef {
+		ref, err := core.NewTemplateRef(mustArtifactID(t, "TPL-1"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ref
+	}())
+	if err != nil {
+		t.Fatal(err)
+	}
+	revSubject, err := core.EngineeringSubjectRefFromTemplateRevision(mustTemplateRevisionRef(t, "TPL-2", "REV-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tt := range []struct {
+		name           string
+		source, target core.EngineeringSubjectRef
+	}{
+		{"identity-level source", tplSubject, revSubject},
+		{"identity-level target", revSubject, tplSubject},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			rel, err := relation.New(core.RelationTypeTemplateComposition, tt.source, tt.target, mustProvenance(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			rel, err = rel.WithScope(mustScope(t, "tenant=acme"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			data, err := json.Marshal(rel)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var c Composition
+			payload := `{"relation":` + string(data) + `,"parameter_mapping":"m","conflict_handling":"h"}`
+			if err := json.Unmarshal([]byte(payload), &c); !errors.Is(err, ErrInvalidTemplateRelation) {
+				t.Errorf("error = %v, want %v", err, ErrInvalidTemplateRelation)
+			}
+		})
+	}
+}
+
+// --- TemplateParticipant ------------------------------------------------------
+
+func TestTemplateParticipantArms(t *testing.T) {
+	tplRef, err := core.NewTemplateRef(mustArtifactID(t, "TPL-1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	revRef := mustTemplateRevisionRef(t, "TPL-1", "REV-1")
+
+	tpl, err := NewTemplateParticipantFromTemplate(tplRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tpl.IsZero() || tpl.Kind() != "template" || !tpl.IsTemplateLevel() || tpl.IsRevisionLevel() {
+		t.Error("template-level participant discriminator mismatch")
+	}
+	got, ok := tpl.Template()
+	if !ok || got != tplRef {
+		t.Error("Template() mismatch")
+	}
+	if _, ok := tpl.Revision(); ok {
+		t.Error("a template-level participant returned a revision")
+	}
+	if tpl.ArtifactID() != mustArtifactID(t, "TPL-1") {
+		t.Error("ArtifactID() mismatch at template level")
+	}
+
+	rev, err := NewTemplateParticipantFromRevision(revRef)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rev.Kind() != "revision" || !rev.IsRevisionLevel() || rev.IsTemplateLevel() {
+		t.Error("revision-level participant discriminator mismatch")
+	}
+	gotRev, ok := rev.Revision()
+	if !ok || gotRev != revRef {
+		t.Error("Revision() mismatch")
+	}
+	if _, ok := rev.Template(); ok {
+		t.Error("a revision-level participant returned a template")
+	}
+	if rev.ArtifactID() != mustArtifactID(t, "TPL-1") {
+		t.Error("ArtifactID() mismatch at revision level")
+	}
+
+	// The two arms are distinct values even for one Template.
+	if tpl == rev {
+		t.Error("a Template and its Revision must be distinct participants")
+	}
+
+	var zero TemplateParticipant
+	if !zero.IsZero() || zero.Kind() != "" {
+		t.Error("zero-value participant should report IsZero() and an empty Kind()")
+	}
+	if !zero.ArtifactID().IsZero() {
+		t.Error("zero-value participant should have a zero ArtifactID")
+	}
+}
+
+func TestTemplateParticipantRejections(t *testing.T) {
+	if _, err := NewTemplateParticipantFromTemplate(core.TemplateRef{}); !errors.Is(err, ErrInvalidTemplateParticipant) {
+		t.Errorf("zero template ref: error = %v, want %v", err, ErrInvalidTemplateParticipant)
+	}
+	if _, err := NewTemplateParticipantFromRevision(core.TemplateArtifactRevisionRef{}); !errors.Is(err, ErrInvalidTemplateParticipant) {
+		t.Errorf("zero revision ref: error = %v, want %v", err, ErrInvalidTemplateParticipant)
+	}
+	var zero TemplateParticipant
+	if _, err := json.Marshal(zero); !errors.Is(err, ErrInvalidTemplateParticipant) {
+		t.Errorf("zero marshal: error = %v, want %v", err, ErrInvalidTemplateParticipant)
+	}
+}
+
+func TestTemplateParticipantJSON(t *testing.T) {
+	tpl := mustTemplateParticipant(t, "TPL-1")
+	rev := mustRevisionParticipant(t, "TPL-1", "REV-1")
+
+	for name, p := range map[string]TemplateParticipant{"template": tpl, "revision": rev} {
+		t.Run(name, func(t *testing.T) {
+			data, err := json.Marshal(p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var m map[string]json.RawMessage
+			if err := json.Unmarshal(data, &m); err != nil {
+				t.Fatal(err)
+			}
+			// The level is stated on the wire, never inferred from which
+			// payload happens to be present.
+			if _, ok := m["kind"]; !ok {
+				t.Error(`wire form omits "kind"; the participant level must be stated`)
+			}
+			var decoded TemplateParticipant
+			if err := json.Unmarshal(data, &decoded); err != nil {
+				t.Fatal(err)
+			}
+			if decoded != p {
+				t.Errorf("round trip mismatch: got %+v, want %+v", decoded, p)
+			}
+		})
+	}
+
+	tests := []struct {
+		name string
+		json string
+	}{
+		{"missing kind", `{}`},
+		{"unknown kind", `{"kind":"artifact","template":{"artifact_id":"TPL-1"}}`},
+		{"explicit null", `null`},
+		{"template missing payload", `{"kind":"template"}`},
+		{"template carrying a revision", `{"kind":"template","template":{"artifact_id":"TPL-1"},"revision":{"artifact_id":"TPL-1","revision_id":"REV-1"}}`},
+		{"revision missing payload", `{"kind":"revision"}`},
+		{"revision carrying a template", `{"kind":"revision","revision":{"artifact_id":"TPL-1","revision_id":"REV-1"},"template":{"artifact_id":"TPL-1"}}`},
+		{"non-object payload", `123`},
+		{"malformed JSON", `not json`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var p TemplateParticipant
+			if err := json.Unmarshal([]byte(tt.json), &p); err == nil {
+				t.Errorf("%s accepted, want error", tt.json)
+			}
+		})
+	}
+
+	// Receiver preservation.
+	p := mustRevisionParticipant(t, "TPL-1", "REV-1")
+	before := p
+	if err := json.Unmarshal([]byte(`{"kind":"bogus"}`), &p); err == nil {
+		t.Fatal("expected error")
+	}
+	if p != before {
+		t.Error("failed unmarshal did not preserve receiver")
+	}
+}
+
+// TestTemplateParticipantHasNoIdentity confirms the union is reference-shaped:
+// it carries no identity, revision system, or lifecycle of its own, and no
+// modifier can reach its payload.
+func TestTemplateParticipantHasNoIdentity(t *testing.T) {
+	assertNoMethods(t, "TemplateParticipant", reflect.TypeOf(TemplateParticipant{}), []string{
+		"ID", "Ref", "RevisionID", "Lifecycle", "State", "Status",
+		"WithTemplate", "WithRevision", "WithKind",
+	})
+	if got := exactModifierSet(reflect.TypeOf(TemplateParticipant{})); len(got) != 0 {
+		t.Errorf("TemplateParticipant modifiers = %v, want none", got)
+	}
+}
+
+// TestSpecializationParticipantAccessorsOnZeroValue covers the accessors'
+// behaviour on a zero Specialization, whose inner relation carries no
+// participant at all: each reports absence rather than a bogus participant.
+func TestSpecializationParticipantAccessorsOnZeroValue(t *testing.T) {
+	var s Specialization
+	if _, ok := s.Specializing(); ok {
+		t.Error("Specializing() on a zero Specialization should report absence")
+	}
+	if _, ok := s.Base(); ok {
+		t.Error("Base() on a zero Specialization should report absence")
+	}
+	src, tgt := s.ParticipantLevels()
+	if src != "" || tgt != "" {
+		t.Errorf("ParticipantLevels() = (%q, %q) on a zero Specialization, want empty", src, tgt)
+	}
+}
+
+// TestTemplateParticipantSubjectRejectsUnstatedLevel covers the union's own
+// completeness guard: a participant whose level was never stated cannot be
+// converted into a relation subject, so NewSpecialization rejects it and names
+// which side was at fault.
+func TestTemplateParticipantSubjectRejectsUnstatedLevel(t *testing.T) {
+	valid := mustRevisionParticipant(t, "TPL-BASE", "REV-1")
+
+	_, err := NewSpecialization(TemplateParticipant{}, valid, mustScope(t, "tenant=acme"), mustProvenance(t), "i", "o", "e")
+	if !errors.Is(err, ErrInvalidTemplateParticipant) {
+		t.Errorf("zero specializing participant: error = %v, want %v", err, ErrInvalidTemplateParticipant)
+	}
+	if err != nil && !strings.Contains(err.Error(), "specializing participant") {
+		t.Errorf("error should name the offending side: %v", err)
+	}
+
+	_, err = NewSpecialization(valid, TemplateParticipant{}, mustScope(t, "tenant=acme"), mustProvenance(t), "i", "o", "e")
+	if !errors.Is(err, ErrInvalidTemplateParticipant) {
+		t.Errorf("zero base participant: error = %v, want %v", err, ErrInvalidTemplateParticipant)
+	}
+	if err != nil && !strings.Contains(err.Error(), "base participant") {
+		t.Errorf("error should name the offending side: %v", err)
 	}
 }

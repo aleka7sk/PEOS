@@ -12,6 +12,7 @@
 //	ParameterDefault            Revision-owned value, targets a parameter key
 //	ParameterConstraint         Revision-owned value, locally keyed
 //	ConstraintTarget            closed union (parameter | generated content)
+//	TemplateParticipant         closed union (template | revision), Specialization only
 //	CompatibilityDeclaration    Revision-owned value
 //
 // Template is the only Artifact this package defines. Everything else is
@@ -265,8 +266,27 @@
 // rules defined by PEOS-006" and peos/validation deliberately leaves
 // PEOS-007/008/009 to add their own type-specific rules in their own packets.
 //
-// What remains for PEOS-009: Packet K.3 (Consolidated Audit) and Packet K.4
-// (Closure). No further construct is scheduled.
+// Packet K.3 (Consolidated Audit, read-only) then returned PASS WITH REQUIRED
+// CORRECTIONS, raising one MAJOR and two MINOR findings, all corrected by
+// Packet K.2.A:
+//
+//   - **K3-01 (MAJOR).** Specialization had fixed both participants at Revision
+//     level, though PEOS-009 permits "the source Template **or** Template
+//     Artifact Revision" on both sides and separately requires the relation to
+//     identify "participant levels" -- so identity-level specialization was
+//     unrepresentable and that third obligation unsatisfiable. Both participants
+//     are now TemplateParticipant, a closed two-arm union, with
+//     Specialization.ParticipantLevels() reporting the chosen levels.
+//     Composition stays Revision-only, which PEOS-009 fixes explicitly.
+//   - **K3-02 and K3-03 (MINOR).** The compatibility declaration's "exact
+//     Template Artifact Revisions" and "applicable constraints" scoping items
+//     are both supplied by the owning Revision rather than by a field. That
+//     architecture is now stated on CompatibilityDeclaration itself, with
+//     AppliesBeyondOwningRevision() making the scoping question directly
+//     askable instead of inferred from an empty collection.
+//
+// What remains for PEOS-009: Packet K.3.A (focused corrective re-audit) and
+// Packet K.4 (Closure). No further construct is scheduled.
 //
 // # Deliberately not modeled by this package
 //

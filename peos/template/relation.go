@@ -21,7 +21,8 @@ import (
 // participant levels and direction fixed, and needs the guarantee that it
 // never accumulates the state PEOS-009 forbids it. This is the same wrapper
 // strategy peos/requirement uses for Derivation, Refinement, Decomposition,
-// Dependency, Conflict, and Supersession.
+// Dependency, Conflict, and Supersession -- including its two-arm participant
+// union where a relation type admits more than one participant level.
 //
 // # No identity, no revision, no lifecycle
 //
@@ -45,6 +46,21 @@ import (
 // documents the identical division for its own cycle-prohibited relation types,
 // and PEOS-009 itself assigns cross-artifact traversal to "a future
 // Traceability Model".
+//
+// # Participant levels differ per relation type
+//
+// PEOS-009 fixes the participant level for two of the three and leaves it open
+// for the third, and the difference is normative rather than incidental:
+//
+//	Generated-From   generated Artifact Revision -> Template Artifact Revision
+//	Composition      Template Artifact Revision  -> Template Artifact Revision
+//	Specialization   Template *or* Revision      -> Template *or* Revision
+//
+// So Generated-From and Composition take exact reference types directly, while
+// Specialization takes TemplateParticipant on both sides and reports the chosen
+// levels through ParticipantLevels() -- the "participant levels" item PEOS-009
+// requires it to identify. Widening Generated-From or Composition, or narrowing
+// Specialization, would each contradict the specification.
 //
 // # Mandatory scope
 //
@@ -76,13 +92,13 @@ func requireRelationScope(rel relation.Relation) (core.Scope, error) {
 
 // templateRevisionParticipant converts an exact Template Artifact Revision
 // reference into the relation participant subject relation.Relation requires.
+// A zero reference is rejected by the conversion itself, so there is no
+// separate pre-check: duplicating it would leave the conversion's own error
+// path unreachable.
 func templateRevisionParticipant(ref core.TemplateArtifactRevisionRef) (core.EngineeringSubjectRef, error) {
-	if ref.IsZero() {
-		return core.EngineeringSubjectRef{}, fmt.Errorf("%w: template artifact revision reference must not be zero", ErrInvalidTemplateRelation)
-	}
 	subject, err := core.EngineeringSubjectRefFromTemplateRevision(ref)
 	if err != nil {
-		return core.EngineeringSubjectRef{}, fmt.Errorf("%w: %w", ErrInvalidTemplateRelation, err)
+		return core.EngineeringSubjectRef{}, fmt.Errorf("%w: template artifact revision reference is invalid: %w", ErrInvalidTemplateRelation, err)
 	}
 	return subject, nil
 }
@@ -95,6 +111,226 @@ func asTemplateRevisionParticipant(subject core.EngineeringSubjectRef) (core.Tem
 		return core.TemplateArtifactRevisionRef{}, fmt.Errorf("%w: participant is not a template artifact revision", ErrInvalidTemplateRelation)
 	}
 	return ref, nil
+}
+
+// --- TemplateParticipant -------------------------------------------------------
+
+type templateParticipantKind string
+
+const (
+	templateParticipantKindTemplate templateParticipantKind = "template"
+	templateParticipantKindRevision templateParticipantKind = "revision"
+)
+
+// TemplateParticipant is a Template Specialization participant: a closed
+// two-arm union over a Template at identity level and an exact Template
+// Artifact Revision.
+//
+// # Why both levels exist
+//
+// PEOS-009 requires a Template Specialization relation to identify "the source
+// Template **or** Template Artifact Revision" and "the target base Template
+// **or** Template Artifact Revision", and separately requires it to identify
+// "participant levels". Both readings are therefore normative, and a level that
+// could not vary would make the third obligation meaningless.
+//
+// The contrast with Template Composition is deliberate and is spelled out in
+// the specification twice: "The source participant is the composing Template
+// Artifact Revision. The target participant is the composed Template Artifact
+// Revision", and again "its exact source (the composing Template Artifact
+// Revision)". Composition is fixed at Revision level; Specialization is not.
+// Composition therefore takes core.TemplateArtifactRevisionRef arguments
+// directly and does not use this type.
+//
+// # Not a general participant type
+//
+// This union exists for Specialization alone. Generated-From's participants are
+// fixed by PEOS-009 at generated Artifact Revision and Template Artifact
+// Revision, and Composition's at Template Artifact Revision on both sides;
+// neither may use this type, and widening either would contradict the
+// specification.
+//
+// TemplateParticipant carries no identity, no revision system, and no lifecycle
+// of its own -- it is a reference-shaped value, exactly like
+// requirement.RequirementParticipant, the equivalent union PEOS-005 needed for
+// Dependency and Conflict while its other four relation types stayed
+// revision-only.
+type TemplateParticipant struct {
+	kind     templateParticipantKind
+	template core.TemplateRef
+	revision core.TemplateArtifactRevisionRef
+}
+
+// NewTemplateParticipantFromTemplate validates ref and returns a
+// TemplateParticipant identifying a Template at identity level. ref must be
+// non-zero.
+func NewTemplateParticipantFromTemplate(ref core.TemplateRef) (TemplateParticipant, error) {
+	p := TemplateParticipant{kind: templateParticipantKindTemplate, template: ref}
+	if _, err := p.subject(); err != nil {
+		return TemplateParticipant{}, fmt.Errorf("template: NewTemplateParticipantFromTemplate: %w", err)
+	}
+	return p, nil
+}
+
+// NewTemplateParticipantFromRevision validates ref and returns a
+// TemplateParticipant identifying an exact Template Artifact Revision. ref must
+// be non-zero.
+func NewTemplateParticipantFromRevision(ref core.TemplateArtifactRevisionRef) (TemplateParticipant, error) {
+	p := TemplateParticipant{kind: templateParticipantKindRevision, revision: ref}
+	if _, err := p.subject(); err != nil {
+		return TemplateParticipant{}, fmt.Errorf("template: NewTemplateParticipantFromRevision: %w", err)
+	}
+	return p, nil
+}
+
+// Kind returns p's participant level, "template" or "revision" -- the
+// "participant levels" item PEOS-009 requires a Specialization relation to
+// identify. The zero value returns the empty string.
+func (p TemplateParticipant) Kind() string { return string(p.kind) }
+
+// IsTemplateLevel reports whether p identifies a Template at identity level.
+func (p TemplateParticipant) IsTemplateLevel() bool {
+	return p.kind == templateParticipantKindTemplate
+}
+
+// IsRevisionLevel reports whether p identifies an exact Template Artifact
+// Revision.
+func (p TemplateParticipant) IsRevisionLevel() bool {
+	return p.kind == templateParticipantKindRevision
+}
+
+// Template returns p's Template identity reference, and whether p is the
+// identity-level variant.
+func (p TemplateParticipant) Template() (core.TemplateRef, bool) {
+	if p.kind != templateParticipantKindTemplate {
+		return core.TemplateRef{}, false
+	}
+	return p.template, true
+}
+
+// Revision returns p's exact Template Artifact Revision reference, and whether
+// p is the revision-level variant.
+func (p TemplateParticipant) Revision() (core.TemplateArtifactRevisionRef, bool) {
+	if p.kind != templateParticipantKindRevision {
+		return core.TemplateArtifactRevisionRef{}, false
+	}
+	return p.revision, true
+}
+
+// ArtifactID returns the owning Template's core.ArtifactID at either level, so
+// callers can compare participants across levels without unpacking the union.
+// The zero value returns the zero ArtifactID.
+func (p TemplateParticipant) ArtifactID() core.ArtifactID {
+	switch p.kind {
+	case templateParticipantKindTemplate:
+		return p.template.ArtifactID()
+	case templateParticipantKindRevision:
+		return p.revision.ArtifactID()
+	default:
+		return core.ArtifactID{}
+	}
+}
+
+// IsZero reports whether p is the zero value -- the unstated level PEOS-009
+// does not permit on a valid Specialization.
+func (p TemplateParticipant) IsZero() bool { return p.kind == "" }
+
+// subject converts p into the relation participant subject relation.Relation
+// requires, at whichever level p states.
+//
+// This is the union's single validation path: both constructors go through it,
+// so a zero payload and an unstated level are each rejected in exactly one
+// place, and no participant that fails here can ever be constructed.
+func (p TemplateParticipant) subject() (core.EngineeringSubjectRef, error) {
+	switch p.kind {
+	case templateParticipantKindTemplate:
+		subject, err := core.EngineeringSubjectRefFromTemplate(p.template)
+		if err != nil {
+			return core.EngineeringSubjectRef{}, fmt.Errorf("%w: %w", ErrInvalidTemplateParticipant, err)
+		}
+		return subject, nil
+	case templateParticipantKindRevision:
+		subject, err := core.EngineeringSubjectRefFromTemplateRevision(p.revision)
+		if err != nil {
+			return core.EngineeringSubjectRef{}, fmt.Errorf("%w: %w", ErrInvalidTemplateParticipant, err)
+		}
+		return subject, nil
+	default:
+		return core.EngineeringSubjectRef{}, fmt.Errorf("%w: participant level must be stated", ErrInvalidTemplateParticipant)
+	}
+}
+
+// asTemplateParticipant recovers a TemplateParticipant from a decoded relation
+// participant, accepting either level and rejecting anything else.
+func asTemplateParticipant(subject core.EngineeringSubjectRef) (TemplateParticipant, error) {
+	if ref, ok := subject.AsTemplateRevision(); ok {
+		return NewTemplateParticipantFromRevision(ref)
+	}
+	if ref, ok := subject.AsTemplate(); ok {
+		return NewTemplateParticipantFromTemplate(ref)
+	}
+	return TemplateParticipant{}, fmt.Errorf("%w: participant is neither a template nor a template artifact revision", ErrInvalidTemplateRelation)
+}
+
+type templateParticipantJSON struct {
+	Kind     string                            `json:"kind"`
+	Template *core.TemplateRef                 `json:"template,omitempty"`
+	Revision *core.TemplateArtifactRevisionRef `json:"revision,omitempty"`
+}
+
+// MarshalJSON encodes p as {"kind":"template","template":...} or
+// {"kind":"revision","revision":...}. The kind is always present: it is the
+// participant level PEOS-009 requires the relation to identify, so it is stated
+// on the wire rather than inferred from which payload happens to appear.
+func (p TemplateParticipant) MarshalJSON() ([]byte, error) {
+	switch p.kind {
+	case templateParticipantKindTemplate:
+		return json.Marshal(templateParticipantJSON{Kind: string(templateParticipantKindTemplate), Template: &p.template})
+	case templateParticipantKindRevision:
+		return json.Marshal(templateParticipantJSON{Kind: string(templateParticipantKindRevision), Revision: &p.revision})
+	default:
+		return nil, fmt.Errorf("template: marshal TemplateParticipant: %w", ErrInvalidTemplateParticipant)
+	}
+}
+
+// UnmarshalJSON decodes p from its JSON form. A missing or unrecognized kind,
+// an arm carrying the other arm's payload, and a selected arm missing its own
+// payload are all rejected. The receiver is left untouched unless every check
+// passes.
+func (p *TemplateParticipant) UnmarshalJSON(data []byte) error {
+	var raw templateParticipantJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("template: unmarshal TemplateParticipant: %w: %w", ErrInvalidTemplateParticipant, err)
+	}
+	var result TemplateParticipant
+	switch raw.Kind {
+	case string(templateParticipantKindTemplate):
+		if raw.Revision != nil {
+			return fmt.Errorf("template: unmarshal TemplateParticipant: %w: a template-level participant must not carry a revision", ErrInvalidTemplateParticipant)
+		}
+		if raw.Template == nil {
+			return fmt.Errorf("template: unmarshal TemplateParticipant: %w: a template-level participant requires a template reference", ErrInvalidTemplateParticipant)
+		}
+		var err error
+		if result, err = NewTemplateParticipantFromTemplate(*raw.Template); err != nil {
+			return err
+		}
+	case string(templateParticipantKindRevision):
+		if raw.Template != nil {
+			return fmt.Errorf("template: unmarshal TemplateParticipant: %w: a revision-level participant must not carry a template reference", ErrInvalidTemplateParticipant)
+		}
+		if raw.Revision == nil {
+			return fmt.Errorf("template: unmarshal TemplateParticipant: %w: a revision-level participant requires a revision reference", ErrInvalidTemplateParticipant)
+		}
+		var err error
+		if result, err = NewTemplateParticipantFromRevision(*raw.Revision); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("template: unmarshal TemplateParticipant: unrecognized kind %q: %w", raw.Kind, ErrInvalidTemplateParticipant)
+	}
+	*p = result
+	return nil
 }
 
 // --- GeneratedFrom -------------------------------------------------------------
@@ -486,15 +722,29 @@ func (c *Composition) UnmarshalJSON(data []byte) error {
 // affects compatibility, never a compatibility verdict -- current compatibility
 // remains derived at query time.
 //
-// PEOS-009 permits a Specialization to name "the source Template or Template
-// Artifact Revision" and "the target base Template or Template Artifact
-// Revision", so both participant levels appear admissible. This type fixes both
-// at Revision level, because "A composition reference SHALL identify the exact
-// Template Artifact Revision, where exact content matters" and inherited and
-// overridden elements are exact content: which elements a specialization
-// inherits or overrides is undefined against a bare Template identity whose
-// content can change with every new Revision. A Product needing
-// identity-level specialization records that in its own contract.
+// # Both participant levels are permitted
+//
+// PEOS-009 requires a Specialization to identify "the source Template **or**
+// Template Artifact Revision", "the target base Template **or** Template
+// Artifact Revision", and separately "participant levels". Both participants
+// are therefore TemplateParticipant values, and each states its own level
+// through Kind().
+//
+// This is deliberately unlike Composition, whose section fixes Revision level
+// explicitly and twice ("The source participant is the composing Template
+// Artifact Revision. The target participant is the composed Template Artifact
+// Revision", and again "its exact source (the composing Template Artifact
+// Revision)"). The two relation types are adjacent in the specification and are
+// worded differently on purpose; collapsing Specialization to Revision level
+// would make identity-level specialization unrepresentable and would leave
+// "participant levels" a constant that cannot be identified. Packet K.3 raised
+// exactly that as finding K3-01, and this is its correction.
+//
+// The two participants must differ. Equality is exact -- same level and same
+// payload -- matching Composition, so two Revisions of one Template may
+// specialize one another just as they may compose one another; PEOS-009
+// prohibits cycles, not intra-Template specialization. Transitive cycle
+// detection remains repository-owned.
 type Specialization struct {
 	relation            relation.Relation
 	inheritedElements   string
@@ -505,31 +755,36 @@ type Specialization struct {
 // NewSpecialization validates its arguments and returns a Specialization whose
 // relation type is always core.RelationTypeTemplateSpecialization.
 //
-// specializing and base must both be non-zero exact Template Artifact Revision
-// references and must differ -- an identical pair is the degenerate direct
-// cycle PEOS-009's "Specialization cycles SHALL NOT be permitted" forbids.
-// scope and provenance must be non-zero. inheritedElements,
-// overriddenElements, and compatibilityEffect must each be non-empty after
-// trimming; the trimmed values are stored and none is interpreted.
+// specializing and base are TemplateParticipant values and may each be at
+// either level -- Template identity or exact Template Artifact Revision -- per
+// PEOS-009's "the source Template or Template Artifact Revision". Both must be
+// non-zero and must differ; an identical pair is the degenerate direct cycle
+// "Specialization cycles SHALL NOT be permitted" forbids. scope and provenance
+// must be non-zero. inheritedElements, overriddenElements, and
+// compatibilityEffect must each be non-empty after trimming; the trimmed values
+// are stored and none is interpreted.
 func NewSpecialization(
-	specializing core.TemplateArtifactRevisionRef,
-	base core.TemplateArtifactRevisionRef,
+	specializing TemplateParticipant,
+	base TemplateParticipant,
 	scope core.Scope,
 	provenance core.Provenance,
 	inheritedElements string,
 	overriddenElements string,
 	compatibilityEffect string,
 ) (Specialization, error) {
-	source, err := templateRevisionParticipant(specializing)
+	// subject() reports an unstated level itself, so there is no separate
+	// IsZero pre-check here: duplicating it would make subject()'s own
+	// completeness guard unreachable.
+	source, err := specializing.subject()
 	if err != nil {
-		return Specialization{}, fmt.Errorf("template: NewSpecialization: %w", err)
+		return Specialization{}, fmt.Errorf("template: NewSpecialization: specializing participant: %w", err)
 	}
-	target, err := templateRevisionParticipant(base)
+	target, err := base.subject()
 	if err != nil {
-		return Specialization{}, fmt.Errorf("template: NewSpecialization: %w", err)
+		return Specialization{}, fmt.Errorf("template: NewSpecialization: base participant: %w", err)
 	}
 	if specializing == base {
-		return Specialization{}, fmt.Errorf("template: NewSpecialization: %w: a template artifact revision must not specialize itself", ErrInvalidSpecialization)
+		return Specialization{}, fmt.Errorf("template: NewSpecialization: %w: a template must not specialize itself", ErrInvalidSpecialization)
 	}
 	if scope.IsZero() {
 		return Specialization{}, fmt.Errorf("template: NewSpecialization: %w: scope must not be zero", core.ErrInvalidScope)
@@ -568,16 +823,37 @@ func NewSpecialization(
 // Relation returns the underlying relation.Relation.
 func (s Specialization) Relation() relation.Relation { return s.relation }
 
-// Specializing returns the exact Template Artifact Revision doing the
-// specializing (s's source).
-func (s Specialization) Specializing() (core.TemplateArtifactRevisionRef, bool) {
-	return s.relation.Source().AsTemplateRevision()
+// Specializing returns the participant doing the specializing (s's source), at
+// whichever level it states. Its Kind() is the source participant level.
+func (s Specialization) Specializing() (TemplateParticipant, bool) {
+	p, err := asTemplateParticipant(s.relation.Source())
+	if err != nil {
+		return TemplateParticipant{}, false
+	}
+	return p, true
 }
 
-// Base returns the exact base Template Artifact Revision being specialized
-// (s's target).
-func (s Specialization) Base() (core.TemplateArtifactRevisionRef, bool) {
-	return s.relation.Target().AsTemplateRevision()
+// Base returns the base participant being specialized (s's target), at
+// whichever level it states. Its Kind() is the target participant level.
+func (s Specialization) Base() (TemplateParticipant, bool) {
+	p, err := asTemplateParticipant(s.relation.Target())
+	if err != nil {
+		return TemplateParticipant{}, false
+	}
+	return p, true
+}
+
+// ParticipantLevels returns the source and target participant levels --
+// "template" or "revision" -- which PEOS-009 requires every Template
+// Specialization relation to identify alongside its participants.
+func (s Specialization) ParticipantLevels() (source string, target string) {
+	if p, ok := s.Specializing(); ok {
+		source = p.Kind()
+	}
+	if p, ok := s.Base(); ok {
+		target = p.Kind()
+	}
+	return source, target
 }
 
 // InheritedElements returns s's declared inherited elements, uninterpreted.
@@ -655,11 +931,11 @@ func (s *Specialization) UnmarshalJSON(data []byte) error {
 	if err := checkRelationType(raw.Relation, core.RelationTypeTemplateSpecialization); err != nil {
 		return fmt.Errorf("template: unmarshal Specialization: %w", err)
 	}
-	specializing, err := asTemplateRevisionParticipant(raw.Relation.Source())
+	specializing, err := asTemplateParticipant(raw.Relation.Source())
 	if err != nil {
 		return fmt.Errorf("template: unmarshal Specialization: %w", err)
 	}
-	base, err := asTemplateRevisionParticipant(raw.Relation.Target())
+	base, err := asTemplateParticipant(raw.Relation.Target())
 	if err != nil {
 		return fmt.Errorf("template: unmarshal Specialization: %w", err)
 	}

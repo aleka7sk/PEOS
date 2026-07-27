@@ -173,6 +173,17 @@ var (
 	// covers what all three share.
 	ErrInvalidTemplateRelation = errors.New("template: template relation is invalid")
 
+	// ErrInvalidTemplateParticipant is returned when a TemplateParticipant is
+	// constructed or decoded with a zero payload, an unrecognized or missing
+	// kind, or both/neither arm present.
+	//
+	// PEOS-009 requires a Template Specialization relation to identify "the
+	// source Template or Template Artifact Revision", "the target base Template
+	// or Template Artifact Revision", and separately "participant levels" -- so
+	// a participant can never leave its level implicit, and the level is stated
+	// rather than inferred.
+	ErrInvalidTemplateParticipant = errors.New("template: template participant is invalid")
+
 	// ErrInvalidGeneratedFrom is returned when a GeneratedFrom relation is
 	// constructed or decoded with an invalid participant pair. PEOS-009 fixes
 	// its direction as generated Artifact Revision (source) to Template
