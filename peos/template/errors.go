@@ -134,4 +134,69 @@ var (
 	// runtime.ErrUnknownRuntimeLocalKey, this sentinel is reachable from the
 	// day it is declared -- TemplateContent resolves both reference kinds.
 	ErrUnknownTemplateLocalKey = errors.New("template: unknown template-local key")
+
+	// ErrInvalidApplicationRecord is the aggregate sentinel for
+	// ApplicationRecord -- the PEOS-009 Template Application Record. It is
+	// returned when a record is constructed or decoded with a zero mandatory
+	// field (id, applied Template Artifact Revision, actor, timestamp,
+	// environment, provenance, outcome), an invalid optional value, a
+	// resolved-value or generated-output collection whose elements are
+	// invalid or repeated, an outcome-conditional generated-output rule
+	// violation, or a zero-value marshal.
+	//
+	// It is never returned to report that a template application failed: a
+	// failed application is a perfectly valid record whose outcome is
+	// ApplicationOutcomeFailed. This sentinel reports an invalid *record*,
+	// never an unsuccessful *application*.
+	ErrInvalidApplicationRecord = errors.New("template: template application record is invalid")
+
+	// ErrInvalidResolvedValue is returned when a ResolvedValue is constructed
+	// or decoded with a zero parameter key, an empty value after trimming, a
+	// zero value source, or a zero-value marshal.
+	ErrInvalidResolvedValue = errors.New("template: resolved parameter value is invalid")
+
+	// ErrInvalidGeneratedOutput is returned when a GeneratedOutput is
+	// constructed or decoded with a zero generated Artifact reference, a zero
+	// generated Artifact Revision reference, a mismatch between the two (a
+	// Revision reference naming a different Artifact than its companion
+	// Artifact reference), or a zero-value marshal.
+	ErrInvalidGeneratedOutput = errors.New("template: generated output is invalid")
+
+	// ErrInvalidTemplateRelation is the shared sentinel for the structural
+	// contract every PEOS-009 Artifact Relation wrapper inherits from
+	// PEOS-002 via peos/relation: a zero or non-exact participant, a zero
+	// provenance, a missing mandatory scope, or a decoded relation whose type
+	// is not the one its wrapper fixes. It mirrors
+	// requirement.ErrInvalidRequirementRelation.
+	//
+	// Per-relation-type failures use their own sentinels below; this one
+	// covers what all three share.
+	ErrInvalidTemplateRelation = errors.New("template: template relation is invalid")
+
+	// ErrInvalidGeneratedFrom is returned when a GeneratedFrom relation is
+	// constructed or decoded with an invalid participant pair. PEOS-009 fixes
+	// its direction as generated Artifact Revision (source) to Template
+	// Artifact Revision (target); a wrapper carrying any other participant
+	// levels, or any other relation type, is rejected.
+	ErrInvalidGeneratedFrom = errors.New("template: generated-from relation is invalid")
+
+	// ErrInvalidComposition is returned when a Composition relation is
+	// constructed or decoded with the same Template Artifact Revision as both
+	// source and target (the degenerate direct cycle PEOS-009's "Composition
+	// cycles SHALL NOT be permitted" forbids), or with an empty parameter
+	// mapping or conflict handling descriptor after trimming.
+	//
+	// Transitive composition cycles are not detected here: a value layer sees
+	// one relation at a time. That detection is repository-owned -- see doc.go.
+	ErrInvalidComposition = errors.New("template: template composition is invalid")
+
+	// ErrInvalidSpecialization is returned when a Specialization relation is
+	// constructed or decoded with the same Template Artifact Revision as both
+	// source and target (the degenerate direct cycle PEOS-009's
+	// "Specialization cycles SHALL NOT be permitted" forbids), or with an
+	// empty inherited-elements, overridden-elements, or compatibility-effect
+	// descriptor after trimming.
+	//
+	// As with Composition, transitive cycle detection is repository-owned.
+	ErrInvalidSpecialization = errors.New("template: template specialization is invalid")
 )

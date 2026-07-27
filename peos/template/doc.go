@@ -183,11 +183,14 @@
 //
 // # Package dependency boundary
 //
-// Packet K.1 production sources import only the standard library and
-// peos/core. Packet K.2 widens this to peos/relation (for the typed
-// Generated-From, Template Composition, and Template Specialization relation
-// wrappers) and peos/validation (for the Template Conformance Claim helper).
-// Nothing imports peos/template, and nothing should: it is a leaf.
+// Production sources import only the standard library, peos/core,
+// peos/relation, and peos/validation. peos/relation is required because
+// PEOS-009 defines three Artifact Relation types, each carrying SHALL-identify
+// state a bare relation.Relation cannot hold. peos/validation is required by
+// exactly one file, claim.go, for the Template Conformance Claim helper --
+// PEOS-009 defines no Claim base mechanism of its own -- and doc_test.go
+// asserts that no other file imports it. Nothing imports peos/template, and
+// nothing should: it is a leaf.
 //
 // peos/lifecycle is deliberately never imported. A Template is an ordinary
 // PEOS-003 Lifecycle Subject, and a Template's State Assignment "does not
@@ -224,30 +227,50 @@
 //
 // # Packet scope
 //
-// Packet K.1 (this packet) implements the Template Artifact foundation and its
+// Packet K.1 implemented the Template Artifact foundation and its
 // Revision-owned content: ArtifactTypeTemplate, Template, TemplateRevision,
 // TemplateContent, TemplateApplicability, Parameter, ParameterType,
 // ParameterDefault, ParameterConstraint with ConstraintTarget,
 // CompatibilityDeclaration, the two constraint vocabularies, and both
-// template-local key namespaces with their resolvers.
+// template-local key namespaces with their resolvers. It also added the one
+// additive peos/core reference described above.
 //
-// Packet K.2 will implement the Template Application Record (immutable,
-// independently identifiable, non-Artifact, correction-bearing), its
-// application-outcome vocabulary, its outcome-conditional generated-output
-// state, the three typed relation wrappers over relation.Relation, and the
-// Template Conformance Claim helper delegating to validation.NewClaim with
-// core.ClaimTypeTemplateConformance. None of those types exists yet, and
-// doc_test.go asserts their absence so a reader cannot assume K.1 shipped
-// them.
+// Packet K.2 (this packet) completed the PEOS-009 value layer:
+//
+//   - ApplicationRecord, the immutable, independently identifiable,
+//     non-Artifact Template Application Record, with
+//     core.RecordCorrectionRef[core.TemplateApplicationRecordRef] correction and
+//     self-correction rejected;
+//   - ApplicationOutcome, the template-local outcome vocabulary carrying the
+//     five values PEOS-009 names at minimum, together with the
+//     outcome-conditional generated-output rule the record enforces
+//     structurally;
+//   - ResolvedValue with its ValueSource vocabulary, and GeneratedOutput, the
+//     record's two owned value structures;
+//   - GeneratedFrom, Composition, and Specialization, the three typed relation
+//     wrappers over relation.Relation;
+//   - NewTemplateConformanceClaim, the helper delegating to
+//     validation.NewClaim with core.ClaimTypeTemplateConformance.
+//
+// Two things about the record are worth stating here rather than leaving to
+// its own doc comment. First, its generated and ungenerated outputs are
+// constructor arguments rather than modifiers alone: the outcome-conditional
+// rule is a cross-field invariant, and with the outputs reachable only through
+// modifiers every succeeded and partially-succeeded record -- precisely the two
+// outcomes PEOS-009 attaches output obligations to -- would have been
+// unconstructible. Second, the Conformance Claim helper adds exactly one rule
+// beyond validation.NewClaim, the >=1-criterion rule PEOS-006 states for a
+// Conformance Claim, because PEOS-009 makes a Template Conformance Claim a
+// specialization that "inherits, without redefinition, all Validation Claim
+// rules defined by PEOS-006" and peos/validation deliberately leaves
+// PEOS-007/008/009 to add their own type-specific rules in their own packets.
+//
+// What remains for PEOS-009: Packet K.3 (Consolidated Audit) and Packet K.4
+// (Closure). No further construct is scheduled.
 //
 // # Deliberately not modeled by this package
 //
-// Template Application Outcome, generated outputs, Generated-From, Template
-// Composition and Specialization relations, and the Template Conformance Claim
-// helper are all scheduled for Packet K.2 -- deferred by schedule, not by
-// architecture.
-//
-// Template Supersession is different: it is deliberately absent permanently.
+// Template Supersession is deliberately absent permanently.
 // "Template Supersession reuses Artifact Supersession, as defined by PEOS-002.
 // This specification does not define a separate Template Supersession entity."
 // Defining a template.Supersession type would therefore contradict PEOS-009

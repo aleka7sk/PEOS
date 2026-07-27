@@ -22,6 +22,25 @@ func trimmedRequired(caller, label, value string, sentinel error) (string, error
 	return trimmed, nil
 }
 
+// trimmedStringSlice trims each entry of values and rejects any that is empty
+// after trimming, attributing the failure to sentinel. Returns nil for an empty
+// input, so that passing nil declares "none" without an allocation. Mirrors the
+// identical helper in peos/runtime and peos/quality.
+func trimmedStringSlice(caller, label string, values []string, sentinel error) ([]string, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	cp := make([]string, 0, len(values))
+	for _, v := range values {
+		trimmed, err := trimmedRequired(caller, label, v, sentinel)
+		if err != nil {
+			return nil, err
+		}
+		cp = append(cp, trimmed)
+	}
+	return cp, nil
+}
+
 // rejectNullRaw reports an error when raw is an explicit JSON null, which
 // every optional single value in this package rejects rather than silently
 // treating as absent.

@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/aleka7sk/PEOS/peos/validation"
 )
 
 const peosModulePrefix = "github.com/aleka7sk/PEOS/peos/"
@@ -56,25 +58,30 @@ func parsePackageImports(t *testing.T, dir string, includeTests bool) map[string
 	return result
 }
 
-// TestProductionImportBoundary locks Packet K.1's dependency rule: production
-// sources import only the standard library and peos/core.
+// TestProductionImportBoundary locks this package's final dependency rule:
+// production sources import only the standard library, peos/core,
+// peos/relation, and peos/validation.
 //
-// Packet K.2 will widen this to peos/relation (for the typed Generated-From,
-// Template Composition, and Template Specialization wrappers) and
-// peos/validation (for the Template Conformance Claim helper). Until then a
-// stray import of either is a scope violation, so both are in the forbidden
-// list below alongside the packages that must never appear.
+// peos/relation is required because PEOS-009 defines three Artifact Relation
+// types (Generated-From, Template Composition, Template Specialization), each
+// carrying SHALL-identify state a bare relation.Relation cannot hold.
+// peos/validation is required by exactly one file, claim.go, for the Template
+// Conformance Claim helper -- PEOS-009 defines no Claim base mechanism of its
+// own, so the helper delegates to validation.NewClaim.
 //
 // peos/lifecycle is forbidden permanently: a Template is an ordinary PEOS-003
 // Lifecycle Subject, modeled entirely in peos/lifecycle, and a Template's State
 // Assignment establishes neither Supersession, compatibility, nor conformance.
+// peos/requirement, peos/quality, and peos/runtime are forbidden because a
+// Template names only the Artifact *Types* it may generate, never an instance
+// of any of them.
 func TestProductionImportBoundary(t *testing.T) {
 	allowed := map[string]bool{
-		peosModulePrefix + "core": true,
+		peosModulePrefix + "core":       true,
+		peosModulePrefix + "relation":   true,
+		peosModulePrefix + "validation": true,
 	}
 	forbidden := []string{
-		peosModulePrefix + "relation",
-		peosModulePrefix + "validation",
 		peosModulePrefix + "lifecycle",
 		peosModulePrefix + "decision",
 		peosModulePrefix + "requirement",
@@ -83,7 +90,7 @@ func TestProductionImportBoundary(t *testing.T) {
 	}
 
 	byFile := parsePackageImports(t, ".", false)
-	sawCore := false
+	seen := make(map[string]bool)
 	for name, paths := range byFile {
 		for _, path := range paths {
 			if !strings.HasPrefix(path, peosModulePrefix) {
@@ -91,12 +98,10 @@ func TestProductionImportBoundary(t *testing.T) {
 				continue
 			}
 			if allowed[path] {
-				if path == peosModulePrefix+"core" {
-					sawCore = true
-				}
+				seen[path] = true
 				continue
 			}
-			t.Errorf("%s imports %q; Packet K.1 production sources may import only the standard library and peos/core", name, path)
+			t.Errorf("%s imports %q; production sources may import only the standard library, peos/core, peos/relation, and peos/validation", name, path)
 		}
 		for _, bad := range forbidden {
 			for _, path := range paths {
@@ -106,8 +111,24 @@ func TestProductionImportBoundary(t *testing.T) {
 			}
 		}
 	}
-	if !sawCore {
-		t.Errorf("no production file imports %q; the helper may be parsing the wrong directory", peosModulePrefix+"core")
+	for path := range allowed {
+		if !seen[path] {
+			t.Errorf("no production file imports %q; the boundary permits it, so an unused permission should be removed rather than left standing", path)
+		}
+	}
+
+	// peos/validation is permitted for one reason only. Locking it to claim.go
+	// keeps the Conformance Claim helper from becoming a general licence for
+	// this package to compose validation types.
+	for name, paths := range byFile {
+		if name == "claim.go" {
+			continue
+		}
+		for _, path := range paths {
+			if path == peosModulePrefix+"validation" {
+				t.Errorf("%s imports peos/validation; only claim.go may, and only for the Template Conformance Claim helper", name)
+			}
+		}
 	}
 }
 
@@ -116,7 +137,9 @@ func TestProductionImportBoundary(t *testing.T) {
 // is forbidden to have.
 func TestTestImportBoundary(t *testing.T) {
 	allowed := map[string]bool{
-		peosModulePrefix + "core": true,
+		peosModulePrefix + "core":       true,
+		peosModulePrefix + "relation":   true,
+		peosModulePrefix + "validation": true,
 	}
 	for name, paths := range parsePackageImports(t, ".", true) {
 		for _, path := range paths {
@@ -124,7 +147,7 @@ func TestTestImportBoundary(t *testing.T) {
 				continue
 			}
 			if !allowed[path] {
-				t.Errorf("%s imports %q; test sources may import only the standard library and peos/core", name, path)
+				t.Errorf("%s imports %q; test sources may import only the standard library, peos/core, peos/relation, and peos/validation", name, path)
 			}
 		}
 	}
@@ -232,29 +255,73 @@ func TestPacketK1TypesDeclared(t *testing.T) {
 	}
 }
 
-// TestPacketK2TypesNotYetDeclared asserts that every construct scheduled for
-// Packet K.2 is still absent, so a later reader cannot assume K.1 shipped it.
-// Packet K.2 replaces this test with precise API assertions plus a positive
-// declaration check, exactly as Packet I.2 did for I.1's equivalent test.
-func TestPacketK2TypesNotYetDeclared(t *testing.T) {
+// TestPacketK2TypesDeclared is the positive counterpart that replaced Packet
+// K.1's TestPacketK2TypesNotYetDeclared, following the precedent Packet I.2 set
+// when it replaced I.1's equivalent absence test: every construct Packet K.2 is
+// responsible for must now exist.
+func TestPacketK2TypesDeclared(t *testing.T) {
 	declared := declaredNames(t)
 	for _, name := range []string{
 		// The Template Application Record family.
 		"ApplicationRecord", "NewApplicationRecord",
-		"TemplateApplicationRecord", "NewTemplateApplicationRecord",
 		"ApplicationOutcome", "NewApplicationOutcome",
+		"ApplicationOutcomeSucceeded", "ApplicationOutcomeFailed",
+		"ApplicationOutcomePartiallySucceeded", "ApplicationOutcomeInterrupted",
+		"ApplicationOutcomeIndeterminate",
+		"ResolvedValue", "NewResolvedValue",
+		"ValueSource", "NewValueSource",
+		"ValueSourceExplicitInput", "ValueSourceDefault", "ValueSourceDerived",
+		"GeneratedOutput", "NewGeneratedOutput",
 		// The three relation wrappers.
 		"GeneratedFrom", "NewGeneratedFrom",
 		"Composition", "NewComposition",
-		"TemplateComposition", "NewTemplateComposition",
 		"Specialization", "NewSpecialization",
-		"TemplateSpecialization", "NewTemplateSpecialization",
 		// The Conformance Claim helper.
-		"NewTemplateConformanceClaim", "TemplateConformanceClaim",
+		"NewTemplateConformanceClaim",
+		// K.2 sentinels.
+		"ErrInvalidApplicationRecord", "ErrInvalidResolvedValue",
+		"ErrInvalidGeneratedOutput", "ErrInvalidTemplateRelation",
+		"ErrInvalidGeneratedFrom", "ErrInvalidComposition", "ErrInvalidSpecialization",
+	} {
+		if !declared[name] {
+			t.Errorf("%q is not declared; Packet K.2 must implement it", name)
+		}
+	}
+}
+
+// TestNoTemplateConformanceClaimType asserts the Conformance Claim helper did
+// not bring a wrapper type with it. PEOS-009 names "Defining a Template
+// Conformance Claim that does not specialize PEOS-006's Conformance Claim, or
+// that redefines Claim identity, immutability, or replacement semantics" and
+// "Representing a Template Conformance Claim as an Artifact" as non-conforming
+// patterns; returning a bare validation.Claim makes both unrepresentable.
+func TestNoTemplateConformanceClaimType(t *testing.T) {
+	declared := declaredNames(t)
+	for _, name := range []string{
+		"TemplateConformanceClaim", "ConformanceClaim", "Claim",
+		"NewClaim", "TemplateClaim",
 	} {
 		if declared[name] {
-			t.Errorf("%q is declared, but it is Packet K.2's responsibility, not K.1's", name)
+			t.Errorf("%q is declared; PEOS-009 defines no Claim base mechanism and this package must define no Claim type", name)
 		}
+	}
+}
+
+// TestNewTemplateConformanceClaimReturnsValidationClaim locks the helper's
+// return type structurally: it must hand back peos/validation's own Claim, not
+// a package-local type that merely resembles it.
+func TestNewTemplateConformanceClaimReturnsValidationClaim(t *testing.T) {
+	fnType := reflect.TypeOf(NewTemplateConformanceClaim)
+	if fnType.NumOut() != 2 {
+		t.Fatalf("NewTemplateConformanceClaim returns %d values, want 2", fnType.NumOut())
+	}
+	got := fnType.Out(0)
+	want := reflect.TypeOf(validation.Claim{})
+	if got != want {
+		t.Errorf("NewTemplateConformanceClaim returns %v, want %v", got, want)
+	}
+	if got.PkgPath() != peosModulePrefix+"validation" {
+		t.Errorf("return type belongs to %q, want %q", got.PkgPath(), peosModulePrefix+"validation")
 	}
 }
 
@@ -279,6 +346,9 @@ func TestForbiddenOntologyAbsent(t *testing.T) {
 		// Template Supersession entity, and Migration has no stated ontology.
 		"TemplateSupersession", "Supersession",
 		"Migration", "TemplateMigration", "MigrationRecord", "MigrationRef",
+		// A parameter binding is not an entity: resolved values are plain
+		// owned values on the Application Record.
+		"ParameterBinding", "Binding", "BindingRecord", "NewBindingRecord",
 		// Runtime/deployment concepts belonging to other specifications.
 		"Deployment", "Provider", "Endpoint", "RuntimeState", "ComplianceState",
 		"Secret", "Credential",
@@ -503,6 +573,106 @@ func TestCompatibilityDeclarationExposesNoForbiddenMethod(t *testing.T) {
 	}
 	if got := exactModifierSet(reflect.TypeOf(CompatibilityDeclaration{})); !slices.Equal(got, want) {
 		t.Errorf("CompatibilityDeclaration modifiers = %v, want %v", got, want)
+	}
+}
+
+// TestApplicationRecordExposesNoForbiddenMethod locks the record's ontology: it
+// is an immutable non-Artifact record, "not revisioned", "not lifecycle-bearing",
+// and never a holder of generated content.
+func TestApplicationRecordExposesNoForbiddenMethod(t *testing.T) {
+	forbidden := []string{
+		// Not an Artifact, not revisioned.
+		"ArtifactID", "ArtifactType", "Type", "Revision", "RevisionID",
+		"Version", "WithVersion", "Core",
+		// Not lifecycle-bearing.
+		"Lifecycle", "State", "Status", "StateAssignment",
+		"Current", "Active", "Effective",
+		// Immutable: mandatory state has no modifier, and an outcome is a
+		// recorded fact that never changes.
+		"WithID", "WithTemplate", "WithActor", "WithAppliedAt",
+		"WithEnvironment", "WithProvenance", "WithOutcome", "WithResolvedValues",
+		// Never holds generated content or runs anything.
+		"Content", "Payload", "Rendered", "Output", "Render", "Apply",
+		"Generate", "Execute", "Instantiate",
+		// Conformance and compatibility are derived elsewhere.
+		"Conformant", "Conformance", "Compatible", "Compatibility",
+	}
+	assertNoMethods(t, "ApplicationRecord", reflect.TypeOf(ApplicationRecord{}), forbidden)
+
+	want := []string{
+		"WithAuthority",
+		"WithCorrection",
+		"WithExtension",
+		"WithGeneratedOutputs",
+		"WithLimitations",
+		"WithUngeneratedOutputs",
+		"WithoutAuthority",
+		"WithoutCorrection",
+		"WithoutExtension",
+	}
+	if got := exactModifierSet(reflect.TypeOf(ApplicationRecord{})); !slices.Equal(got, want) {
+		t.Errorf("ApplicationRecord modifiers = %v, want %v", got, want)
+	}
+}
+
+func TestResolvedValueAndGeneratedOutputExposeNoForbiddenMethod(t *testing.T) {
+	assertNoMethods(t, "ResolvedValue", reflect.TypeOf(ResolvedValue{}), []string{
+		"ID", "Ref", "Revision", "Lifecycle", "State", "Status",
+		"Bind", "Binding", "Resolve", "WithValue", "WithSource", "WithParameter",
+	})
+	if got := exactModifierSet(reflect.TypeOf(ResolvedValue{})); len(got) != 0 {
+		t.Errorf("ResolvedValue modifiers = %v, want none", got)
+	}
+
+	assertNoMethods(t, "GeneratedOutput", reflect.TypeOf(GeneratedOutput{}), []string{
+		"ID", "Ref", "Lifecycle", "State", "Status",
+		// It names what was generated and never holds it.
+		"Content", "Payload", "Rendered", "Result", "Bytes",
+		"WithArtifact", "WithRevision",
+	})
+	if got := exactModifierSet(reflect.TypeOf(GeneratedOutput{})); len(got) != 0 {
+		t.Errorf("GeneratedOutput modifiers = %v, want none", got)
+	}
+}
+
+// TestRelationWrappersExposeNoForbiddenMethod locks all three relation types:
+// none has identity, revision, or lifecycle, none can lose its mandatory scope,
+// and none evaluates or executes anything.
+func TestRelationWrappersExposeNoForbiddenMethod(t *testing.T) {
+	shared := []string{
+		// PEOS-002/PEOS-009: no identity, revision, or lifecycle.
+		"ID", "Ref", "RelationID", "Revision", "RevisionID",
+		"Lifecycle", "State", "Status", "Approval", "Valid", "ValidityPeriod",
+		// Scope is mandatory: it can never be set to something else or cleared.
+		"WithScope", "WithoutScope",
+		// No execution, no graph traversal, no cycle detection here.
+		"Render", "Expand", "Generate", "Apply", "Evaluate", "Resolve",
+		"Cycles", "Graph", "Traverse", "Transitive",
+		// Multiplicity/direction/cycle policy are properties of the relation
+		// type, not per-instance state.
+		"Multiplicity", "Direction", "CyclePolicy", "ParticipantLevels",
+	}
+
+	assertNoMethods(t, "GeneratedFrom", reflect.TypeOf(GeneratedFrom{}), append(slices.Clone(shared), []string{
+		// PEOS-009 states directly what a Generated-From SHALL NOT contain.
+		"ResolvedValues", "ResolvedValue", "Outcome", "Events", "EventHistory",
+		"AuthorityHistory", "Authority", "ApplicationRecord",
+	}...))
+	assertNoMethods(t, "Composition", reflect.TypeOf(Composition{}), shared)
+	assertNoMethods(t, "Specialization", reflect.TypeOf(Specialization{}), append(slices.Clone(shared), []string{
+		// The compatibility effect is declared, never computed.
+		"Compatible", "IsCompatible", "Compatibility",
+	}...))
+
+	want := []string{"WithExtension", "WithoutExtension"}
+	for label, typ := range map[string]reflect.Type{
+		"GeneratedFrom":  reflect.TypeOf(GeneratedFrom{}),
+		"Composition":    reflect.TypeOf(Composition{}),
+		"Specialization": reflect.TypeOf(Specialization{}),
+	} {
+		if got := exactModifierSet(typ); !slices.Equal(got, want) {
+			t.Errorf("%s modifiers = %v, want %v", label, got, want)
+		}
 	}
 }
 
