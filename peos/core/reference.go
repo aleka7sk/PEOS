@@ -441,6 +441,138 @@ func (r *RuntimeContractRevisionRef) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// RuntimeBindingRecordRef identifies an exact Runtime Binding Record
+// (PEOS-008). It mirrors ValidationClaimRef and
+// ValidationExecutionRecordRef: a dedicated, type-safe reference for a
+// record family that also has a generic RecordRef arm
+// (RecordKindRuntimeBindingRecord), used wherever the target record family
+// is fixed at compile time rather than decided at runtime -- for example, a
+// Runtime Unbinding Record's mandatory "exactly one Binding Record"
+// reference, or a Runtime Binding Record's own optional correction
+// reference (core.RecordCorrectionRef[RuntimeBindingRecordRef]).
+type RuntimeBindingRecordRef struct{ runtimeBindingRecordRefID RuntimeBindingRecordID }
+
+// NewRuntimeBindingRecordRef validates id and returns a
+// RuntimeBindingRecordRef.
+func NewRuntimeBindingRecordRef(id RuntimeBindingRecordID) (RuntimeBindingRecordRef, error) {
+	if id.IsZero() {
+		return RuntimeBindingRecordRef{}, fmt.Errorf("core: NewRuntimeBindingRecordRef: %w", ErrEmptyIdentity)
+	}
+	return RuntimeBindingRecordRef{runtimeBindingRecordRefID: id}, nil
+}
+
+func (r RuntimeBindingRecordRef) RecordID() RuntimeBindingRecordID {
+	return r.runtimeBindingRecordRefID
+}
+func (r RuntimeBindingRecordRef) IsZero() bool { return r.runtimeBindingRecordRefID.IsZero() }
+
+type runtimeBindingRecordRefJSON struct {
+	RecordID RuntimeBindingRecordID `json:"record_id"`
+}
+
+func (r RuntimeBindingRecordRef) MarshalJSON() ([]byte, error) {
+	return json.Marshal(runtimeBindingRecordRefJSON{RecordID: r.runtimeBindingRecordRefID})
+}
+
+func (r *RuntimeBindingRecordRef) UnmarshalJSON(data []byte) error {
+	var raw runtimeBindingRecordRefJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("core: unmarshal RuntimeBindingRecordRef: %w", err)
+	}
+	v, err := NewRuntimeBindingRecordRef(raw.RecordID)
+	if err != nil {
+		return err
+	}
+	*r = v
+	return nil
+}
+
+// RuntimeUnbindingRecordRef identifies an exact Runtime Unbinding Record
+// (PEOS-008). Same shape and purpose as RuntimeBindingRecordRef, used
+// wherever a Runtime Unbinding Record is referenced at compile-time-fixed
+// type -- for example, a Runtime Unbinding Record's own optional correction
+// reference (core.RecordCorrectionRef[RuntimeUnbindingRecordRef]).
+type RuntimeUnbindingRecordRef struct {
+	runtimeUnbindingRecordRefID RuntimeUnbindingRecordID
+}
+
+// NewRuntimeUnbindingRecordRef validates id and returns a
+// RuntimeUnbindingRecordRef.
+func NewRuntimeUnbindingRecordRef(id RuntimeUnbindingRecordID) (RuntimeUnbindingRecordRef, error) {
+	if id.IsZero() {
+		return RuntimeUnbindingRecordRef{}, fmt.Errorf("core: NewRuntimeUnbindingRecordRef: %w", ErrEmptyIdentity)
+	}
+	return RuntimeUnbindingRecordRef{runtimeUnbindingRecordRefID: id}, nil
+}
+
+func (r RuntimeUnbindingRecordRef) RecordID() RuntimeUnbindingRecordID {
+	return r.runtimeUnbindingRecordRefID
+}
+func (r RuntimeUnbindingRecordRef) IsZero() bool { return r.runtimeUnbindingRecordRefID.IsZero() }
+
+type runtimeUnbindingRecordRefJSON struct {
+	RecordID RuntimeUnbindingRecordID `json:"record_id"`
+}
+
+func (r RuntimeUnbindingRecordRef) MarshalJSON() ([]byte, error) {
+	return json.Marshal(runtimeUnbindingRecordRefJSON{RecordID: r.runtimeUnbindingRecordRefID})
+}
+
+func (r *RuntimeUnbindingRecordRef) UnmarshalJSON(data []byte) error {
+	var raw runtimeUnbindingRecordRefJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("core: unmarshal RuntimeUnbindingRecordRef: %w", err)
+	}
+	v, err := NewRuntimeUnbindingRecordRef(raw.RecordID)
+	if err != nil {
+		return err
+	}
+	*r = v
+	return nil
+}
+
+// RuntimeObservationRef identifies an exact Runtime Observation
+// (PEOS-008). Same shape and purpose as RuntimeBindingRecordRef, used
+// wherever a Runtime Observation is referenced at compile-time-fixed type
+// -- for example, a Runtime Violation's exact reference to the Observation
+// that triggered it. PEOS-008 documents no correction reference for Runtime
+// Observation (see correction.go), so unlike RuntimeBindingRecordRef and
+// RuntimeUnbindingRecordRef, this type is never used as a
+// RecordCorrectionRef type parameter.
+type RuntimeObservationRef struct{ runtimeObservationRefID RuntimeObservationID }
+
+// NewRuntimeObservationRef validates id and returns a RuntimeObservationRef.
+func NewRuntimeObservationRef(id RuntimeObservationID) (RuntimeObservationRef, error) {
+	if id.IsZero() {
+		return RuntimeObservationRef{}, fmt.Errorf("core: NewRuntimeObservationRef: %w", ErrEmptyIdentity)
+	}
+	return RuntimeObservationRef{runtimeObservationRefID: id}, nil
+}
+
+func (r RuntimeObservationRef) RecordID() RuntimeObservationID { return r.runtimeObservationRefID }
+func (r RuntimeObservationRef) IsZero() bool                   { return r.runtimeObservationRefID.IsZero() }
+
+type runtimeObservationRefJSON struct {
+	RecordID RuntimeObservationID `json:"record_id"`
+}
+
+func (r RuntimeObservationRef) MarshalJSON() ([]byte, error) {
+	return json.Marshal(runtimeObservationRefJSON{RecordID: r.runtimeObservationRefID})
+}
+
+func (r *RuntimeObservationRef) UnmarshalJSON(data []byte) error {
+	var raw runtimeObservationRefJSON
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("core: unmarshal RuntimeObservationRef: %w", err)
+	}
+	v, err := NewRuntimeObservationRef(raw.RecordID)
+	if err != nil {
+		return err
+	}
+	*r = v
+	return nil
+}
+
 // TemplateRef identifies a Template at the identity level (PEOS-009).
 type TemplateRef struct{ templateRefID ArtifactID }
 

@@ -925,3 +925,194 @@ func TestLifecycleSubjectRefOpaque(t *testing.T) {
 		t.Errorf("round trip mismatch: got (%v, %v), want (%v, true)", decodedOpaque, ok, opaque)
 	}
 }
+
+// --- PEOS-008 Runtime record references (Packet J.1) -------------------------
+//
+// RuntimeBindingRecordRef, RuntimeUnbindingRecordRef, and
+// RuntimeObservationRef mirror ValidationClaimRef/ValidationExecutionRecordRef
+// exactly: each wraps its record's identity type, exposes RecordID/IsZero,
+// and marshals as {"record_id": "..."}. Tests below mirror
+// TestValidationExecutionRecordRef's shape for each of the three.
+
+func TestRuntimeBindingRecordRef(t *testing.T) {
+	if _, err := NewRuntimeBindingRecordRef(RuntimeBindingRecordID{}); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("empty identity: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+
+	recordID, err := NewRuntimeBindingRecordID("BIND-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := NewRuntimeBindingRecordRef(recordID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.IsZero() {
+		t.Error("valid RuntimeBindingRecordRef reports IsZero() = true")
+	}
+	var zero RuntimeBindingRecordRef
+	if !zero.IsZero() {
+		t.Error("zero-value RuntimeBindingRecordRef.IsZero() = false, want true")
+	}
+	if ref.RecordID() != recordID {
+		t.Error("RecordID() mismatch")
+	}
+
+	data, err := json.Marshal(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"record_id":"BIND-1"}` {
+		t.Errorf("Marshal = %s", data)
+	}
+	var decoded RuntimeBindingRecordRef
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded != ref {
+		t.Errorf("round trip mismatch: got %v, want %v", decoded, ref)
+	}
+
+	if err := json.Unmarshal([]byte(`{"record_id":""}`), &decoded); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("empty record_id: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+	if err := json.Unmarshal([]byte(`not json`), &decoded); err == nil {
+		t.Error("malformed JSON accepted, want error")
+	}
+	if decoded != ref {
+		t.Error("failed unmarshal did not preserve receiver")
+	}
+}
+
+func TestRuntimeUnbindingRecordRef(t *testing.T) {
+	if _, err := NewRuntimeUnbindingRecordRef(RuntimeUnbindingRecordID{}); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("empty identity: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+
+	recordID, err := NewRuntimeUnbindingRecordID("UNBIND-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := NewRuntimeUnbindingRecordRef(recordID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.IsZero() {
+		t.Error("valid RuntimeUnbindingRecordRef reports IsZero() = true")
+	}
+	var zero RuntimeUnbindingRecordRef
+	if !zero.IsZero() {
+		t.Error("zero-value RuntimeUnbindingRecordRef.IsZero() = false, want true")
+	}
+	if ref.RecordID() != recordID {
+		t.Error("RecordID() mismatch")
+	}
+
+	data, err := json.Marshal(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"record_id":"UNBIND-1"}` {
+		t.Errorf("Marshal = %s", data)
+	}
+	var decoded RuntimeUnbindingRecordRef
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded != ref {
+		t.Errorf("round trip mismatch: got %v, want %v", decoded, ref)
+	}
+
+	if err := json.Unmarshal([]byte(`{"record_id":""}`), &decoded); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("empty record_id: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+	if err := json.Unmarshal([]byte(`not json`), &decoded); err == nil {
+		t.Error("malformed JSON accepted, want error")
+	}
+	if decoded != ref {
+		t.Error("failed unmarshal did not preserve receiver")
+	}
+}
+
+func TestRuntimeObservationRef(t *testing.T) {
+	if _, err := NewRuntimeObservationRef(RuntimeObservationID{}); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("empty identity: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+
+	recordID, err := NewRuntimeObservationID("OBS-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := NewRuntimeObservationRef(recordID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ref.IsZero() {
+		t.Error("valid RuntimeObservationRef reports IsZero() = true")
+	}
+	var zero RuntimeObservationRef
+	if !zero.IsZero() {
+		t.Error("zero-value RuntimeObservationRef.IsZero() = false, want true")
+	}
+	if ref.RecordID() != recordID {
+		t.Error("RecordID() mismatch")
+	}
+
+	data, err := json.Marshal(ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != `{"record_id":"OBS-1"}` {
+		t.Errorf("Marshal = %s", data)
+	}
+	var decoded RuntimeObservationRef
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded != ref {
+		t.Errorf("round trip mismatch: got %v, want %v", decoded, ref)
+	}
+
+	if err := json.Unmarshal([]byte(`{"record_id":""}`), &decoded); !errors.Is(err, ErrEmptyIdentity) {
+		t.Errorf("empty record_id: error = %v, want %v", err, ErrEmptyIdentity)
+	}
+	if err := json.Unmarshal([]byte(`not json`), &decoded); err == nil {
+		t.Error("malformed JSON accepted, want error")
+	}
+	if decoded != ref {
+		t.Error("failed unmarshal did not preserve receiver")
+	}
+}
+
+// TestRuntimeRecordRefsUsableAsCorrectionTarget confirms
+// RuntimeBindingRecordRef and RuntimeUnbindingRecordRef satisfy
+// correctionTarget (IsZero() bool + json.Marshaler), so each can
+// instantiate RecordCorrectionRef[T] as PEOS-008 requires for Runtime
+// Binding Record (:282) and Runtime Unbinding Record (:314) correction.
+// RuntimeObservationRef deliberately is not exercised this way: PEOS-008
+// documents no correction reference for Runtime Observation.
+func TestRuntimeRecordRefsUsableAsCorrectionTarget(t *testing.T) {
+	bindingID, err := NewRuntimeBindingRecordID("BIND-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindingRef, err := NewRuntimeBindingRecordRef(bindingID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewRecordCorrectionRef(CorrectionKindCorrect, bindingRef); err != nil {
+		t.Fatalf("RuntimeBindingRecordRef as correction target: %v", err)
+	}
+
+	unbindingID, err := NewRuntimeUnbindingRecordID("UNBIND-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	unbindingRef, err := NewRuntimeUnbindingRecordRef(unbindingID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewRecordCorrectionRef(CorrectionKindReplace, unbindingRef); err != nil {
+		t.Fatalf("RuntimeUnbindingRecordRef as correction target: %v", err)
+	}
+}
