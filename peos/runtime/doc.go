@@ -27,11 +27,12 @@
 //	      RequirementReference     Revision-owned value (two participant levels)
 //	      Assertion                Revision-owned value
 //
-//	BindingRecord                 immutable record, not an Artifact       (Packet J.2)
-//	UnbindingRecord                immutable record, not an Artifact       (Packet J.2)
-//	Observation                    immutable record, not an Artifact       (Packet J.2)
-//	Violation                      immutable record, not an Artifact       (Packet J.2)
-//	Compliance Claim               core.ClaimTypeCompliance value on validation.Claim (Packet J.2)
+//	BindingRecord                 immutable record, not an Artifact
+//	UnbindingRecord                immutable record, not an Artifact
+//	Observation                    immutable record, not an Artifact
+//	ViolationTrigger               closed two-arm union (Observation | Evidence)
+//	Violation                      immutable record, not an Artifact
+//	Compliance Claim               core.ClaimTypeCompliance value on validation.Claim (no dedicated type)
 //
 //	Current Runtime Binding        derived view, never stored              (repository-owned)
 //	Runtime Compliance             derived view, never stored              (repository-owned)
@@ -59,9 +60,9 @@
 // and actual deployment are five distinct, independently inspectable
 // conditions, and none implies another. This package models only the
 // first two (Contract, ContractRevision/ContractContent); binding is a
-// separate immutable record (Packet J.2), never Revision content, and
-// creating a new Contract Revision does not, by itself, change which
-// Revision is currently bound to a runtime subject.
+// separate immutable record (BindingRecord, UnbindingRecord), never
+// Revision content, and creating a new Contract Revision does not, by
+// itself, change which Revision is currently bound to a runtime subject.
 //
 // # The one explicit cardinality minimum
 //
@@ -110,10 +111,10 @@
 // PEOS-008 defines no runtime invocation, execution request, or execution
 // result. Actual runtime execution, scheduling, retries, and timeouts are
 // entirely Product-owned and out of scope. This package therefore does not
-// reuse validation.ExecutionRecord for anything: a future Runtime
-// Observation (Packet J.2) records a runtime measurement or event, not the
-// execution of a planned validation activity, and conflating the two would
-// assert an ontology PEOS-008 does not state.
+// reuse validation.ExecutionRecord for anything: Observation records a
+// runtime measurement or event, not the execution of a planned validation
+// activity, and conflating the two would assert an ontology PEOS-008 does
+// not state.
 //
 // # No lifecycle duplication
 //
@@ -166,13 +167,13 @@
 //
 // # Package dependency boundary
 //
-// During Packet J.1, production sources may import only the standard
-// library and peos/core. peos/validation is not imported in J.1, because
-// Compliance Claim construction -- the one PEOS-008 concept that touches
-// PEOS-006's mechanism -- is Packet J.2's, not this file's.
-// peos/relation, peos/lifecycle, peos/requirement, peos/decision, and
-// peos/quality are all excluded, each for a reason stated above. Nothing
-// imports peos/runtime: it is a leaf.
+// Production sources may import only the standard library, peos/core, and
+// peos/validation. peos/validation is imported by exactly one file,
+// claim.go, for the Compliance Claim construction helper -- no other type
+// in this package composes or references validation.Claim. peos/relation,
+// peos/lifecycle, peos/requirement, peos/decision, and peos/quality are
+// all excluded, each for a reason stated above. Nothing imports
+// peos/runtime: it is a leaf.
 //
 // # Core impact
 //
@@ -217,23 +218,48 @@
 //
 // # Packet scope
 //
-// Packet J.1 (this update) implemented the Runtime Contract Artifact
-// foundation: ArtifactTypeRuntimeContract, Contract, ContractApplicability,
+// Packet J.1 implemented the Runtime Contract Artifact foundation:
+// ArtifactTypeRuntimeContract, Contract, ContractApplicability,
 // RequirementReference, ContractContent, ContractRevision, Assertion, and
 // the three runtime-local vocabulary wrappers (Environment,
 // ViolationClassification, ViolationSeverity), plus the additive
 // peos/core change described above.
 //
-// Packet J.2 will add BindingRecord, UnbindingRecord, Observation,
-// Violation, and the Compliance Claim construction helper (which returns a
-// validation.Claim with core.ClaimTypeCompliance -- there is no dedicated
-// ComplianceClaim type, because PEOS-008 imposes no rule on a Compliance
-// Claim beyond what PEOS-006 already enforces). J.1 declares four
-// aggregate sentinels reserved for that work
+// Packet J.2 (this update) added the four immutable enforcement records
+// and the Compliance Claim helper: BindingRecord and UnbindingRecord
+// (correction-bearing, via core.RecordCorrectionRef[core.RuntimeBindingRecordRef]
+// and core.RecordCorrectionRef[core.RuntimeUnbindingRecordRef]
+// respectively); Observation (no correction reference; explicit,
+// non-automatic Evidence citation via []core.EvidenceArtifactRevisionRef);
+// ViolationTrigger (a closed two-arm union naming the exact Observation or
+// Evidence that triggered a Violation) and Violation itself (no correction
+// reference; its applicable-Waiver field is an opaque description, not a
+// typed reference, because peos/requirement.Waiver has no independent
+// identity to reference -- see RJ-1 below); and NewComplianceClaim, which
+// delegates to validation.NewClaim with the Claim Type fixed to
+// core.ClaimTypeCompliance and returns an ordinary validation.Claim -- no
+// ComplianceClaim type exists, because PEOS-008 imposes no rule on a
+// Compliance Claim beyond what PEOS-006 already enforces. All four
+// sentinels J.1 reserved for this work
 // (ErrInvalidRuntimeBindingRecord, ErrInvalidRuntimeUnbindingRecord,
-// ErrInvalidRuntimeObservation, ErrInvalidRuntimeViolation) so J.2 does not
-// have to reopen errors.go, following the convention Packet H.1/I.1
+// ErrInvalidRuntimeObservation, ErrInvalidRuntimeViolation) are now active;
+// no new sentinel was declared, following the convention Packet H.1/I.1
 // established.
+//
+// # RJ-1 -- Waiver representation limitation
+//
+// PEOS-008 ":524-530" lets a Runtime Violation identify "an applicable
+// Waiver, if any" and a Compliance Claim's criteria "include... applicable
+// Waiver conditions." peos/requirement.Waiver, as PEOS-005 defines and
+// implements it, has no independent identity, no Ref type, and no
+// conditions field -- so no exact core.CriterionRef arm or dedicated
+// reference type can cite one, and this package does not add either
+// without modifying peos/requirement or peos/core, which is out of this
+// packet's scope. Violation.WithApplicableWaiver therefore accepts only an
+// opaque, trimmed description, not a typed reference. This limitation is
+// already recorded in the tracker under NOTE G-05 and is not a new gap
+// introduced here; Packet J.3 should independently re-confirm it remains
+// non-blocking.
 //
 // No PEOS-008 packet has an accepted audit verdict yet; Packet J.3 is the
 // consolidated audit and Packet J.4 the closure.

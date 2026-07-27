@@ -57,26 +57,29 @@ func parsePackageImports(t *testing.T, dir string, includeTests bool) map[string
 	return result
 }
 
-// TestProductionImportBoundary locks this package's Packet J.1 dependency
-// rule: production sources may import only the standard library and
-// peos/core.
+// TestProductionImportBoundary locks this package's final dependency rule:
+// production sources may import only the standard library, peos/core, and
+// peos/validation.
 //
-// peos/validation is deliberately NOT permitted yet: Compliance Claim
-// construction is Packet J.2's work, not J.1's, so this test asserts the
-// narrower boundary and must be updated (not silently loosened) when J.2
-// adds that import. peos/relation, peos/lifecycle, peos/requirement, and
-// peos/decision are excluded for the reasons doc.go states: Requirement
+// peos/validation is permitted, and as of Packet J.2 is actually required:
+// claim.go's NewComplianceClaim delegates to validation.NewClaim, because
+// PEOS-008 specializes PEOS-006's Claim mechanism rather than redefining
+// it. The test asserts that at least one production file imports it, so
+// the delegation cannot be quietly replaced by a re-declared local type.
+// peos/relation, peos/lifecycle, peos/requirement, peos/decision, and
+// peos/quality are excluded for the reasons doc.go states: Requirement
 // references are Revision-owned content rather than Artifact Relations; a
 // Runtime Contract's optional activation is governed exclusively by
 // peos/lifecycle, never duplicated here; a Runtime Contract never becomes
-// a Requirement subtype; and a runtime outcome is never governance
-// authority.
+// a Requirement subtype; peos/requirement.Waiver is referenced only by
+// opaque description, never by importing peos/requirement; and a runtime
+// outcome is never governance authority.
 func TestProductionImportBoundary(t *testing.T) {
 	allowed := map[string]bool{
-		peosModulePrefix + "core": true,
+		peosModulePrefix + "core":       true,
+		peosModulePrefix + "validation": true,
 	}
 	forbidden := []string{
-		peosModulePrefix + "validation",
 		peosModulePrefix + "relation",
 		peosModulePrefix + "lifecycle",
 		peosModulePrefix + "requirement",
@@ -86,6 +89,7 @@ func TestProductionImportBoundary(t *testing.T) {
 
 	byFile := parsePackageImports(t, ".", false)
 	sawCore := false
+	sawValidation := false
 	for name, paths := range byFile {
 		for _, path := range paths {
 			if !strings.HasPrefix(path, peosModulePrefix) {
@@ -93,12 +97,15 @@ func TestProductionImportBoundary(t *testing.T) {
 				continue
 			}
 			if allowed[path] {
-				if path == peosModulePrefix+"core" {
+				switch path {
+				case peosModulePrefix + "core":
 					sawCore = true
+				case peosModulePrefix + "validation":
+					sawValidation = true
 				}
 				continue
 			}
-			t.Errorf("%s imports %q; Packet J.1 production sources may import only the standard library and peos/core", name, path)
+			t.Errorf("%s imports %q; production sources may import only the standard library, peos/core, and peos/validation", name, path)
 		}
 		for _, bad := range forbidden {
 			for _, path := range paths {
@@ -111,13 +118,17 @@ func TestProductionImportBoundary(t *testing.T) {
 	if !sawCore {
 		t.Errorf("no production file imports %q; the helper may be parsing the wrong directory", peosModulePrefix+"core")
 	}
+	if !sawValidation {
+		t.Errorf("no production file imports %q; NewComplianceClaim must delegate to validation.NewClaim, not re-declare it", peosModulePrefix+"validation")
+	}
 }
 
-// TestTestImportBoundary applies the same Packet J.1 rule to this
-// package's own test sources.
+// TestTestImportBoundary applies the same rule to this package's own test
+// sources.
 func TestTestImportBoundary(t *testing.T) {
 	allowed := map[string]bool{
-		peosModulePrefix + "core": true,
+		peosModulePrefix + "core":       true,
+		peosModulePrefix + "validation": true,
 	}
 
 	byFile := parsePackageImports(t, ".", true)
@@ -130,7 +141,7 @@ func TestTestImportBoundary(t *testing.T) {
 				continue
 			}
 			if !allowed[path] {
-				t.Errorf("%s imports %q; Packet J.1 test sources may import only the standard library and peos/core", name, path)
+				t.Errorf("%s imports %q; test sources may import only the standard library, peos/core, and peos/validation", name, path)
 			}
 		}
 	}
@@ -188,12 +199,6 @@ var forbiddenTypeNames = []string{
 	"StateAssignment",
 	"Relation",
 	"RuntimeRelation",
-	// Packet J.2 concepts: not yet implemented, must not exist early under
-	// a different name or with a different shape.
-	"BindingRecord",
-	"UnbindingRecord",
-	"Observation",
-	"Violation",
 }
 
 // TestNoForbiddenTypeDeclared parses this package's production sources and
@@ -398,5 +403,222 @@ func TestOwnedValueVocabularyWrappersExposeNoIdentity(t *testing.T) {
 	}
 	for typeName, typ := range types {
 		assertNoMethods(t, typeName, typ, forbidden)
+	}
+}
+
+// --- Packet J.2 structural audits -------------------------------------------
+
+// TestPacketJ2TypesNowDeclared is the positive counterpart to
+// TestNoForbiddenTypeDeclared: BindingRecord, UnbindingRecord,
+// Observation, ViolationTrigger, and Violation, plus their constructors,
+// must now exist. "ComplianceClaim" remains in forbiddenTypeNames above --
+// NewComplianceClaim returns an ordinary validation.Claim.
+func TestPacketJ2TypesNowDeclared(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	declared := make(map[string]bool)
+	fset := token.NewFileSet()
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+		for declName := range file.Scope.Objects {
+			declared[declName] = true
+		}
+	}
+	for _, name := range []string{
+		"BindingRecord", "NewBindingRecord",
+		"UnbindingRecord", "NewUnbindingRecord",
+		"Observation", "NewObservation",
+		"ViolationTrigger", "NewObservationTrigger", "NewEvidenceTrigger",
+		"Violation", "NewViolationFromObservation", "NewViolationFromEvidence",
+		"NewComplianceClaim",
+	} {
+		if !declared[name] {
+			t.Errorf("%q is not declared; Packet J.2 must implement it", name)
+		}
+	}
+}
+
+// recordForbiddenMethods are methods no PEOS-008 immutable enforcement
+// record may expose: Artifact/Revision identity (none of the four records
+// is an Artifact), lifecycle, relation, and every mutable/derived-state
+// synonym this package forbids package-wide.
+var recordForbiddenMethods = append([]string{
+	"ArtifactID", "RevisionID", "Revision", "Core",
+}, runtimeMutableStateForbiddenMethods...)
+
+// TestBindingRecordExposesNoForbiddenMethod audits BindingRecord: no
+// Artifact identity, no lifecycle, no mutable "current"/"bound" state, and
+// no mandatory-field modifier -- only the optional-state With* methods
+// PEOS-008 permits.
+func TestBindingRecordExposesNoForbiddenMethod(t *testing.T) {
+	forbidden := append([]string{
+		"WithContractRevision", "WithSubject", "WithEnvironment",
+		"WithScope", "WithBoundAt", "WithActor", "WithProvenance",
+		"WithID", "WithoutID",
+	}, recordForbiddenMethods...)
+	assertNoMethods(t, "BindingRecord", reflect.TypeOf(BindingRecord{}), forbidden)
+
+	typ := reflect.TypeOf(BindingRecord{})
+	var modifiers []string
+	for i := range typ.NumMethod() {
+		name := typ.Method(i).Name
+		if strings.HasPrefix(name, "With") {
+			modifiers = append(modifiers, name)
+		}
+	}
+	slices.Sort(modifiers)
+	want := []string{
+		"WithAuthority", "WithConfigurationReference", "WithCorrection",
+		"WithDeploymentTimestamp", "WithExtension", "WithLimitations",
+		"WithoutAuthority", "WithoutConfigurationReference", "WithoutCorrection",
+		"WithoutDeploymentTimestamp", "WithoutExtension",
+	}
+	if !slices.Equal(modifiers, want) {
+		t.Errorf("BindingRecord modifiers = %v, want exactly %v", modifiers, want)
+	}
+}
+
+// TestUnbindingRecordExposesNoForbiddenMethod audits UnbindingRecord: no
+// Artifact identity, no lifecycle, no mutable "unbound"/"current" state.
+func TestUnbindingRecordExposesNoForbiddenMethod(t *testing.T) {
+	forbidden := append([]string{
+		"WithBinding", "WithSubject", "WithTerminatedAt", "WithReason",
+		"WithActor", "WithProvenance", "WithID", "WithoutID",
+	}, recordForbiddenMethods...)
+	assertNoMethods(t, "UnbindingRecord", reflect.TypeOf(UnbindingRecord{}), forbidden)
+
+	typ := reflect.TypeOf(UnbindingRecord{})
+	var modifiers []string
+	for i := range typ.NumMethod() {
+		name := typ.Method(i).Name
+		if strings.HasPrefix(name, "With") {
+			modifiers = append(modifiers, name)
+		}
+	}
+	slices.Sort(modifiers)
+	want := []string{
+		"WithAuthority", "WithCorrection", "WithExtension",
+		"WithoutAuthority", "WithoutCorrection", "WithoutExtension",
+	}
+	if !slices.Equal(modifiers, want) {
+		t.Errorf("UnbindingRecord modifiers = %v, want exactly %v", modifiers, want)
+	}
+}
+
+// TestObservationExposesNoForbiddenMethod audits Observation: no Artifact
+// identity, no lifecycle, no execution/outcome API, and -- critically --
+// no correction API, since PEOS-008 documents none for Observation.
+func TestObservationExposesNoForbiddenMethod(t *testing.T) {
+	// "Source" is deliberately excluded from this test's forbidden set:
+	// Observation.Source() legitimately returns "the actor or system
+	// source" PEOS-008 requires, distinct from a relation endpoint. Every
+	// other package-wide forbidden name still applies.
+	forbidden := []string{
+		"ArtifactID", "RevisionID", "Revision", "Core",
+		"Bind", "Unbind", "Deploy", "Activate",
+		"SetState", "SetStatus", "SetCompliance",
+		"MarkCompliant", "MarkViolated",
+		"CurrentBinding", "LatestBinding", "EffectiveBinding",
+		"Bound", "ActiveDeployment", "Deployed", "Compliant",
+		"Lifecycle", "State", "Status", "StateAssignment",
+		"Relation", "RelationType", "Target",
+		"WithSubject", "WithObservedAt", "WithObservedValue",
+		"WithCollectionMethod", "WithSource", "WithProvenance",
+		"WithID", "WithoutID",
+		"WithCorrection", "WithoutCorrection",
+		"Outcome", "Result", "Success", "Failure", "ExecutionOutcome",
+	}
+	assertNoMethods(t, "Observation", reflect.TypeOf(Observation{}), forbidden)
+
+	typ := reflect.TypeOf(Observation{})
+	var modifiers []string
+	for i := range typ.NumMethod() {
+		name := typ.Method(i).Name
+		if strings.HasPrefix(name, "With") {
+			modifiers = append(modifiers, name)
+		}
+	}
+	slices.Sort(modifiers)
+	want := []string{
+		"WithBinding", "WithEnvironment", "WithEvidence", "WithExtension",
+		"WithInterval", "WithLimitations", "WithUncertainty",
+		"WithUnitScaleOrEventType", "WithoutBinding", "WithoutEnvironment",
+		"WithoutExtension", "WithoutInterval", "WithoutUncertainty",
+		"WithoutUnitScaleOrEventType",
+	}
+	if !slices.Equal(modifiers, want) {
+		t.Errorf("Observation modifiers = %v, want exactly %v", modifiers, want)
+	}
+}
+
+// TestViolationTriggerHasExactlyTwoArms asserts ViolationTrigger exposes
+// exactly the observation and evidence arms, with no Incident arm and no
+// third generic-Artifact arm.
+func TestViolationTriggerHasExactlyTwoArms(t *testing.T) {
+	forbidden := []string{
+		"Incident", "Artifact", "ArtifactRevision", "WithIncident",
+	}
+	assertNoMethods(t, "ViolationTrigger", reflect.TypeOf(ViolationTrigger{}), forbidden)
+}
+
+// TestViolationExposesNoForbiddenMethod audits Violation: no Artifact
+// identity, no lifecycle, no mutable status/resolved/closed field, no
+// Decision Outcome, no Compliance Claim value, and no correction API,
+// since PEOS-008 documents none for Violation and no
+// core.RuntimeViolationRef type exists to serve as a correction target.
+func TestViolationExposesNoForbiddenMethod(t *testing.T) {
+	forbidden := append([]string{
+		"WithSubject", "WithCriterion", "WithTrigger", "WithOccurredAt",
+		"WithClassification", "WithScope", "WithProvenance",
+		"WithID", "WithoutID", "Ref",
+		"WithCorrection", "WithoutCorrection",
+		"Resolved", "Closed", "Status", "RemediationAuthority",
+		"DecisionOutcome", "ComplianceClaim", "Outcome",
+	}, recordForbiddenMethods...)
+	assertNoMethods(t, "Violation", reflect.TypeOf(Violation{}), forbidden)
+
+	typ := reflect.TypeOf(Violation{})
+	var modifiers []string
+	for i := range typ.NumMethod() {
+		name := typ.Method(i).Name
+		if strings.HasPrefix(name, "With") {
+			modifiers = append(modifiers, name)
+		}
+	}
+	slices.Sort(modifiers)
+	want := []string{
+		"WithApplicableWaiver", "WithBinding", "WithExtension", "WithInterval",
+		"WithLimitations", "WithRelatedClaims", "WithRelatedDecisions",
+		"WithSeverity", "WithUncertainty", "WithoutApplicableWaiver",
+		"WithoutBinding", "WithoutExtension", "WithoutInterval",
+		"WithoutSeverity", "WithoutUncertainty",
+	}
+	if !slices.Equal(modifiers, want) {
+		t.Errorf("Violation modifiers = %v, want exactly %v", modifiers, want)
+	}
+}
+
+// TestComplianceClaimHelperReturnsOrdinaryValidationClaim confirms
+// NewComplianceClaim's return type is validation.Claim, not a
+// package-local type, by asserting the function's reflected signature.
+func TestComplianceClaimHelperReturnsOrdinaryValidationClaim(t *testing.T) {
+	fn := reflect.ValueOf(NewComplianceClaim)
+	if fn.Type().NumOut() != 2 {
+		t.Fatalf("NewComplianceClaim returns %d values, want 2", fn.Type().NumOut())
+	}
+	if got := fn.Type().Out(0).String(); got != "validation.Claim" {
+		t.Errorf("NewComplianceClaim first result = %s, want validation.Claim", got)
+	}
+	if got := fn.Type().Out(1); got != reflect.TypeOf((*error)(nil)).Elem() {
+		t.Errorf("NewComplianceClaim second result = %v, want error", got)
 	}
 }
